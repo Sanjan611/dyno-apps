@@ -34,7 +34,7 @@ export default function ChatPanel() {
   const [isLoading, setIsLoading] = useState(false);
   const [viewingLogs, setViewingLogs] = useState(false);
   const [logs, setLogs] = useState<any>(null);
-  const { setSandboxId, setPreviewUrl, sandboxId } = useBuilderStore();
+  const { setSandboxId, setPreviewUrl, sandboxId, setProjectId } = useBuilderStore();
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -51,6 +51,55 @@ export default function ChatPanel() {
 
     // Check if this is the first user message
     const isFirstMessage = messages.length === 1 && messages[0].role === "assistant";
+
+    // If sandboxId already exists (loading existing project), skip sandbox creation
+    if (isFirstMessage && sandboxId) {
+      // Sandbox already exists, just generate code
+      setIsLoading(true);
+      try {
+        const codeResponse = await fetch("/api/generate-code", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userPrompt: newMessage.content,
+            sandboxId: sandboxId,
+          }),
+        });
+
+        const codeData = await codeResponse.json();
+
+        if (codeData.success) {
+          const successMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant",
+            content: `App code generated successfully! Your app is now ready. Check the preview panel to see it.`,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, successMessage]);
+        } else {
+          const errorMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant",
+            content: `Failed to generate code: ${codeData.error || "Unknown error"}`,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, errorMessage]);
+        }
+      } catch (error) {
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: `Error generating code: ${error instanceof Error ? error.message : "Unknown error"}`,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
 
     if (isFirstMessage) {
       setIsLoading(true);
@@ -73,6 +122,30 @@ export default function ChatPanel() {
             timestamp: new Date(),
           };
           setMessages((prev) => [...prev, sandboxMessage]);
+
+          // Auto-save project to gallery
+          try {
+            const saveResponse = await fetch("/api/projects", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                sandboxId: data.sandboxId,
+                name: null, // Will be extracted from firstMessage
+                description: null, // Will use firstMessage
+                firstMessage: newMessage.content,
+              }),
+            });
+
+            const saveData = await saveResponse.json();
+            if (saveData.success && saveData.project) {
+              setProjectId(saveData.project.id);
+            }
+          } catch (error) {
+            console.error("Error saving project:", error);
+            // Don't show error to user, just log it
+          }
 
           // Initialize Expo in the sandbox
           try {

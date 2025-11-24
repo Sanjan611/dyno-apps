@@ -1,3 +1,6 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,27 +13,40 @@ import {
 } from "@/components/ui/card";
 import { MoreVertical, PlusCircle } from "lucide-react";
 
+interface Project {
+  id: string;
+  sandboxId: string;
+  name: string;
+  description: string;
+  lastModified: string;
+}
+
 export default function ProjectGalleryPage() {
-  const mockProjects = [
-    {
-      id: 1,
-      name: "E-commerce App",
-      description: "A shopping app with cart and checkout",
-      lastModified: "2 hours ago",
-    },
-    {
-      id: 2,
-      name: "Fitness Tracker",
-      description: "Track workouts and nutrition",
-      lastModified: "1 day ago",
-    },
-    {
-      id: 3,
-      name: "Social Media Feed",
-      description: "Instagram-like social feed app",
-      lastModified: "3 days ago",
-    },
-  ];
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch("/api/projects");
+        const data = await response.json();
+
+        if (data.success) {
+          setProjects(data.projects || []);
+        } else {
+          setError(data.error || "Failed to load projects");
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load projects");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProjects();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
@@ -58,9 +74,24 @@ export default function ProjectGalleryPage() {
           </p>
         </div>
 
-        {mockProjects.length > 0 ? (
+        {isLoading ? (
+          <div className="text-center py-20">
+            <p className="text-muted-foreground">Loading projects...</p>
+          </div>
+        ) : error ? (
+          <div className="text-center py-20">
+            <p className="text-destructive">Error: {error}</p>
+            <Button
+              onClick={() => window.location.reload()}
+              className="mt-4"
+              variant="outline"
+            >
+              Retry
+            </Button>
+          </div>
+        ) : projects.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mockProjects.map((project) => (
+            {projects.map((project) => (
               <Card key={project.id} className="flex flex-col">
                 <CardHeader>
                   <CardTitle>{project.name}</CardTitle>
@@ -72,7 +103,7 @@ export default function ProjectGalleryPage() {
                   </span>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" asChild>
-                      <Link href="/builder">Open</Link>
+                      <Link href={`/builder?projectId=${project.id}`}>Open</Link>
                     </Button>
                     <Button variant="ghost" size="icon">
                       <MoreVertical className="w-4 h-4" />

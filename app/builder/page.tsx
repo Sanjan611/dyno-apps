@@ -2,19 +2,52 @@
 
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import ChatPanel from "@/components/builder/ChatPanel";
 import PreviewPanel from "@/components/builder/PreviewPanel";
 import { Button } from "@/components/ui/button";
 import { Save, MoreVertical, Home } from "lucide-react";
+import { useBuilderStore } from "@/lib/store";
 
 export default function BuilderPage() {
   const [leftWidth, setLeftWidth] = useState(50); // Percentage
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const searchParams = useSearchParams();
+  const { projectName, setProjectName, setProjectId, setSandboxId } = useBuilderStore();
 
   const handleMouseDown = () => {
     setIsDragging(true);
   };
+
+  // Load project from query parameters
+  useEffect(() => {
+    const projectId = searchParams.get("projectId");
+    const sandboxId = searchParams.get("sandboxId");
+
+    if (projectId) {
+      // Fetch project data
+      const loadProject = async () => {
+        try {
+          const response = await fetch(`/api/projects?projectId=${projectId}`);
+          const data = await response.json();
+
+          if (data.success && data.project) {
+            setProjectId(data.project.id);
+            setProjectName(data.project.name);
+            setSandboxId(data.project.sandboxId);
+          }
+        } catch (error) {
+          console.error("Error loading project:", error);
+        }
+      };
+
+      loadProject();
+    } else if (sandboxId) {
+      // Direct sandboxId provided
+      setSandboxId(sandboxId);
+    }
+  }, [searchParams, setProjectId, setProjectName, setSandboxId]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -59,7 +92,7 @@ export default function BuilderPage() {
           </Button>
           <div>
             <h1 className="text-lg font-bold">Dyno Apps Builder</h1>
-            <p className="text-sm text-muted-foreground">Untitled Project</p>
+            <p className="text-sm text-muted-foreground">{projectName}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
