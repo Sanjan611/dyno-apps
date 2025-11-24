@@ -91,10 +91,52 @@ export default function ChatPanel() {
               const expoMessage: Message = {
                 id: (Date.now() + 2).toString(),
                 role: "assistant",
-                content: `Expo application initialized! Preview is now available.`,
+                content: `Expo application initialized! Generating your app code...`,
                 timestamp: new Date(),
               };
               setMessages((prev) => [...prev, expoMessage]);
+
+              // Call the coding agent to generate/modify App.js
+              try {
+                const codeResponse = await fetch("/api/generate-code", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    userPrompt: newMessage.content,
+                    sandboxId: data.sandboxId,
+                  }),
+                });
+
+                const codeData = await codeResponse.json();
+
+                if (codeData.success) {
+                  const successMessage: Message = {
+                    id: (Date.now() + 3).toString(),
+                    role: "assistant",
+                    content: `App code generated successfully! Your app is now ready. Check the preview panel to see it.`,
+                    timestamp: new Date(),
+                  };
+                  setMessages((prev) => [...prev, successMessage]);
+                } else {
+                  const errorMessage: Message = {
+                    id: (Date.now() + 3).toString(),
+                    role: "assistant",
+                    content: `Failed to generate code: ${codeData.error || "Unknown error"}`,
+                    timestamp: new Date(),
+                  };
+                  setMessages((prev) => [...prev, errorMessage]);
+                }
+              } catch (error) {
+                const errorMessage: Message = {
+                  id: (Date.now() + 3).toString(),
+                  role: "assistant",
+                  content: `Error generating code: ${error instanceof Error ? error.message : "Unknown error"}`,
+                  timestamp: new Date(),
+                };
+                setMessages((prev) => [...prev, errorMessage]);
+              }
             } else {
               const errorDetails = initData.logs
                 ? `\n\nLogs:\nSTDOUT: ${initData.logs.stdout?.substring(0, 500)}\nSTDERR: ${initData.logs.stderr?.substring(0, 500)}`
@@ -136,18 +178,88 @@ export default function ChatPanel() {
       } finally {
         setIsLoading(false);
       }
-    }
+    } else {
+      // Subsequent messages: just call the coding agent
+      if (!sandboxId) {
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: "Error: No sandbox available. Please refresh the page and try again.",
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+        return;
+      }
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse: Message = {
-        id: (Date.now() + 2).toString(),
+      setIsLoading(true);
+      const thinkingMessageId = (Date.now() + 1).toString();
+      const thinkingMessage: Message = {
+        id: thinkingMessageId,
         role: "assistant",
-        content: "I understand. Let me create that for you...",
+        content: "Updating your app...",
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, aiResponse]);
-    }, 1000);
+      setMessages((prev) => [...prev, thinkingMessage]);
+
+      try {
+        const codeResponse = await fetch("/api/generate-code", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userPrompt: newMessage.content,
+            sandboxId: sandboxId,
+          }),
+        });
+
+        const codeData = await codeResponse.json();
+
+        if (codeData.success) {
+          // Remove the "thinking" message and add success message
+          setMessages((prev) => {
+            const filtered = prev.filter((msg) => msg.id !== thinkingMessageId);
+            return [
+              ...filtered,
+              {
+                id: (Date.now() + 2).toString(),
+                role: "assistant",
+                content: "App updated successfully! The changes should be visible in the preview.",
+                timestamp: new Date(),
+              },
+            ];
+          });
+        } else {
+          setMessages((prev) => {
+            const filtered = prev.filter((msg) => msg.id !== thinkingMessageId);
+            return [
+              ...filtered,
+              {
+                id: (Date.now() + 2).toString(),
+                role: "assistant",
+                content: `Failed to update app: ${codeData.error || "Unknown error"}`,
+                timestamp: new Date(),
+              },
+            ];
+          });
+        }
+      } catch (error) {
+        setMessages((prev) => {
+          const filtered = prev.filter((msg) => msg.id !== thinkingMessageId);
+          return [
+            ...filtered,
+            {
+              id: (Date.now() + 2).toString(),
+              role: "assistant",
+              content: `Error updating app: ${error instanceof Error ? error.message : "Unknown error"}`,
+              timestamp: new Date(),
+            },
+          ];
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
   };
 
   return (

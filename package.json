@@ -6,26 +6,32 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "baml:generate": "baml generate",
+    "baml:check": "baml check",
+    "baml:test": "baml test --dotenv --dotenv-path .env.local"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.0",
+    "@boundaryml/baml": "^0.213.0",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.554.0",
+    "modal": "^0.5.4",
     "next": "^15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^3.4.0",
-    "zustand": "^5.0.8",
-    "modal": "^0.5.4"
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.22",
+    "baml-cli": "^0.0.0",
     "eslint": "^8",
     "eslint-config-next": "15.1.6",
     "postcss": "^8",
