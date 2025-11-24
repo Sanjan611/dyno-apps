@@ -30,8 +30,10 @@ export default function ChatPanel() {
     },
   ]);
   const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [sandboxId, setSandboxId] = useState<string | null>(null);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
 
     const newMessage: Message = {
@@ -44,10 +46,56 @@ export default function ChatPanel() {
     setMessages([...messages, newMessage]);
     setInput("");
 
+    // Check if this is the first user message
+    const isFirstMessage = messages.length === 1 && messages[0].role === "assistant";
+
+    if (isFirstMessage) {
+      setIsLoading(true);
+      try {
+        const response = await fetch("/api/create-sandbox", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          setSandboxId(data.sandboxId);
+          const sandboxMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant",
+            content: `Sandbox created successfully! (ID: ${data.sandboxId})`,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, sandboxMessage]);
+        } else {
+          const errorMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant",
+            content: `Failed to create sandbox: ${data.error || "Unknown error"}`,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, errorMessage]);
+        }
+      } catch (error) {
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: `Error creating sandbox: ${error instanceof Error ? error.message : "Unknown error"}`,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
     // Simulate AI response
     setTimeout(() => {
       const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
+        id: (Date.now() + 2).toString(),
         role: "assistant",
         content: "I understand. Let me create that for you...",
         timestamp: new Date(),
@@ -99,7 +147,7 @@ export default function ChatPanel() {
             placeholder="Type your message..."
             className="flex-1"
           />
-          <Button onClick={handleSend} size="icon">
+          <Button onClick={handleSend} size="icon" disabled={isLoading}>
             <Send className="w-4 h-4" />
           </Button>
         </div>
