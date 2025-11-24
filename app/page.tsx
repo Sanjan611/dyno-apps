@@ -27,17 +27,31 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <div className="w-full max-w-3xl">
-        <Card className="border-0 shadow-none sm:border sm:shadow-sm">
-          <CardHeader className="text-center">
-            <CardTitle className="text-4xl lg:text-5xl font-bold">
-              Dyno Apps
-            </CardTitle>
-            <CardDescription className="text-lg lg:text-xl mt-2">
-              Build mobile applications using natural language with AI
-            </CardDescription>
-          </CardHeader>
+    <div className="min-h-screen bg-background">
+      {/* Menu Bar */}
+      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
+        <div className="container flex h-16 items-center justify-between px-4">
+          <Link href="/" className="flex items-center space-x-2">
+            <span className="text-2xl font-bold">Dyno Apps</span>
+          </Link>
+          <Button variant="default" className="px-6">
+            Login
+          </Button>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div className="flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-3xl">
+          <Card className="border-0 shadow-none sm:border sm:shadow-sm">
+            <CardHeader className="text-center">
+              <CardTitle className="text-4xl lg:text-5xl font-bold">
+                Build Your App with AI
+              </CardTitle>
+              <CardDescription className="text-lg lg:text-xl mt-2">
+                Build mobile applications using natural language with AI
+              </CardDescription>
+            </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit}>
               <div className="space-y-2">
@@ -69,6 +83,7 @@ export default function Home() {
             </Button>
           </CardFooter>
         </Card>
+      </div>
       </div>
     </div>
   );
