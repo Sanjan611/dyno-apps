@@ -1,4 +1,14 @@
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { MoreVertical, PlusCircle } from "lucide-react";
 
 export default function ProjectGalleryPage() {
   const mockProjects = [
@@ -25,71 +35,80 @@ export default function ProjectGalleryPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link
-              href="/"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Home
+            <Link href="/" className="text-xl font-bold">
+              Dyno Apps
             </Link>
-            <h1 className="text-2xl font-bold">Dyno Apps</h1>
           </div>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/builder"
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-            >
+          <Button asChild>
+            <Link href="/builder">
+              <PlusCircle className="w-4 h-4 mr-2" />
               New Project
             </Link>
-          </div>
+          </Button>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold mb-2">Project Gallery</h2>
+          <h2 className="text-3xl font-bold mb-1">Project Gallery</h2>
           <p className="text-muted-foreground">
             Manage and edit your mobile applications
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {mockProjects.map((project) => (
-            <div
-              key={project.id}
-              className="p-6 border rounded-lg hover:shadow-lg transition-shadow bg-card"
-            >
-              <h3 className="text-xl font-semibold mb-2">{project.name}</h3>
-              <p className="text-muted-foreground mb-4">
-                {project.description}
-              </p>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">
-                  {project.lastModified}
-                </span>
-                <Link
-                  href="/builder"
-                  className="text-primary hover:underline text-sm"
-                >
-                  Open
-                </Link>
-              </div>
-            </div>
-          ))}
+        {mockProjects.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {mockProjects.map((project) => (
+              <Card key={project.id} className="flex flex-col">
+                <CardHeader>
+                  <CardTitle>{project.name}</CardTitle>
+                  <CardDescription>{project.description}</CardDescription>
+                </CardHeader>
+                <CardFooter className="mt-auto flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    {project.lastModified}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href="/builder">Open</Link>
+                    </Button>
+                    <Button variant="ghost" size="icon">
+                      <MoreVertical className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardFooter>
+              </Card>
+            ))}
 
-          <Link
-            href="/builder"
-            className="p-6 border border-dashed rounded-lg hover:border-primary hover:bg-accent transition-colors flex items-center justify-center min-h-[200px]"
-          >
-            <div className="text-center">
-              <div className="text-4xl mb-2">+</div>
-              <p className="text-muted-foreground">Create New Project</p>
-            </div>
-          </Link>
-        </div>
+            <Card className="border-dashed hover:border-primary hover:bg-accent transition-colors">
+              <Link
+                href="/builder"
+                className="flex flex-col items-center justify-center h-full w-full"
+              >
+                <CardHeader className="text-center">
+                  <PlusCircle className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                  <CardTitle>Create New Project</CardTitle>
+                </CardHeader>
+              </Link>
+            </Card>
+          </div>
+        ) : (
+          <div className="text-center py-20 border border-dashed rounded-lg">
+            <h3 className="text-2xl font-semibold">No Projects Yet</h3>
+            <p className="text-muted-foreground mt-2 mb-4">
+              Click the button below to start building your first app.
+            </p>
+            <Button asChild>
+              <Link href="/builder">
+                <PlusCircle className="w-4 h-4 mr-2" />
+                Create New Project
+              </Link>
+            </Button>
+          </div>
+        )}
       </main>
     </div>
   );
 }
-

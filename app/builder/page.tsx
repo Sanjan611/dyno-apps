@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import ChatPanel from "@/components/builder/ChatPanel";
 import PreviewPanel from "@/components/builder/PreviewPanel";
+import { Button } from "@/components/ui/button";
+import { Save, MoreVertical, Home } from "lucide-react";
 
 export default function BuilderPage() {
   const [leftWidth, setLeftWidth] = useState(50); // Percentage
@@ -20,10 +22,10 @@ export default function BuilderPage() {
 
       const container = containerRef.current;
       const containerRect = container.getBoundingClientRect();
-      const newLeftWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+      const newLeftWidth =
+        ((e.clientX - containerRect.left) / containerRect.width) * 100;
 
-      // Constrain between 20% and 80% to prevent panels from becoming too small
-      const constrainedWidth = Math.max(20, Math.min(80, newLeftWidth));
+      const constrainedWidth = Math.max(25, Math.min(75, newLeftWidth));
       setLeftWidth(constrainedWidth);
     };
 
@@ -48,46 +50,47 @@ export default function BuilderPage() {
 
   return (
     <div className="h-screen flex flex-col bg-background">
-      {/* Header */}
-      <header className="border-b px-4 py-3 flex items-center">
+      <header className="border-b px-4 py-2 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link
-            href="/"
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Home
-          </Link>
-          <h1 className="text-xl font-bold">Dyno Apps Builder</h1>
-          <span className="text-sm text-muted-foreground">Untitled Project</span>
+          <Button variant="outline" size="icon" asChild>
+            <Link href="/">
+              <Home className="w-4 h-4" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-lg font-bold">Dyno Apps Builder</h1>
+            <p className="text-sm text-muted-foreground">Untitled Project</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline">
+            <Save className="w-4 h-4 mr-2" />
+            Save
+          </Button>
+          <Button variant="ghost" size="icon">
+            <MoreVertical className="w-4 h-4" />
+          </Button>
         </div>
       </header>
 
-      {/* Split Panel Layout */}
       <div ref={containerRef} className="flex-1 flex overflow-hidden relative">
-        {/* Left Panel - Chat */}
-        <div
-          className="border-r flex flex-col"
-          style={{ width: `${leftWidth}%` }}
-        >
+        <div className="border-r" style={{ width: `${leftWidth}%` }}>
           <ChatPanel />
         </div>
 
-        {/* Resizable Divider */}
         <div
           onMouseDown={handleMouseDown}
-          className={`absolute top-0 bottom-0 w-1 bg-border hover:bg-primary cursor-col-resize transition-colors z-10 ${
-            isDragging ? "bg-primary" : ""
-          }`}
+          className="absolute top-0 bottom-0 w-2 cursor-col-resize group z-10"
           style={{ left: `${leftWidth}%`, transform: "translateX(-50%)" }}
         >
-          <div className="absolute inset-y-0 left-1/2 w-4 -translate-x-1/2" />
+          <div
+            className={`w-0.5 h-full bg-border group-hover:bg-primary transition-colors mx-auto ${
+              isDragging ? "bg-primary" : ""
+            }`}
+          />
         </div>
 
-        {/* Right Panel - Preview/Code */}
-        <div
-          className="flex flex-col"
-          style={{ width: `${100 - leftWidth}%` }}
-        >
+        <div style={{ width: `${100 - leftWidth}%` }}>
           <PreviewPanel />
         </div>
       </div>

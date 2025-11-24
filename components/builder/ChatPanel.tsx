@@ -2,6 +2,15 @@
 
 import { useState } from "react";
 import { Send } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 interface Message {
   id: string;
@@ -15,7 +24,8 @@ export default function ChatPanel() {
     {
       id: "1",
       role: "assistant",
-      content: "Hello! I'm your AI assistant. Describe the mobile app you'd like to build, and I'll help you create it.",
+      content:
+        "Hello! I'm your AI assistant. Describe the mobile app you'd like to build, and I'll help you create it.",
       timestamp: new Date(),
     },
   ]);
@@ -47,16 +57,14 @@ export default function ChatPanel() {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Chat Header */}
-      <div className="p-4 border-b">
-        <h2 className="font-semibold">Chat</h2>
-        <p className="text-sm text-muted-foreground">
+    <div className="flex flex-col h-full bg-card">
+      <CardHeader>
+        <CardTitle>Chat</CardTitle>
+        <CardDescription>
           Describe your app in natural language
-        </p>
-      </div>
+        </CardDescription>
+      </CardHeader>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message) => (
           <div
@@ -69,7 +77,7 @@ export default function ChatPanel() {
               className={`max-w-[80%] rounded-lg p-3 ${
                 message.role === "user"
                   ? "bg-primary text-primary-foreground"
-                  : "bg-muted"
+                  : "bg-muted text-muted-foreground"
               }`}
             >
               <p className="text-sm">{message.content}</p>
@@ -81,23 +89,19 @@ export default function ChatPanel() {
         ))}
       </div>
 
-      {/* Input Area */}
       <div className="p-4 border-t">
         <div className="flex gap-2">
-          <input
+          <Input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && handleSend()}
             placeholder="Type your message..."
-            className="flex-1 px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            className="flex-1"
           />
-          <button
-            onClick={handleSend}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-          >
+          <Button onClick={handleSend} size="icon">
             <Send className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
       </div>
     </div>
