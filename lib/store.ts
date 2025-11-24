@@ -11,17 +11,25 @@ interface BuilderState {
   projectName: string;
   messages: Message[];
   generatedCode: string;
+  sandboxId: string | null;
+  previewUrl: string | null;
   setProjectName: (name: string) => void;
   addMessage: (message: Message) => void;
   setGeneratedCode: (code: string) => void;
+  setSandboxId: (id: string | null) => void;
+  setPreviewUrl: (url: string | null) => void;
 }
 
 export const useBuilderStore = create<BuilderState>((set) => ({
   projectName: "Untitled Project",
   messages: [],
   generatedCode: "",
+  sandboxId: null,
+  previewUrl: null,
   setProjectName: (name) => set({ projectName: name }),
   addMessage: (message) =>
     set((state) => ({ messages: [...state.messages, message] })),
   setGeneratedCode: (code) => set({ generatedCode: code }),
+  setSandboxId: (id) => set({ sandboxId: id }),
+  setPreviewUrl: (url) => set({ previewUrl: url }),
 }));

@@ -3,9 +3,11 @@
 import { useState } from "react";
 import AppPreview from "./AppPreview";
 import CodeViewer from "./CodeViewer";
+import { useBuilderStore } from "@/lib/store";
 
 export default function PreviewPanel() {
   const [activeView, setActiveView] = useState<"preview" | "code">("preview");
+  const { previewUrl } = useBuilderStore();
 
   return (
     <div className="flex flex-col h-full">
@@ -40,7 +42,11 @@ export default function PreviewPanel() {
 
       {/* Content Area */}
       <div className="flex-1 overflow-hidden">
-        {activeView === "preview" ? <AppPreview /> : <CodeViewer />}
+        {activeView === "preview" ? (
+          <AppPreview previewUrl={previewUrl} />
+        ) : (
+          <CodeViewer />
+        )}
       </div>
     </div>
   );

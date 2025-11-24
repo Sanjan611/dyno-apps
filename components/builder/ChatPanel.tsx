@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useBuilderStore } from "@/lib/store";
 
 interface Message {
   id: string;
@@ -31,7 +32,9 @@ export default function ChatPanel() {
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [sandboxId, setSandboxId] = useState<string | null>(null);
+  const [viewingLogs, setViewingLogs] = useState(false);
+  const [logs, setLogs] = useState<any>(null);
+  const { setSandboxId, setPreviewUrl, sandboxId } = useBuilderStore();
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -66,10 +69,53 @@ export default function ChatPanel() {
           const sandboxMessage: Message = {
             id: (Date.now() + 1).toString(),
             role: "assistant",
-            content: `Sandbox created successfully! (ID: ${data.sandboxId})`,
+            content: `Sandbox created successfully! Initializing Expo application...`,
             timestamp: new Date(),
           };
           setMessages((prev) => [...prev, sandboxMessage]);
+
+          // Initialize Expo in the sandbox
+          try {
+            const initResponse = await fetch("/api/init-expo", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ sandboxId: data.sandboxId }),
+            });
+
+            const initData = await initResponse.json();
+
+            if (initData.success) {
+              setPreviewUrl(initData.previewUrl);
+              const expoMessage: Message = {
+                id: (Date.now() + 2).toString(),
+                role: "assistant",
+                content: `Expo application initialized! Preview is now available.`,
+                timestamp: new Date(),
+              };
+              setMessages((prev) => [...prev, expoMessage]);
+            } else {
+              const errorDetails = initData.logs
+                ? `\n\nLogs:\nSTDOUT: ${initData.logs.stdout?.substring(0, 500)}\nSTDERR: ${initData.logs.stderr?.substring(0, 500)}`
+                : "";
+              const errorMessage: Message = {
+                id: (Date.now() + 2).toString(),
+                role: "assistant",
+                content: `Failed to initialize Expo: ${initData.error || "Unknown error"}${errorDetails}`,
+                timestamp: new Date(),
+              };
+              setMessages((prev) => [...prev, errorMessage]);
+            }
+          } catch (error) {
+            const errorMessage: Message = {
+              id: (Date.now() + 2).toString(),
+              role: "assistant",
+              content: `Error initializing Expo: ${error instanceof Error ? error.message : "Unknown error"}`,
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, errorMessage]);
+          }
         } else {
           const errorMessage: Message = {
             id: (Date.now() + 1).toString(),
@@ -107,13 +153,77 @@ export default function ChatPanel() {
   return (
     <div className="flex flex-col h-full bg-card">
       <CardHeader>
-        <CardTitle>Chat</CardTitle>
-        <CardDescription>
-          Describe your app in natural language
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Chat</CardTitle>
+            <CardDescription>
+              Describe your app in natural language
+            </CardDescription>
+          </div>
+          {sandboxId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                setViewingLogs(true);
+                try {
+                  const response = await fetch(
+                    `/api/sandbox-logs?sandboxId=${sandboxId}`
+                  );
+                  const data = await response.json();
+                  setLogs(data);
+                } catch (error) {
+                  console.error("Error fetching logs:", error);
+                } finally {
+                  setViewingLogs(false);
+                }
+              }}
+              disabled={viewingLogs}
+            >
+              {viewingLogs ? "Loading..." : "View Logs"}
+            </Button>
+          )}
+        </div>
       </CardHeader>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {logs && logs.success && (
+          <div className="mb-4 p-3 bg-muted rounded-lg text-xs font-mono overflow-auto max-h-60">
+            <div className="font-bold mb-2">Sandbox Logs:</div>
+            {logs.logs.expoLogs && (
+              <div className="mb-2">
+                <div className="font-semibold">Expo Logs:</div>
+                <pre className="whitespace-pre-wrap">{logs.logs.expoLogs}</pre>
+              </div>
+            )}
+            {logs.logs.processCheck && (
+              <div className="mb-2">
+                <div className="font-semibold">Running Processes:</div>
+                <pre className="whitespace-pre-wrap">{logs.logs.processCheck}</pre>
+              </div>
+            )}
+            {logs.logs.portCheck && (
+              <div className="mb-2">
+                <div className="font-semibold">Port Status:</div>
+                <pre className="whitespace-pre-wrap">{logs.logs.portCheck}</pre>
+              </div>
+            )}
+            {logs.logs.appDirCheck && (
+              <div className="mb-2">
+                <div className="font-semibold">App Directory:</div>
+                <pre className="whitespace-pre-wrap">{logs.logs.appDirCheck}</pre>
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLogs(null)}
+              className="mt-2"
+            >
+              Close
+            </Button>
+          </div>
+        )}
         {messages.map((message) => (
           <div
             key={message.id}
