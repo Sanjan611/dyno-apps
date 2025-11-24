@@ -21,9 +21,13 @@ export default function Home() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (appIdea.trim()) {
-      router.push("/builder");
-    }
+    if (!appIdea.trim()) return;
+
+    const params = new URLSearchParams({
+      prompt: appIdea.trim(),
+    });
+
+    router.push(`/builder?${params.toString()}`);
   };
 
   return (

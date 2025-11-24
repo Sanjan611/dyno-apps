@@ -15,6 +15,7 @@ export default function BuilderPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const { projectName, setProjectName, setProjectId, setSandboxId } = useBuilderStore();
+  const initialPrompt = searchParams.get("prompt") ?? "";
 
   const handleMouseDown = () => {
     setIsDragging(true);
@@ -108,7 +109,7 @@ export default function BuilderPage() {
 
       <div ref={containerRef} className="flex-1 flex overflow-hidden relative">
         <div className="border-r" style={{ width: `${leftWidth}%` }}>
-          <ChatPanel />
+          <ChatPanel initialPrompt={initialPrompt} />
         </div>
 
         <div

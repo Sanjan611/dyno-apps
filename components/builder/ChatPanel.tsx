@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,10 @@ import {
 } from "@/components/ui/card";
 import { useBuilderStore } from "@/lib/store";
 
+interface ChatPanelProps {
+  initialPrompt?: string;
+}
+
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -20,7 +24,7 @@ interface Message {
   timestamp: Date;
 }
 
-export default function ChatPanel() {
+export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -35,223 +39,230 @@ export default function ChatPanel() {
   const [viewingLogs, setViewingLogs] = useState(false);
   const [logs, setLogs] = useState<any>(null);
   const { setSandboxId, setPreviewUrl, sandboxId, setProjectId } = useBuilderStore();
+  const [hasSentInitialMessage, setHasSentInitialMessage] = useState(false);
+  const hasAutoSubmitted = useRef(false);
 
-  const handleSend = async () => {
-    if (!input.trim()) return;
+  const sendMessage = useCallback(
+    async (rawContent: string) => {
+      const content = rawContent.trim();
+      if (!content) return;
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: input,
-      timestamp: new Date(),
-    };
+      const newMessage: Message = {
+        id: Date.now().toString(),
+        role: "user",
+        content,
+        timestamp: new Date(),
+      };
 
-    setMessages([...messages, newMessage]);
-    setInput("");
+      setMessages((prev) => [...prev, newMessage]);
 
-    // Check if this is the first user message
-    const isFirstMessage = messages.length === 1 && messages[0].role === "assistant";
-
-    // If sandboxId already exists (loading existing project), skip sandbox creation
-    if (isFirstMessage && sandboxId) {
-      // Sandbox already exists, just generate code
-      setIsLoading(true);
-      try {
-        const codeResponse = await fetch("/api/generate-code", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            userPrompt: newMessage.content,
-            sandboxId: sandboxId,
-          }),
-        });
-
-        const codeData = await codeResponse.json();
-
-        if (codeData.success) {
-          const successMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            role: "assistant",
-            content: `App code generated successfully! Your app is now ready. Check the preview panel to see it.`,
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, successMessage]);
-        } else {
-          const errorMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            role: "assistant",
-            content: `Failed to generate code: ${codeData.error || "Unknown error"}`,
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, errorMessage]);
-        }
-      } catch (error) {
-        const errorMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content: `Error generating code: ${error instanceof Error ? error.message : "Unknown error"}`,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, errorMessage]);
-      } finally {
-        setIsLoading(false);
+      const isFirstMessage = !hasSentInitialMessage;
+      if (isFirstMessage) {
+        setHasSentInitialMessage(true);
       }
-      return;
-    }
 
-    if (isFirstMessage) {
-      setIsLoading(true);
-      try {
-        const response = await fetch("/api/create-sandbox", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
+      // If sandboxId already exists (loading existing project), skip sandbox creation
+      if (isFirstMessage && sandboxId) {
+        // Sandbox already exists, just generate code
+        setIsLoading(true);
+        try {
+          const codeResponse = await fetch("/api/generate-code", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userPrompt: newMessage.content,
+              sandboxId: sandboxId,
+            }),
+          });
 
-        const data = await response.json();
+          const codeData = await codeResponse.json();
 
-        if (data.success) {
-          setSandboxId(data.sandboxId);
-          const sandboxMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            role: "assistant",
-            content: `Sandbox created successfully! Initializing Expo application...`,
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, sandboxMessage]);
-
-          // Auto-save project to gallery
-          try {
-            const saveResponse = await fetch("/api/projects", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                sandboxId: data.sandboxId,
-                name: null, // Will be extracted from firstMessage
-                description: null, // Will use firstMessage
-                firstMessage: newMessage.content,
-              }),
-            });
-
-            const saveData = await saveResponse.json();
-            if (saveData.success && saveData.project) {
-              setProjectId(saveData.project.id);
-            }
-          } catch (error) {
-            console.error("Error saving project:", error);
-            // Don't show error to user, just log it
-          }
-
-          // Initialize Expo in the sandbox
-          try {
-            const initResponse = await fetch("/api/init-expo", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ sandboxId: data.sandboxId }),
-            });
-
-            const initData = await initResponse.json();
-
-            if (initData.success) {
-              setPreviewUrl(initData.previewUrl);
-              const expoMessage: Message = {
-                id: (Date.now() + 2).toString(),
-                role: "assistant",
-                content: `Expo application initialized! Generating your app code...`,
-                timestamp: new Date(),
-              };
-              setMessages((prev) => [...prev, expoMessage]);
-
-              // Call the coding agent to generate/modify App.js
-              try {
-                const codeResponse = await fetch("/api/generate-code", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({
-                    userPrompt: newMessage.content,
-                    sandboxId: data.sandboxId,
-                  }),
-                });
-
-                const codeData = await codeResponse.json();
-
-                if (codeData.success) {
-                  const successMessage: Message = {
-                    id: (Date.now() + 3).toString(),
-                    role: "assistant",
-                    content: `App code generated successfully! Your app is now ready. Check the preview panel to see it.`,
-                    timestamp: new Date(),
-                  };
-                  setMessages((prev) => [...prev, successMessage]);
-                } else {
-                  const errorMessage: Message = {
-                    id: (Date.now() + 3).toString(),
-                    role: "assistant",
-                    content: `Failed to generate code: ${codeData.error || "Unknown error"}`,
-                    timestamp: new Date(),
-                  };
-                  setMessages((prev) => [...prev, errorMessage]);
-                }
-              } catch (error) {
-                const errorMessage: Message = {
-                  id: (Date.now() + 3).toString(),
-                  role: "assistant",
-                  content: `Error generating code: ${error instanceof Error ? error.message : "Unknown error"}`,
-                  timestamp: new Date(),
-                };
-                setMessages((prev) => [...prev, errorMessage]);
-              }
-            } else {
-              const errorDetails = initData.logs
-                ? `\n\nLogs:\nSTDOUT: ${initData.logs.stdout?.substring(0, 500)}\nSTDERR: ${initData.logs.stderr?.substring(0, 500)}`
-                : "";
-              const errorMessage: Message = {
-                id: (Date.now() + 2).toString(),
-                role: "assistant",
-                content: `Failed to initialize Expo: ${initData.error || "Unknown error"}${errorDetails}`,
-                timestamp: new Date(),
-              };
-              setMessages((prev) => [...prev, errorMessage]);
-            }
-          } catch (error) {
-            const errorMessage: Message = {
-              id: (Date.now() + 2).toString(),
+          if (codeData.success) {
+            const successMessage: Message = {
+              id: (Date.now() + 1).toString(),
               role: "assistant",
-              content: `Error initializing Expo: ${error instanceof Error ? error.message : "Unknown error"}`,
+              content: `App code generated successfully! Your app is now ready. Check the preview panel to see it.`,
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, successMessage]);
+          } else {
+            const errorMessage: Message = {
+              id: (Date.now() + 1).toString(),
+              role: "assistant",
+              content: `Failed to generate code: ${codeData.error || "Unknown error"}`,
               timestamp: new Date(),
             };
             setMessages((prev) => [...prev, errorMessage]);
           }
-        } else {
+        } catch (error) {
           const errorMessage: Message = {
             id: (Date.now() + 1).toString(),
             role: "assistant",
-            content: `Failed to create sandbox: ${data.error || "Unknown error"}`,
+            content: `Error generating code: ${error instanceof Error ? error.message : "Unknown error"}`,
             timestamp: new Date(),
           };
           setMessages((prev) => [...prev, errorMessage]);
+        } finally {
+          setIsLoading(false);
         }
-      } catch (error) {
-        const errorMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content: `Error creating sandbox: ${error instanceof Error ? error.message : "Unknown error"}`,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, errorMessage]);
-      } finally {
-        setIsLoading(false);
+        return;
       }
-    } else {
+
+      if (isFirstMessage) {
+        setIsLoading(true);
+        try {
+          const response = await fetch("/api/create-sandbox", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            setSandboxId(data.sandboxId);
+            const sandboxMessage: Message = {
+              id: (Date.now() + 1).toString(),
+              role: "assistant",
+              content: `Sandbox created successfully! Initializing Expo application...`,
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, sandboxMessage]);
+
+            // Auto-save project to gallery
+            try {
+              const saveResponse = await fetch("/api/projects", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  sandboxId: data.sandboxId,
+                  name: null, // Will be extracted from firstMessage
+                  description: null, // Will use firstMessage
+                  firstMessage: newMessage.content,
+                }),
+              });
+
+              const saveData = await saveResponse.json();
+              if (saveData.success && saveData.project) {
+                setProjectId(saveData.project.id);
+              }
+            } catch (error) {
+              console.error("Error saving project:", error);
+              // Don't show error to user, just log it
+            }
+
+            // Initialize Expo in the sandbox
+            try {
+              const initResponse = await fetch("/api/init-expo", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ sandboxId: data.sandboxId }),
+              });
+
+              const initData = await initResponse.json();
+
+              if (initData.success) {
+                setPreviewUrl(initData.previewUrl);
+                const expoMessage: Message = {
+                  id: (Date.now() + 2).toString(),
+                  role: "assistant",
+                  content: `Expo application initialized! Generating your app code...`,
+                  timestamp: new Date(),
+                };
+                setMessages((prev) => [...prev, expoMessage]);
+
+                // Call the coding agent to generate/modify App.js
+                try {
+                  const codeResponse = await fetch("/api/generate-code", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                      userPrompt: newMessage.content,
+                      sandboxId: data.sandboxId,
+                    }),
+                  });
+
+                  const codeData = await codeResponse.json();
+
+                  if (codeData.success) {
+                    const successMessage: Message = {
+                      id: (Date.now() + 3).toString(),
+                      role: "assistant",
+                      content: `App code generated successfully! Your app is now ready. Check the preview panel to see it.`,
+                      timestamp: new Date(),
+                    };
+                    setMessages((prev) => [...prev, successMessage]);
+                  } else {
+                    const errorMessage: Message = {
+                      id: (Date.now() + 3).toString(),
+                      role: "assistant",
+                      content: `Failed to generate code: ${codeData.error || "Unknown error"}`,
+                      timestamp: new Date(),
+                    };
+                    setMessages((prev) => [...prev, errorMessage]);
+                  }
+                } catch (error) {
+                  const errorMessage: Message = {
+                    id: (Date.now() + 3).toString(),
+                    role: "assistant",
+                    content: `Error generating code: ${error instanceof Error ? error.message : "Unknown error"}`,
+                    timestamp: new Date(),
+                  };
+                  setMessages((prev) => [...prev, errorMessage]);
+                }
+              } else {
+                const errorDetails = initData.logs
+                  ? `\n\nLogs:\nSTDOUT: ${initData.logs.stdout?.substring(0, 500)}\nSTDERR: ${initData.logs.stderr?.substring(0, 500)}`
+                  : "";
+                const errorMessage: Message = {
+                  id: (Date.now() + 2).toString(),
+                  role: "assistant",
+                  content: `Failed to initialize Expo: ${initData.error || "Unknown error"}${errorDetails}`,
+                  timestamp: new Date(),
+                };
+                setMessages((prev) => [...prev, errorMessage]);
+              }
+            } catch (error) {
+              const errorMessage: Message = {
+                id: (Date.now() + 2).toString(),
+                role: "assistant",
+                content: `Error initializing Expo: ${error instanceof Error ? error.message : "Unknown error"}`,
+                timestamp: new Date(),
+              };
+              setMessages((prev) => [...prev, errorMessage]);
+            }
+          } else {
+            const errorMessage: Message = {
+              id: (Date.now() + 1).toString(),
+              role: "assistant",
+              content: `Failed to create sandbox: ${data.error || "Unknown error"}`,
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, errorMessage]);
+          }
+        } catch (error) {
+          const errorMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant",
+            content: `Error creating sandbox: ${error instanceof Error ? error.message : "Unknown error"}`,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, errorMessage]);
+        } finally {
+          setIsLoading(false);
+        }
+        return;
+      }
+
       // Subsequent messages: just call the coding agent
       if (!sandboxId) {
         const errorMessage: Message = {
@@ -332,8 +343,31 @@ export default function ChatPanel() {
       } finally {
         setIsLoading(false);
       }
-    }
+    },
+    [
+      hasSentInitialMessage,
+      sandboxId,
+      setProjectId,
+      setPreviewUrl,
+      setSandboxId,
+      setMessages,
+    ]
+  );
+
+  const handleSend = async () => {
+    if (!input.trim()) return;
+    const message = input;
+    setInput("");
+    await sendMessage(message);
   };
+
+  useEffect(() => {
+    const prompt = initialPrompt?.trim();
+    if (!prompt || hasAutoSubmitted.current) return;
+
+    hasAutoSubmitted.current = true;
+    sendMessage(prompt);
+  }, [initialPrompt, sendMessage]);
 
   return (
     <div className="flex flex-col h-full bg-card">
