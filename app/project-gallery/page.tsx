@@ -25,6 +25,9 @@ export default function ProjectGalleryPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -47,6 +50,44 @@ export default function ProjectGalleryPage() {
 
     fetchProjects();
   }, []);
+
+  const handleDelete = async (projectId: string) => {
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return;
+
+    const confirmed = window.confirm(
+      `Delete "${project.name}"? This also terminates its sandbox and cannot be undone.`
+    );
+    if (!confirmed) {
+      setMenuOpenId(null);
+      return;
+    }
+
+    try {
+      setDeletingProjectId(projectId);
+      setActionError(null);
+      const response = await fetch("/api/delete-sandbox", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ projectId }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setProjects((prev) => prev.filter((p) => p.id !== projectId));
+      } else {
+        setActionError(data.error || "Failed to delete project");
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to delete project");
+    } finally {
+      setDeletingProjectId(null);
+      setMenuOpenId(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -73,6 +114,12 @@ export default function ProjectGalleryPage() {
             Manage and edit your mobile applications
           </p>
         </div>
+
+        {actionError && (
+          <div className="mb-6 rounded-md border border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            {actionError}
+          </div>
+        )}
 
         {isLoading ? (
           <div className="text-center py-20">
@@ -105,9 +152,30 @@ export default function ProjectGalleryPage() {
                     <Button variant="outline" size="sm" asChild>
                       <Link href={`/builder?projectId=${project.id}`}>Open</Link>
                     </Button>
-                    <Button variant="ghost" size="icon">
-                      <MoreVertical className="w-4 h-4" />
-                    </Button>
+                    <div className="relative">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() =>
+                          setMenuOpenId((prev) => (prev === project.id ? null : project.id))
+                        }
+                        aria-haspopup="menu"
+                        aria-expanded={menuOpenId === project.id}
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </Button>
+                      {menuOpenId === project.id && (
+                        <div className="absolute right-0 mt-2 w-36 rounded-md border bg-popover text-sm shadow-md z-20">
+                          <button
+                            className="w-full px-3 py-2 text-left hover:bg-destructive/10 text-destructive disabled:opacity-50"
+                            onClick={() => handleDelete(project.id)}
+                            disabled={deletingProjectId === project.id}
+                          >
+                            {deletingProjectId === project.id ? "Deleting..." : "Delete"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </CardFooter>
               </Card>
