@@ -53,6 +53,15 @@ client<llm> CustomHaiku {
   }
 }
 
+// Claude Sonnet 4.5 for agent functions
+client<llm> ClaudeSonnet {
+  provider anthropic
+  options {
+    model "claude-sonnet-4-5-20250929"
+    api_key env.ANTHROPIC_API_KEY
+  }
+}
+
 // Example Google AI client (uncomment to use)
 // client<llm> CustomGemini {
 //   provider google-ai

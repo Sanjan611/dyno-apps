@@ -1,75 +1,67 @@
-// Coding agent for modifying React Native applications using tool calling
+// Coding agent for implementing changes based on a plan
 
-// Message class for agent state
-class Message {
-  role "user" | "assistant"
-  message string | FileTools
-}
-
-// Reply class when agent is done
-class ReplyToUser {
-  action "reply_to_user"
-  message string
-}
-
-// Tool classes (following reference pattern)
-class ListFilesTool {
-  action "list_files" @description("List files and directories in a given directory path")
-  directoryPath string @description("Path to the directory to list")
-}
-
-class ReadFileTool {
-  action "read_file" @description("Read the content of a file")
-  filePath string @description("Path to the file to read")
-}
-
-class WriteFileTool {
-  action "write_file" @description("Write content to a file")
-  filePath string @description("Path to the file to write")
-  content string @description("The content to write to the file")
-}
-
-// Union type for all file tools
-type FileTools = ListFilesTool | ReadFileTool | WriteFileTool
-
-// Client for Claude Sonnet 4.5
-client<llm> ClaudeSonnet {
-  provider anthropic
-  options {
-    model "claude-sonnet-4-5-20250929"
-    api_key env.ANTHROPIC_API_KEY
-  }
-}
-
-// Agent loop function
-function AgentLoop(
+// Coding agent function - implements changes using plan and manages todos
+function CodingAgent(
   state: Message[],
-  working_dir: string
-) -> FileTools | ReplyToUser {
+  working_dir: string,
+  plan: Plan,
+  todos: TodoItem[]
+) -> FileTools | TodoTools | ReplyToUser {
   client ClaudeSonnet
   prompt #"
     {{ _.role("system") }}
-    You are a background coding agent creating a mobile application. The user is non-technical and should not see any technical details.
+    You are a coding agent for a mobile application development system. Your job is to implement changes to the codebase based on a provided plan, while tracking your progress using a todo list.
 
     # Environment Context
     Current working directory: {{ working_dir }}
+    
+    **IMPORTANT: All file operations must use absolute paths starting with {{ working_dir }}. Do NOT explore the root directory or any directories outside of {{ working_dir }}.**
 
-    # Available Tools
-    You have access to three file operation tools:
-    - list_files: List files and directories in a directory
-    - read_file: Read the content of a file
-    - write_file: Write content to a file
+    # Plan
+    Summary: {{ plan.summary }}
+    Steps:
+    {% for step in plan.steps %}
+    - {{ step }}
+    {% endfor %}
+
+    # Current Todo List
+    {% if todos | length > 0 %}
+    {% for todo in todos %}
+    - [{{ todo.status }}] {{ todo.content }} ({{ todo.activeForm }})
+    {% endfor %}
+    {% else %}
+    No todos yet. Initialize the todo list based on the plan steps using todo_write.
+    {% endif %}
 
     # Task
-    Your goal is to modify the mobile app based on the user's requirements. Use your judgment to determine which tools to call and in what order to accomplish the task effectively.
+    Your goal is to implement the changes specified in the plan. You should:
+    1. Use the todo_write tool to manage your todo list
+    2. Update the entire todo list whenever you need to change task statuses
+    3. Execute the implementation steps from the plan
+    4. When all todos are completed, reply to the user
+
+    # Todo List Management (TodoWrite Tool)
+    - Use the todo_write tool to replace the entire todo list with updated statuses
+    - Each todo item requires three fields:
+      - content: Imperative form (e.g., "Read App.js to understand current structure")
+      - activeForm: Present continuous form (e.g., "Reading App.js to understand current structure")
+      - status: "pending", "in_progress", or "completed"
+    - CRITICAL RULES:
+      - EXACTLY ONE task must be "in_progress" at any time
+      - Mark tasks as "completed" IMMEDIATELY after finishing (no batching)
+      - When starting a task, update the todo list with that task as "in_progress" and mark any previously in-progress task as "completed"
+      - Only mark tasks as "completed" when FULLY accomplished (tests passing, implementation complete, no errors)
+      - To update progress, replace the entire todo list with todo_write showing all tasks with updated statuses
 
     # Guidelines
     - Execute ONE tool at a time
-    - Explore the project structure if you need to understand the codebase
-    - Before making changes, read all relevant files to understand the full context (components, styles, utilities, etc.)
-    - Consider reading multiple files sequentially to gather context before writing any changes
-    - When you've completed the task, use reply_to_user with a simple, user-friendly message
-    - If you encounter errors from tool execution, analyze them and determine the appropriate next step
+    - **All file paths must be absolute paths starting with {{ working_dir }} (e.g., {{ working_dir }}/App.js, {{ working_dir }}/package.json)**
+    - **Do NOT explore directories outside of {{ working_dir }} - work only within the app directory**
+    - Before starting implementation, ensure the todo list matches the plan steps (use todo_write to initialize if needed)
+    - Read relevant files before making changes to understand the current implementation
+    - Make changes systematically, following the plan steps
+    - Update your todo list regularly to track progress
+    - When all todos are completed, use reply_to_user with a simple, user-friendly message
 
     # Communication Rules
     - NEVER mention technical details like file paths, code, file names, or implementation details in your reply_to_user messages
@@ -86,8 +78,8 @@ function AgentLoop(
   "#
 }
 
-test TestAgentLoopSimpleRequest {
-  functions [AgentLoop]
+test TestCodingAgentSimpleRequest {
+  functions [CodingAgent]
   args {
     state [
       {
@@ -96,11 +88,36 @@ test TestAgentLoopSimpleRequest {
       }
     ]
     working_dir "/my-app"
+    plan {
+      summary "Add a welcome message to the app"
+      steps [
+        "Read App.js to understand current structure"
+        "Add a welcome message component"
+        "Update the main screen to display the welcome message"
+      ]
+    }
+    todos [
+      {
+        content "Read App.js to understand current structure"
+        activeForm "Reading App.js to understand current structure"
+        status "in_progress"
+      }
+      {
+        content "Add a welcome message component"
+        activeForm "Adding a welcome message component"
+        status "pending"
+      }
+      {
+        content "Update the main screen to display the welcome message"
+        activeForm "Updating the main screen to display the welcome message"
+        status "pending"
+      }
+    ]
   }
 }
 
-test TestAgentLoopWithButton {
-  functions [AgentLoop]
+test TestCodingAgentWithButton {
+  functions [CodingAgent]
   args {
     state [
       {
@@ -109,6 +126,30 @@ test TestAgentLoopWithButton {
       }
     ]
     working_dir "/my-app"
+    plan {
+      summary "Add a button with text 'Click Me' to the app"
+      steps [
+        "Read App.js to understand current structure"
+        "Add a Button component with text 'Click Me'"
+        "Update the main screen to include the button"
+      ]
+    }
+    todos [
+      {
+        content "Read App.js to understand current structure"
+        activeForm "Reading App.js to understand current structure"
+        status "in_progress"
+      }
+      {
+        content "Add a Button component with text 'Click Me'"
+        activeForm "Adding a Button component with text 'Click Me'"
+        status "pending"
+      }
+      {
+        content "Update the main screen to include the button"
+        activeForm "Updating the main screen to include the button"
+        status "pending"
+      }
+    ]
   }
 }
-

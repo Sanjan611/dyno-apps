@@ -8,6 +8,11 @@ import type {
   Message,
   ReplyToUser,
   FileTools,
+  ReadOnlyTools,
+  Plan,
+  TodoItem,
+  TodoWriteTool,
+  TodoTools,
 } from "@/baml_client/types";
 
 // Tool execution functions - return error strings on failure
@@ -104,6 +109,28 @@ function extractFilesFromState(state: Message[]): Record<string, string> {
   return files;
 }
 
+// Todo management function
+async function executeTodoWrite(
+  tool: TodoWriteTool,
+  todoList: TodoItem[]
+): Promise<{ result: string; updatedList: TodoItem[] }> {
+  const updatedList = tool.todos;
+  // Validate that exactly one task is in_progress
+  const inProgressCount = updatedList.filter((todo) => todo.status === "in_progress").length;
+  let result = `Todo list updated. ${updatedList.length} items.`;
+  if (inProgressCount !== 1 && updatedList.some((todo) => todo.status !== "completed")) {
+    result += ` Warning: Expected exactly one task in_progress, found ${inProgressCount}.`;
+  }
+  return {
+    result,
+    updatedList,
+  };
+}
+
+function areAllTodosCompleted(todoList: TodoItem[]): boolean {
+  return todoList.length > 0 && todoList.every((todo) => todo.status === "completed");
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { userPrompt, sandboxId } = await request.json();
@@ -144,84 +171,167 @@ export async function POST(request: NextRequest) {
     const sandbox = await modal.sandboxes.fromId(sandboxId);
     console.log("[generate-code] Sandbox reference obtained:", sandbox.sandboxId);
 
-    // Initialize message state
-    const state: Message[] = [
+    const workingDir = "/my-app";
+    const maxIterations = 20;
+    const modifiedFiles: Record<string, string> = {};
+
+    // ============================================
+    // PHASE 1: PLANNING AGENT
+    // ============================================
+    console.log("[generate-code] Starting planning phase...");
+    const planningState: Message[] = [
       {
         role: "user",
         message: userPrompt,
       },
     ];
 
-    // Initialize variables
-    const modifiedFiles: Record<string, string> = {}; // Track all modified files
-    const maxIterations = 5;
-    let iterations = 0;
+    let plan: Plan | null = null;
+    let planIterations = 0;
 
-    // Agentic loop (max 5 iterations)
-    console.log("[generate-code] Starting agentic loop...");
-    while (iterations < maxIterations) {
-      iterations++;
-      console.log(`[generate-code] Iteration ${iterations}/${maxIterations}`);
+    while (planIterations < maxIterations) {
+      planIterations++;
+      console.log(`[generate-code] Planning iteration ${planIterations}/${maxIterations}`);
 
-      // Call BAML agent
-      const response = await b.AgentLoop(state, "/my-app");
+      const planningResponse = await b.PlanningAgent(planningState, workingDir);
 
-      // Check if agent is replying (done)
-      if (response.action === "reply_to_user") {
+      // Check if planning agent has output a plan
+      if ("summary" in planningResponse && "steps" in planningResponse) {
+        plan = planningResponse as Plan;
+        console.log("[generate-code] Planning complete:", plan.summary);
+        break;
+      }
+
+      // Execute read-only tools
+      const tool = planningResponse as ReadOnlyTools;
+      let result: string;
+      if (tool.action === "list_files") {
+        console.log("[generate-code] Executing list_files tool...");
+        result = await executeListFiles(sandbox, tool);
+      } else if (tool.action === "read_file") {
+        console.log("[generate-code] Executing read_file tool...");
+        result = await executeReadFile(sandbox, tool);
+      } else {
+        result = `Unknown tool action: ${(tool as ReadOnlyTools).action}`;
+      }
+
+      // Add tool execution to state
+      planningState.push({
+        role: "assistant",
+        message: tool,
+      });
+      planningState.push({
+        role: "user",
+        message: result,
+      });
+    }
+
+    if (!plan) {
+      console.error("[generate-code] Planning agent exceeded maximum iterations");
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Planning agent exceeded maximum iterations. Please try again with a simpler request.",
+        },
+        { status: 500 }
+      );
+    }
+
+    // Create planning message for user
+    const planningMessage = `I've analyzed your request and created a plan to implement your changes. The plan includes ${plan.steps.length} steps.`;
+
+    // ============================================
+    // PHASE 2: CODING AGENT
+    // ============================================
+    console.log("[generate-code] Starting coding phase...");
+    
+    // Initialize empty todo list - the coding agent will create todos using todo_write
+    // This aligns with Claude Code's approach where the agent manages the todo list
+    let todoList: TodoItem[] = [];
+
+    const codingState: Message[] = [
+      {
+        role: "user",
+        message: userPrompt,
+      },
+    ];
+
+    let codingIterations = 0;
+
+    while (codingIterations < maxIterations) {
+      codingIterations++;
+      console.log(`[generate-code] Coding iteration ${codingIterations}/${maxIterations}`);
+
+      const codingResponse = await b.CodingAgent(
+        codingState,
+        workingDir,
+        plan,
+        todoList
+      );
+
+      // Check if coding agent is replying (done)
+      if (codingResponse.action === "reply_to_user") {
         // Extract all modified files
-        const allFiles = Object.keys(modifiedFiles).length > 0 
-          ? modifiedFiles 
-          : extractFilesFromState(state);
+        const allFiles =
+          Object.keys(modifiedFiles).length > 0
+            ? modifiedFiles
+            : extractFilesFromState(codingState);
 
-        console.log("[generate-code] Agent completed with reply:", response.message);
+        console.log("[generate-code] Coding agent completed with reply:", codingResponse.message);
         return NextResponse.json({
           success: true,
-          message: response.message, // User-friendly message
-          files: allFiles, // All modified files
-          // Keep 'code' for backwards compatibility (use first modified file if available)
+          planningMessage: planningMessage,
+          plan: plan,
+          message: codingResponse.message,
+          files: allFiles,
           code: Object.values(allFiles)[0] || "",
         });
       }
 
-      // Execute the tool (response is FileTools)
+      // Execute the tool
       let result: string;
-      if (response.action === "list_files") {
+      if (codingResponse.action === "list_files") {
         console.log("[generate-code] Executing list_files tool...");
-        result = await executeListFiles(sandbox, response);
-      } else if (response.action === "read_file") {
+        result = await executeListFiles(sandbox, codingResponse);
+      } else if (codingResponse.action === "read_file") {
         console.log("[generate-code] Executing read_file tool...");
-        result = await executeReadFile(sandbox, response);
-      } else if (response.action === "write_file") {
+        result = await executeReadFile(sandbox, codingResponse);
+      } else if (codingResponse.action === "write_file") {
         console.log("[generate-code] Executing write_file tool...");
-        result = await executeWriteFile(sandbox, response);
-        // Track any file that gets written
+        result = await executeWriteFile(sandbox, codingResponse);
         if (!result.startsWith("Error")) {
-          modifiedFiles[response.filePath] = response.content;
+          modifiedFiles[codingResponse.filePath] = codingResponse.content;
+        }
+      } else if (codingResponse.action === "todo_write") {
+        console.log("[generate-code] Executing todo_write tool...");
+        const writeResult = await executeTodoWrite(codingResponse, todoList);
+        result = writeResult.result;
+        todoList = writeResult.updatedList;
+        // Check if all todos are completed
+        if (areAllTodosCompleted(todoList)) {
+          console.log("[generate-code] All todos completed, agent should reply to user");
         }
       } else {
-        result = `Unknown tool action: ${(response as FileTools).action}`;
+        result = `Unknown tool action: ${(codingResponse as FileTools | TodoTools).action}`;
       }
 
-      // Add tool execution to state (including errors - agent can handle them)
-      state.push({
+      // Add tool execution to state
+      codingState.push({
         role: "assistant",
-        message: response, // The tool that was executed
+        message: codingResponse,
       });
-      state.push({
+      codingState.push({
         role: "user",
-        message: result, // The result of tool execution (including errors)
+        message: result,
       });
     }
 
-    // Handle timeout if loop exceeds max iterations
-    console.error(
-      "[generate-code] Agent exceeded maximum iterations"
-    );
+    // Handle timeout if coding loop exceeds max iterations
+    console.error("[generate-code] Coding agent exceeded maximum iterations");
     return NextResponse.json(
       {
         success: false,
-        error:
-          "Agent exceeded maximum iterations. Please try again with a simpler request.",
+        error: "Coding agent exceeded maximum iterations. Please try again with a simpler request.",
       },
       { status: 500 }
     );

@@ -80,13 +80,27 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
           const codeData = await codeResponse.json();
 
           if (codeData.success) {
-            const successMessage: Message = {
-              id: (Date.now() + 1).toString(),
+            const newMessages: Message[] = [];
+            
+            // Add planning message if present
+            if (codeData.planningMessage) {
+              newMessages.push({
+                id: (Date.now() + 1).toString(),
+                role: "assistant",
+                content: codeData.planningMessage,
+                timestamp: new Date(),
+              });
+            }
+            
+            // Add success message
+            newMessages.push({
+              id: (Date.now() + 2).toString(),
               role: "assistant",
-              content: `App code generated successfully! Your app is now ready. Check the preview panel to see it.`,
+              content: codeData.message || `App code generated successfully! Your app is now ready. Check the preview panel to see it.`,
               timestamp: new Date(),
-            };
-            setMessages((prev) => [...prev, successMessage]);
+            });
+            
+            setMessages((prev) => [...prev, ...newMessages]);
           } else {
             const errorMessage: Message = {
               id: (Date.now() + 1).toString(),
@@ -194,13 +208,27 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
                   const codeData = await codeResponse.json();
 
                   if (codeData.success) {
-                    const successMessage: Message = {
+                    const newMessages: Message[] = [];
+                    
+                    // Add planning message if present
+                    if (codeData.planningMessage) {
+                      newMessages.push({
+                        id: (Date.now() + 2).toString(),
+                        role: "assistant",
+                        content: codeData.planningMessage,
+                        timestamp: new Date(),
+                      });
+                    }
+                    
+                    // Add success message
+                    newMessages.push({
                       id: (Date.now() + 3).toString(),
                       role: "assistant",
-                      content: `App code generated successfully! Your app is now ready. Check the preview panel to see it.`,
+                      content: codeData.message || `App code generated successfully! Your app is now ready. Check the preview panel to see it.`,
                       timestamp: new Date(),
-                    };
-                    setMessages((prev) => [...prev, successMessage]);
+                    });
+                    
+                    setMessages((prev) => [...prev, ...newMessages]);
                   } else {
                     const errorMessage: Message = {
                       id: (Date.now() + 3).toString(),
@@ -300,18 +328,30 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
         const codeData = await codeResponse.json();
 
         if (codeData.success) {
-          // Remove the "thinking" message and add success message
+          // Remove the "thinking" message
           setMessages((prev) => {
             const filtered = prev.filter((msg) => msg.id !== thinkingMessageId);
-            return [
-              ...filtered,
-              {
-                id: (Date.now() + 2).toString(),
+            const newMessages = [...filtered];
+            
+            // Add planning message if present
+            if (codeData.planningMessage) {
+              newMessages.push({
+                id: (Date.now() + 1).toString(),
                 role: "assistant",
-                content: "App updated successfully! The changes should be visible in the preview.",
+                content: codeData.planningMessage,
                 timestamp: new Date(),
-              },
-            ];
+              });
+            }
+            
+            // Add success message
+            newMessages.push({
+              id: (Date.now() + 2).toString(),
+              role: "assistant",
+              content: codeData.message || "App updated successfully! The changes should be visible in the preview.",
+              timestamp: new Date(),
+            });
+            
+            return newMessages;
           });
         } else {
           setMessages((prev) => {
