@@ -18,14 +18,16 @@ export async function POST(request: NextRequest) {
 
     const project = getProject(projectId);
 
+    // Make deletion idempotent: if project doesn't exist, return success
+    // This handles stale UI state gracefully
     if (!project) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Project not found",
-        },
-        { status: 404 }
-      );
+      return NextResponse.json({
+        success: true,
+        projectId,
+        sandboxTerminated: false,
+        sandboxAlreadyMissing: false,
+        projectAlreadyDeleted: true,
+      });
     }
 
     let sandboxTerminated = false;

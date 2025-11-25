@@ -6,12 +6,22 @@ import { useSearchParams } from "next/navigation";
 import ChatPanel from "@/components/builder/ChatPanel";
 import PreviewPanel from "@/components/builder/PreviewPanel";
 import { Button } from "@/components/ui/button";
-import { Save, MoreVertical, Home } from "lucide-react";
+import { Save, MoreVertical, Home, AlertCircle } from "lucide-react";
 import { useBuilderStore } from "@/lib/store";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 export default function BuilderPage() {
   const [leftWidth, setLeftWidth] = useState(50); // Percentage
   const [isDragging, setIsDragging] = useState(false);
+  const [sandboxMissing, setSandboxMissing] = useState(false);
+  const [isValidatingSandbox, setIsValidatingSandbox] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const { projectName, setProjectName, setProjectId, setSandboxId } = useBuilderStore();
@@ -24,7 +34,7 @@ export default function BuilderPage() {
   // Load project from query parameters
   useEffect(() => {
     const projectId = searchParams.get("projectId");
-    const sandboxId = searchParams.get("sandboxId");
+    const sandboxIdParam = searchParams.get("sandboxId");
 
     if (projectId) {
       // Fetch project data
@@ -36,7 +46,32 @@ export default function BuilderPage() {
           if (data.success && data.project) {
             setProjectId(data.project.id);
             setProjectName(data.project.name);
-            setSandboxId(data.project.sandboxId);
+            const projectSandboxId = data.project.sandboxId;
+            setSandboxId(projectSandboxId);
+
+            // Validate sandbox exists
+            if (projectSandboxId) {
+              setIsValidatingSandbox(true);
+              try {
+                const validateResponse = await fetch(
+                  `/api/validate-sandbox?sandboxId=${projectSandboxId}`
+                );
+                const validateData = await validateResponse.json();
+
+                if (validateData.success && !validateData.exists) {
+                  setSandboxMissing(true);
+                }
+              } catch (error) {
+                console.error("Error validating sandbox:", error);
+                // Assume sandbox is missing if validation fails
+                setSandboxMissing(true);
+              } finally {
+                setIsValidatingSandbox(false);
+              }
+            } else {
+              // No sandboxId in project, treat as missing
+              setSandboxMissing(true);
+            }
           }
         } catch (error) {
           console.error("Error loading project:", error);
@@ -44,9 +79,9 @@ export default function BuilderPage() {
       };
 
       loadProject();
-    } else if (sandboxId) {
+    } else if (sandboxIdParam) {
       // Direct sandboxId provided
-      setSandboxId(sandboxId);
+      setSandboxId(sandboxIdParam);
     }
   }, [searchParams, setProjectId, setProjectName, setSandboxId]);
 
@@ -107,27 +142,56 @@ export default function BuilderPage() {
         </div>
       </header>
 
-      <div ref={containerRef} className="flex-1 flex overflow-hidden relative">
-        <div className="border-r" style={{ width: `${leftWidth}%` }}>
-          <ChatPanel initialPrompt={initialPrompt} />
+      {sandboxMissing ? (
+        <div className="flex-1 flex items-center justify-center p-8">
+          <Card className="max-w-md w-full">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-destructive" />
+                <CardTitle>Sandbox Not Found</CardTitle>
+              </div>
+              <CardDescription>
+                The sandbox for this project no longer exists. You can go back to the gallery or
+                start a new project.
+              </CardDescription>
+            </CardHeader>
+            <CardFooter className="flex gap-2">
+              <Button variant="outline" asChild>
+                <Link href="/project-gallery">Back to Gallery</Link>
+              </Button>
+              <Button asChild>
+                <Link href="/builder">Start New Project</Link>
+              </Button>
+            </CardFooter>
+          </Card>
         </div>
+      ) : isValidatingSandbox ? (
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-muted-foreground">Validating sandbox...</p>
+        </div>
+      ) : (
+        <div ref={containerRef} className="flex-1 flex overflow-hidden relative">
+          <div className="border-r" style={{ width: `${leftWidth}%` }}>
+            <ChatPanel initialPrompt={initialPrompt} />
+          </div>
 
-        <div
-          onMouseDown={handleMouseDown}
-          className="absolute top-0 bottom-0 w-2 cursor-col-resize group z-10"
-          style={{ left: `${leftWidth}%`, transform: "translateX(-50%)" }}
-        >
           <div
-            className={`w-0.5 h-full bg-border group-hover:bg-primary transition-colors mx-auto ${
-              isDragging ? "bg-primary" : ""
-            }`}
-          />
-        </div>
+            onMouseDown={handleMouseDown}
+            className="absolute top-0 bottom-0 w-2 cursor-col-resize group z-10"
+            style={{ left: `${leftWidth}%`, transform: "translateX(-50%)" }}
+          >
+            <div
+              className={`w-0.5 h-full bg-border group-hover:bg-primary transition-colors mx-auto ${
+                isDragging ? "bg-primary" : ""
+              }`}
+            />
+          </div>
 
-        <div style={{ width: `${100 - leftWidth}%` }}>
-          <PreviewPanel />
+          <div style={{ width: `${100 - leftWidth}%` }}>
+            <PreviewPanel />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
