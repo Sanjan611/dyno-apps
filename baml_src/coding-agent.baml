@@ -1,11 +1,38 @@
-// Coding agent for modifying React Native App.js files
+// Coding agent for modifying React Native App.js files using tool calling
 
-// Output structure for the coding agent
-class CodeGenerationResult {
-  code string
+// Message class for agent state
+class Message {
+  role "user" | "assistant"
+  message string | FileTools
 }
 
-// Client for Claude Sonnet 3.5
+// Reply class when agent is done
+class ReplyToUser {
+  action "reply_to_user"
+  message string
+}
+
+// Tool classes (following reference pattern)
+class ListFilesTool {
+  action "list_files" @description("List files and directories in a given directory path")
+  directoryPath string @description("Path to the directory to list (e.g., '/my-app')")
+}
+
+class ReadFileTool {
+  action "read_file" @description("Read the content of a file")
+  filePath string @description("Path to the file to read (e.g., '/my-app/App.js')")
+}
+
+class WriteFileTool {
+  action "write_file" @description("Write content to a file")
+  filePath string @description("Path to the file to write (e.g., '/my-app/App.js')")
+  content string @description("The content to write to the file")
+}
+
+// Union type for all file tools
+type FileTools = ListFilesTool | ReadFileTool | WriteFileTool
+
+// Client for Claude Sonnet 4.5
 client<llm> ClaudeSonnet {
   provider anthropic
   options {
@@ -14,64 +41,74 @@ client<llm> ClaudeSonnet {
   }
 }
 
-// Function to generate/modify App.js code based on user prompt
-function GenerateAppJsCode(
-  userPrompt: string,
-  currentAppJs: string
-) -> CodeGenerationResult {
+// Agent loop function
+function AgentLoop(
+  state: Message[],
+  working_dir: string
+) -> FileTools | ReplyToUser {
   client ClaudeSonnet
   prompt #"
-You are a React Native/Expo coding assistant. Your task is to modify the App.js file in a React Native Expo application based on user requirements.
+    {{ _.role("system") }}
+    You are a background coding agent creating a mobile application. The user is non-technical and should not see any technical details.
 
-Instructions:
-- You will receive the current App.js code and a user prompt describing what changes to make
-- Modify the App.js file according to the user's requirements
-- Return the complete, valid React Native code for App.js in the required JSON format
-- Ensure the code follows React Native best practices
-- Maintain proper imports and component structure
-- Use React Native components (View, Text, StyleSheet, etc.) and Expo APIs as needed
-- Make sure the code is production-ready and follows React Native conventions
-- The code should be returned as a string in the JSON response
+    # Environment Context
+    Current working directory: {{ working_dir }}
 
-Current App.js code:
-```javascript
-{{ currentAppJs }}
-```
+    # Available Tools
+    You have access to three file operation tools:
+    - list_files: List files and directories in a directory
+    - read_file: Read the content of a file
+    - write_file: Write content to a file
 
-User requirements:
-{{ userPrompt }}
+    # Task
+    Your goal is to modify the mobile app based on the user's requirements. Use your judgment to determine which tools to call and in what order to accomplish the task effectively.
 
-Please provide the complete updated App.js code in the required JSON format:
+    # Guidelines
+    - Execute ONE tool at a time
+    - Explore the project structure if you need to understand the codebase
+    - Always read files before modifying them to understand the current state
+    - The main application file is typically located at "/my-app/App.js"
+    - When you've completed the task, use reply_to_user with a simple, user-friendly message
+    - If you encounter errors from tool execution, analyze them and determine the appropriate next step
+
+    # Communication Rules
+    - NEVER mention technical details like file paths, code, file names, or implementation details in your reply_to_user messages
+    - Keep replies brief and focused on what the app now does, not how it was implemented
+    - Examples of good replies: "I've added a button to your app" or "Your app now displays a welcome message"
+    - Examples of bad replies: "I've modified App.js" or "Updated the React Native component"
+
+    {{ ctx.output_format(prefix="Execute ONE tool at a time:\n") }}
+
+    {% for message in state %}
+    {{ _.role(message.role) }}
+    {{ message.message }}
+    {% endfor %}
   "#
 }
 
-// Test the coding agent with a simple prompt to create a basic app
-test create_simple_app {
-  functions [GenerateAppJsCode]
+test TestAgentLoopSimpleRequest {
+  functions [AgentLoop]
   args {
-    userPrompt "Create a simple React Native app with a button that says 'Hello World'"
-    currentAppJs #"
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
-
-export default function App() {
-  return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
-  );
+    state [
+      {
+        role "user"
+        message "Add a welcome message to the app"
+      }
+    ]
+    working_dir "/my-app"
+  }
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
-    "#
+test TestAgentLoopWithButton {
+  functions [AgentLoop]
+  args {
+    state [
+      {
+        role "user"
+        message "Add a button that says 'Click Me' to the app"
+      }
+    ]
+    working_dir "/my-app"
   }
 }
 

@@ -1,6 +1,110 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ModalClient } from "modal";
 import { b } from "@/baml_client";
+import type {
+  ListFilesTool,
+  ReadFileTool,
+  WriteFileTool,
+  Message,
+  ReplyToUser,
+  FileTools,
+} from "@/baml_client/types";
+
+// Tool execution functions - return error strings on failure
+async function executeListFiles(
+  sandbox: any,
+  tool: ListFilesTool
+): Promise<string> {
+  try {
+    // Use ls command to list directory contents
+    const lsProcess = await sandbox.exec(["ls", "-la", tool.directoryPath]);
+    const output = await lsProcess.stdout.readText();
+    await lsProcess.wait();
+    
+    // Parse the output to extract files and directories
+    const lines = output.split("\n").filter((line: string) => line.trim());
+    const files: string[] = [];
+    const directories: string[] = [];
+    
+    // Skip the first line (total) and parse each line
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      const parts = line.trim().split(/\s+/);
+      if (parts.length >= 9) {
+        const name = parts.slice(8).join(" ");
+        // Skip . and ..
+        if (name === "." || name === "..") continue;
+        
+        // Check if it's a directory (starts with 'd')
+        if (parts[0].startsWith("d")) {
+          directories.push(name);
+        } else {
+          files.push(name);
+        }
+      }
+    }
+    
+    return `Listed directory ${tool.directoryPath}:\nFiles: ${files.join(", ")}\nDirectories: ${directories.join(", ")}`;
+  } catch (error) {
+    // Return error message so agent can handle it
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    return `Error listing directory ${tool.directoryPath}: ${errorMessage}. Please check the path and try again.`;
+  }
+}
+
+async function executeReadFile(
+  sandbox: any,
+  tool: ReadFileTool
+): Promise<string> {
+  try {
+    const file = await sandbox.open(tool.filePath, "r");
+    const content = await file.read();
+    await file.close();
+    const decoded = new TextDecoder().decode(content);
+    return `Read file ${tool.filePath}:\n${decoded}`;
+  } catch (error) {
+    // Return error message so agent can handle it
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    return `Error reading file ${tool.filePath}: ${errorMessage}. The file may not exist or the path may be incorrect.`;
+  }
+}
+
+async function executeWriteFile(
+  sandbox: any,
+  tool: WriteFileTool
+): Promise<string> {
+  try {
+    const file = await sandbox.open(tool.filePath, "w");
+    await file.write(new TextEncoder().encode(tool.content));
+    await file.close();
+    return `Successfully wrote file ${tool.filePath}`;
+  } catch (error) {
+    // Return error message so agent can handle it
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    return `Error writing file ${tool.filePath}: ${errorMessage}. Please check the path and content format.`;
+  }
+}
+
+// Helper function to extract code from message state
+function extractCodeFromState(state: Message[]): string {
+  // Look for the last WriteFileTool that wrote to App.js
+  for (let i = state.length - 1; i >= 0; i--) {
+    const msg = state[i];
+    if (
+      msg.role === "assistant" &&
+      typeof msg.message !== "string" &&
+      "action" in msg.message &&
+      msg.message.action === "write_file" &&
+      msg.message.filePath === "/my-app/App.js"
+    ) {
+      return msg.message.content;
+    }
+  }
+  return "";
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,64 +146,97 @@ export async function POST(request: NextRequest) {
     const sandbox = await modal.sandboxes.fromId(sandboxId);
     console.log("[generate-code] Sandbox reference obtained:", sandbox.sandboxId);
 
-    // Read current App.js from the sandbox
-    console.log("[generate-code] Reading current App.js from sandbox...");
-    let currentAppJs = "";
-    try {
-      const appJsFile = await sandbox.open("/my-app/App.js", "r");
-      const appJsContent = await appJsFile.read();
-      currentAppJs = new TextDecoder().decode(appJsContent);
-      await appJsFile.close();
-      console.log("[generate-code] Current App.js read, length:", currentAppJs.length);
-    } catch (error) {
-      console.error("[generate-code] Error reading App.js:", error);
-      // If file doesn't exist, we'll work with empty string
-      if (error instanceof Error && !error.message.includes("ENOENT")) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Failed to read App.js: ${error.message}`,
-          },
-          { status: 500 }
-        );
+    // Initialize message state
+    const state: Message[] = [
+      {
+        role: "user",
+        message: userPrompt,
+      },
+    ];
+
+    // Initialize variables
+    let currentAppJsCode = ""; // Track App.js code for extraction
+    const maxIterations = 5;
+    let iterations = 0;
+
+    // Agentic loop (max 5 iterations)
+    console.log("[generate-code] Starting agentic loop...");
+    while (iterations < maxIterations) {
+      iterations++;
+      console.log(`[generate-code] Iteration ${iterations}/${maxIterations}`);
+
+      // Call BAML agent
+      const response = await b.AgentLoop(state, "/my-app");
+
+      // Check if agent is replying (done)
+      if (response.action === "reply_to_user") {
+        // Extract code from last WriteFileTool if available, otherwise from tracked currentAppJsCode
+        const finalCode =
+          currentAppJsCode || extractCodeFromState(state);
+
+        console.log("[generate-code] Agent completed with reply:", response.message);
+        return NextResponse.json({
+          success: true,
+          message: response.message, // User-friendly message
+          code: finalCode, // Generated code for preview/internal use
+        });
       }
-      console.log("[generate-code] App.js not found, will generate from scratch");
+
+      // Execute the tool (response is FileTools)
+      let result: string;
+      if (response.action === "list_files") {
+        console.log("[generate-code] Executing list_files tool...");
+        result = await executeListFiles(sandbox, response);
+      } else if (response.action === "read_file") {
+        console.log("[generate-code] Executing read_file tool...");
+        result = await executeReadFile(sandbox, response);
+        // Track App.js code when reading
+        if (
+          response.filePath === "/my-app/App.js" &&
+          !result.startsWith("Error")
+        ) {
+          const codeMatch = result.match(/Read file.*:\n([\s\S]*)/);
+          if (codeMatch) {
+            currentAppJsCode = codeMatch[1];
+          }
+        }
+      } else if (response.action === "write_file") {
+        console.log("[generate-code] Executing write_file tool...");
+        result = await executeWriteFile(sandbox, response);
+        // Track App.js code when writing
+        if (
+          response.filePath === "/my-app/App.js" &&
+          !result.startsWith("Error")
+        ) {
+          currentAppJsCode = response.content;
+        }
+      } else {
+        result = `Unknown tool action: ${(response as FileTools).action}`;
+      }
+
+      // Add tool execution to state (including errors - agent can handle them)
+      state.push({
+        role: "assistant",
+        message: response, // The tool that was executed
+      });
+      state.push({
+        role: "user",
+        message: result, // The result of tool execution (including errors)
+      });
     }
 
-    // Use BAML to generate code with structured output
-    console.log("[generate-code] Calling BAML coding agent...");
-    const result = await b.GenerateAppJsCode(
-      userPrompt,
-      currentAppJs || "// Empty file - create a new React Native app"
+    // Handle timeout if loop exceeds max iterations
+    console.error(
+      "[generate-code] Agent exceeded maximum iterations"
     );
-
-    // Extract the generated code from BAML's structured response
-    const generatedCode = result.code.trim();
-
-    if (!generatedCode) {
-      console.error("[generate-code] Error: Generated code is empty");
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Generated code is empty",
-        },
-        { status: 500 }
-      );
-    }
-
-    console.log("[generate-code] Code generated successfully, length:", generatedCode.length);
-
-    // Write the new code back to App.js in the sandbox
-    console.log("[generate-code] Writing generated code to App.js in sandbox...");
-    const writeFile = await sandbox.open("/my-app/App.js", "w");
-    await writeFile.write(new TextEncoder().encode(generatedCode));
-    await writeFile.close();
-    console.log("[generate-code] Code written successfully");
-
-    return NextResponse.json({
-      success: true,
-      code: generatedCode,
-    });
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "Agent exceeded maximum iterations. Please try again with a simpler request.",
+      },
+      { status: 500 }
+    );
   } catch (error) {
     console.error("[generate-code] Error generating code:", error);
     if (error instanceof Error) {
