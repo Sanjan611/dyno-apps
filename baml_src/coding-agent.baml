@@ -1,4 +1,4 @@
-// Coding agent for modifying React Native App.js files using tool calling
+// Coding agent for modifying React Native applications using tool calling
 
 // Message class for agent state
 class Message {
@@ -15,17 +15,17 @@ class ReplyToUser {
 // Tool classes (following reference pattern)
 class ListFilesTool {
   action "list_files" @description("List files and directories in a given directory path")
-  directoryPath string @description("Path to the directory to list (e.g., '/my-app')")
+  directoryPath string @description("Path to the directory to list")
 }
 
 class ReadFileTool {
   action "read_file" @description("Read the content of a file")
-  filePath string @description("Path to the file to read (e.g., '/my-app/App.js')")
+  filePath string @description("Path to the file to read")
 }
 
 class WriteFileTool {
   action "write_file" @description("Write content to a file")
-  filePath string @description("Path to the file to write (e.g., '/my-app/App.js')")
+  filePath string @description("Path to the file to write")
   content string @description("The content to write to the file")
 }
 
@@ -66,8 +66,8 @@ function AgentLoop(
     # Guidelines
     - Execute ONE tool at a time
     - Explore the project structure if you need to understand the codebase
-    - Always read files before modifying them to understand the current state
-    - The main application file is typically located at "/my-app/App.js"
+    - Before making changes, read all relevant files to understand the full context (components, styles, utilities, etc.)
+    - Consider reading multiple files sequentially to gather context before writing any changes
     - When you've completed the task, use reply_to_user with a simple, user-friendly message
     - If you encounter errors from tool execution, analyze them and determine the appropriate next step
 

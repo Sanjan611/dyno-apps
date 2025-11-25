@@ -88,22 +88,20 @@ async function executeWriteFile(
   }
 }
 
-// Helper function to extract code from message state
-function extractCodeFromState(state: Message[]): string {
-  // Look for the last WriteFileTool that wrote to App.js
-  for (let i = state.length - 1; i >= 0; i--) {
-    const msg = state[i];
+// Helper function to extract all written files from message state
+function extractFilesFromState(state: Message[]): Record<string, string> {
+  const files: Record<string, string> = {};
+  for (const msg of state) {
     if (
       msg.role === "assistant" &&
       typeof msg.message !== "string" &&
       "action" in msg.message &&
-      msg.message.action === "write_file" &&
-      msg.message.filePath === "/my-app/App.js"
+      msg.message.action === "write_file"
     ) {
-      return msg.message.content;
+      files[msg.message.filePath] = msg.message.content;
     }
   }
-  return "";
+  return files;
 }
 
 export async function POST(request: NextRequest) {
@@ -155,7 +153,7 @@ export async function POST(request: NextRequest) {
     ];
 
     // Initialize variables
-    let currentAppJsCode = ""; // Track App.js code for extraction
+    const modifiedFiles: Record<string, string> = {}; // Track all modified files
     const maxIterations = 5;
     let iterations = 0;
 
@@ -170,15 +168,18 @@ export async function POST(request: NextRequest) {
 
       // Check if agent is replying (done)
       if (response.action === "reply_to_user") {
-        // Extract code from last WriteFileTool if available, otherwise from tracked currentAppJsCode
-        const finalCode =
-          currentAppJsCode || extractCodeFromState(state);
+        // Extract all modified files
+        const allFiles = Object.keys(modifiedFiles).length > 0 
+          ? modifiedFiles 
+          : extractFilesFromState(state);
 
         console.log("[generate-code] Agent completed with reply:", response.message);
         return NextResponse.json({
           success: true,
           message: response.message, // User-friendly message
-          code: finalCode, // Generated code for preview/internal use
+          files: allFiles, // All modified files
+          // Keep 'code' for backwards compatibility (use first modified file if available)
+          code: Object.values(allFiles)[0] || "",
         });
       }
 
@@ -190,25 +191,12 @@ export async function POST(request: NextRequest) {
       } else if (response.action === "read_file") {
         console.log("[generate-code] Executing read_file tool...");
         result = await executeReadFile(sandbox, response);
-        // Track App.js code when reading
-        if (
-          response.filePath === "/my-app/App.js" &&
-          !result.startsWith("Error")
-        ) {
-          const codeMatch = result.match(/Read file.*:\n([\s\S]*)/);
-          if (codeMatch) {
-            currentAppJsCode = codeMatch[1];
-          }
-        }
       } else if (response.action === "write_file") {
         console.log("[generate-code] Executing write_file tool...");
         result = await executeWriteFile(sandbox, response);
-        // Track App.js code when writing
-        if (
-          response.filePath === "/my-app/App.js" &&
-          !result.startsWith("Error")
-        ) {
-          currentAppJsCode = response.content;
+        // Track any file that gets written
+        if (!result.startsWith("Error")) {
+          modifiedFiles[response.filePath] = response.content;
         }
       } else {
         result = `Unknown tool action: ${(response as FileTools).action}`;

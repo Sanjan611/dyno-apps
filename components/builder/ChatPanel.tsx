@@ -38,7 +38,7 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [viewingLogs, setViewingLogs] = useState(false);
   const [logs, setLogs] = useState<any>(null);
-  const { setSandboxId, setPreviewUrl, sandboxId, setProjectId } = useBuilderStore();
+  const { setSandboxId, setPreviewUrl, sandboxId, setProjectId, projectId } = useBuilderStore();
   const [hasSentInitialMessage, setHasSentInitialMessage] = useState(false);
   const hasAutoSubmitted = useRef(false);
 
@@ -61,9 +61,9 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
         setHasSentInitialMessage(true);
       }
 
-      // If sandboxId already exists (loading existing project), skip sandbox creation
-      if (isFirstMessage && sandboxId) {
-        // Sandbox already exists, just generate code
+      // If projectId exists (loading existing project), skip sandbox creation
+      if (isFirstMessage && projectId && sandboxId) {
+        // Sandbox already exists for existing project, just generate code
         setIsLoading(true);
         try {
           const codeResponse = await fetch("/api/generate-code", {
@@ -347,6 +347,7 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
     [
       hasSentInitialMessage,
       sandboxId,
+      projectId,
       setProjectId,
       setPreviewUrl,
       setSandboxId,
