@@ -49,55 +49,73 @@ export async function POST(request: NextRequest) {
     await chmodProcess.wait();
     console.log("[init-expo] Script is now executable");
 
-    // Execute the startup script and capture output
+    // Execute the startup script (don't wait for output, let it run in background)
     console.log("[init-expo] Executing startup script...");
     const execProcess = await sandbox.exec(["/bin/bash", "/startup.sh"], {
       stdout: "pipe",
       stderr: "pipe",
     });
 
-    // Read stdout and stderr in parallel
-    const [stdout, stderr] = await Promise.all([
-      execProcess.stdout.readText().catch(() => ""),
-      execProcess.stderr.readText().catch(() => ""),
-    ]);
+    // Don't block on reading all output - just let it run
+    // The script uses nohup so Expo runs in background anyway
 
-    console.log("[init-expo] Script execution output:");
-    console.log("[init-expo] STDOUT:", stdout);
-    console.log("[init-expo] STDERR:", stderr);
+    // Poll for tunnel availability with exponential backoff
+    console.log("[init-expo] Polling for tunnel availability...");
+    let tunnel = null;
+    let previewUrl = null;
+    const maxAttempts = 30; // 30 attempts
+    const baseDelay = 2000; // Start with 2 seconds
+    const startTime = Date.now();
 
-    // Wait a bit for Expo to start
-    console.log("[init-expo] Waiting 15 seconds for Expo to start...");
-    await new Promise((resolve) => setTimeout(resolve, 15000));
+    const formatElapsed = (ms: number) => {
+      const seconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+      return minutes > 0 
+        ? `${minutes}m ${remainingSeconds}s` 
+        : `${seconds}s`;
+    };
 
-    // Wait for sandbox tunnels to be available (with timeout)
-    console.log("[init-expo] Waiting for sandbox tunnels...");
-    const tunnels = await sandbox.tunnels(60000); // Wait up to 60 seconds
-    console.log("[init-expo] Tunnels available:", Object.keys(tunnels));
-    
-    const tunnel = tunnels[19006];
-
-    if (!tunnel) {
-      console.error("[init-expo] Error: Tunnel for port 19006 not available");
-      console.error("[init-expo] Available tunnels:", Object.keys(tunnels));
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Tunnel for port 19006 not available",
-          availablePorts: Object.keys(tunnels).map(Number),
-          logs: { stdout, stderr },
-        },
-        { status: 500 }
-      );
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const elapsed = Date.now() - startTime;
+      console.log(`[init-expo] Attempt ${attempt}/${maxAttempts} (${formatElapsed(elapsed)} elapsed)...`);
+      
+      try {
+        const tunnels = await sandbox.tunnels(5000); // Short timeout per attempt
+        tunnel = tunnels[19006];
+        
+        if (tunnel) {
+          previewUrl = tunnel.url;
+          
+          // Verify the URL is actually responding
+          const response = await fetch(previewUrl, { 
+            method: 'GET',
+            signal: AbortSignal.timeout(3000) 
+          });
+          
+          if (response.ok || response.status === 200) {
+            const totalElapsed = Date.now() - startTime;
+            console.log(`[init-expo] ✓ Expo ready after ${attempt} attempts (${formatElapsed(totalElapsed)} total)`);
+            break;
+          }
+        }
+      } catch (e) {
+        // Expected during startup, continue polling
+      }
+      
+      if (attempt < maxAttempts) {
+        const delay = Math.min(baseDelay * (1 + attempt * 0.2), 5000); // Cap at 5s
+        await new Promise(r => setTimeout(r, delay));
+      }
     }
 
-    const previewUrl = tunnel.url;
-    console.log("[init-expo] Preview URL obtained:", previewUrl);
+    if (!previewUrl) {
+      return NextResponse.json({ success: false, error: "Expo failed to start" }, { status: 500 });
+    }
 
     return NextResponse.json({
       success: true,
       previewUrl,
-      logs: { stdout, stderr },
     });
   } catch (error) {
     console.error("[init-expo] Error initializing Expo:", error);
