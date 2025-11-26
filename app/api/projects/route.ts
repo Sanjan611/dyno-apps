@@ -5,6 +5,7 @@ import {
   generateProjectId,
   getAllProjects,
   getProject,
+  updateProject,
   type Project,
 } from "@/lib/server/projectStore";
 
@@ -104,6 +105,64 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("[projects] Error creating project:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH /api/projects - Update a project
+export async function PATCH(request: NextRequest) {
+  try {
+    const { projectId, name } = await request.json();
+
+    if (!projectId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "projectId is required",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!name || typeof name !== "string" || name.trim().length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "name is required and must be a non-empty string",
+        },
+        { status: 400 }
+      );
+    }
+
+    const updatedProject = updateProject(projectId, { name: name.trim() });
+
+    if (!updatedProject) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Project not found",
+        },
+        { status: 404 }
+      );
+    }
+
+    console.log("[projects] Updated project:", projectId, "new name:", name.trim());
+
+    return NextResponse.json({
+      success: true,
+      project: {
+        ...updatedProject,
+        lastModified: formatRelativeTime(updatedProject.lastModified),
+      },
+    });
+  } catch (error) {
+    console.error("[projects] Error updating project:", error);
     return NextResponse.json(
       {
         success: false,

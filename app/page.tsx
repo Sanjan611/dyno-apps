@@ -2,22 +2,38 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { FolderOpen } from "lucide-react";
 
 export default function Home() {
   const router = useRouter();
   const [appIdea, setAppIdea] = useState("");
+  const [projectCount, setProjectCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchProjectCount = async () => {
+      try {
+        const response = await fetch("/api/projects");
+        const data = await response.json();
+        if (data.success && data.projects) {
+          setProjectCount(data.projects.length);
+        }
+      } catch (error) {
+        console.error("Error fetching projects:", error);
+      }
+    };
+    fetchProjectCount();
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,11 +97,28 @@ export default function Home() {
               </Button>
             </form>
           </CardContent>
-          <CardFooter className="flex justify-center">
-            <Button asChild variant="outline">
-              <Link href="/project-gallery">View Project Gallery</Link>
+        </Card>
+
+        {/* My Projects Card */}
+        <Card className="border-0 shadow-none sm:border sm:shadow-sm mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FolderOpen className="w-5 h-5" />
+              My Projects
+            </CardTitle>
+            <CardDescription>
+              {projectCount !== null
+                ? projectCount === 0
+                  ? "You don't have any projects yet"
+                  : `${projectCount} ${projectCount === 1 ? "project" : "projects"}`
+                : "View and manage your projects"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/project-gallery">View All Projects</Link>
             </Button>
-          </CardFooter>
+          </CardContent>
         </Card>
       </div>
       </div>

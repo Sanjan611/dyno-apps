@@ -6,7 +6,8 @@ import { useSearchParams } from "next/navigation";
 import ChatPanel from "@/components/builder/ChatPanel";
 import PreviewPanel from "@/components/builder/PreviewPanel";
 import { Button } from "@/components/ui/button";
-import { Save, MoreVertical, Home, AlertCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Save, MoreVertical, Home, AlertCircle, FolderOpen } from "lucide-react";
 import { useBuilderStore } from "@/lib/store";
 import {
   Card,
@@ -22,14 +23,91 @@ export default function BuilderPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [sandboxMissing, setSandboxMissing] = useState(false);
   const [isValidatingSandbox, setIsValidatingSandbox] = useState(false);
+  const [isSavingName, setIsSavingName] = useState(false);
+  const [editingName, setEditingName] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const searchParams = useSearchParams();
-  const { projectName, setProjectName, setProjectId, setSandboxId } = useBuilderStore();
+  const { projectName, setProjectName, setProjectId, setSandboxId, projectId } = useBuilderStore();
   const initialPrompt = searchParams.get("prompt") ?? "";
 
   const handleMouseDown = () => {
     setIsDragging(true);
   };
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditingName(e.target.value);
+  };
+
+  const handleNameBlur = async () => {
+    const trimmedName = editingName.trim();
+    const previousName = projectName;
+    // If empty, treat as "Untitled Project"
+    const finalName = trimmedName === "" ? "Untitled Project" : trimmedName;
+    
+    if (finalName === previousName) {
+      // Reset to empty if it's "Untitled Project", otherwise keep the value
+      setEditingName(previousName === "Untitled Project" ? "" : previousName);
+      return;
+    }
+
+    // Update local state immediately
+    setProjectName(finalName);
+
+    // If projectId exists, save to backend
+    if (projectId) {
+      setIsSavingName(true);
+      try {
+        const response = await fetch("/api/projects", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            projectId,
+            name: finalName,
+          }),
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+          console.error("Failed to update project name:", data.error);
+          // Revert to previous name on error
+          setProjectName(previousName);
+          setEditingName(previousName === "Untitled Project" ? "" : previousName);
+        } else {
+          // Update editingName to reflect the saved value (empty if "Untitled Project")
+          setEditingName(finalName === "Untitled Project" ? "" : finalName);
+        }
+      } catch (error) {
+        console.error("Error updating project name:", error);
+        // Revert to previous name on error
+        setProjectName(previousName);
+        setEditingName(previousName === "Untitled Project" ? "" : previousName);
+      } finally {
+        setIsSavingName(false);
+      }
+    } else {
+      // No projectId yet, just update the local editing state
+      setEditingName(finalName === "Untitled Project" ? "" : finalName);
+    }
+  };
+
+  const handleNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.currentTarget.blur();
+    } else if (e.key === "Escape") {
+      // Reset to empty if "Untitled Project", otherwise use projectName
+      setEditingName(projectName === "Untitled Project" ? "" : projectName);
+      e.currentTarget.blur();
+    }
+  };
+
+  // Initialize editingName when projectName changes
+  useEffect(() => {
+    // If projectName is "Untitled Project", show empty string (placeholder will show)
+    setEditingName(projectName === "Untitled Project" ? "" : projectName);
+  }, [projectName]);
 
   // Load project from query parameters
   useEffect(() => {
@@ -128,10 +206,30 @@ export default function BuilderPage() {
           </Button>
           <div>
             <h1 className="text-lg font-bold">Dyno Apps Builder</h1>
-            <p className="text-sm text-muted-foreground">{projectName}</p>
+            <div className="flex items-center gap-2">
+              <Input
+                ref={nameInputRef}
+                value={editingName}
+                onChange={handleNameChange}
+                onBlur={handleNameBlur}
+                onKeyDown={handleNameKeyDown}
+                className="text-sm text-muted-foreground h-7 px-2 border-transparent bg-transparent hover:border-border focus-visible:border-border focus-visible:ring-1 focus-visible:ring-ring max-w-[300px]"
+                placeholder="Untitled Project"
+                disabled={isSavingName}
+              />
+              {isSavingName && (
+                <span className="text-xs text-muted-foreground">Saving...</span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/project-gallery">
+              <FolderOpen className="w-4 h-4 mr-2" />
+              My Projects
+            </Link>
+          </Button>
           <Button variant="outline">
             <Save className="w-4 h-4 mr-2" />
             Save

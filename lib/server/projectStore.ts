@@ -29,6 +29,22 @@ export function deleteProject(projectId: string): Project | undefined {
   return project;
 }
 
+export function updateProject(projectId: string, updates: Partial<Project>): Project | undefined {
+  const project = projects.get(projectId);
+  if (!project) {
+    return undefined;
+  }
+
+  const updatedProject: Project = {
+    ...project,
+    ...updates,
+    lastModified: new Date().toISOString(),
+  };
+
+  projects.set(projectId, updatedProject);
+  return updatedProject;
+}
+
 export function getAllProjects(): Project[] {
   return Array.from(projects.values());
 }
