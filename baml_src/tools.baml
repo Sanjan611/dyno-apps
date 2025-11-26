@@ -3,7 +3,7 @@
 // Message class for agent state
 class Message {
   role "user" | "assistant"
-  message string | ReadOnlyTools | FileTools | TodoTools
+  message string | ReadOnlyTools | ParallelReadTools | FileTools | TodoTools
 }
 
 // File operation tools
@@ -23,11 +23,23 @@ class WriteFileTool {
   content string @description("The content to write to the file")
 }
 
+// Parallel execution wrapper for read-only operations
+class ParallelReadTools {
+  action "parallel_read" @description("Execute multiple read operations in parallel")
+  tools (ListFilesTool | ReadFileTool)[]
+}
+
 // Union type for read-only tools (used by planning agent)
 type ReadOnlyTools = ListFilesTool | ReadFileTool
 
+// Planning agent can use parallel reads
+type ReadOnlyToolsOrParallel = ReadOnlyTools | ParallelReadTools
+
 // Union type for all file tools (used by coding agent)
 type FileTools = ListFilesTool | ReadFileTool | WriteFileTool
+
+// Coding agent can use parallel reads (writes stay sequential)
+type FileToolsOrParallel = FileTools | ParallelReadTools
 
 // Plan class for planning agent output
 class Plan {

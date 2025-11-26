@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ModalClient } from "modal";
+import { dirname } from "path";
 import { b } from "@/baml_client";
 import type {
   ListFilesTool,
@@ -13,6 +14,7 @@ import type {
   TodoItem,
   TodoWriteTool,
   TodoTools,
+  ParallelReadTools,
 } from "@/baml_client/types";
 
 // Tool execution functions - return error strings on failure
@@ -81,6 +83,12 @@ async function executeWriteFile(
   tool: WriteFileTool
 ): Promise<string> {
   try {
+    const dirPath = dirname(tool.filePath);
+    if (dirPath && dirPath !== "/" && dirPath !== ".") {
+      const mkdirProcess = await sandbox.exec(["mkdir", "-p", dirPath]);
+      await mkdirProcess.wait();
+    }
+
     const file = await sandbox.open(tool.filePath, "w");
     await file.write(new TextEncoder().encode(tool.content));
     await file.close();
@@ -91,6 +99,23 @@ async function executeWriteFile(
       error instanceof Error ? error.message : "Unknown error";
     return `Error writing file ${tool.filePath}: ${errorMessage}. Please check the path and content format.`;
   }
+}
+
+// Parallel execution function for read operations
+async function executeParallelReads(
+  sandbox: any,
+  tools: (ListFilesTool | ReadFileTool)[]
+): Promise<string> {
+  const results = await Promise.all(
+    tools.map(async (tool, index) => {
+      if (tool.action === "list_files") {
+        return `[${index + 1}] ${await executeListFiles(sandbox, tool)}`;
+      } else {
+        return `[${index + 1}] ${await executeReadFile(sandbox, tool)}`;
+      }
+    })
+  );
+  return `Results for parallel read:\n${results.join("\n")}`;
 }
 
 // Helper function to extract all written files from message state
@@ -202,17 +227,20 @@ export async function POST(request: NextRequest) {
         break;
       }
 
-      // Execute read-only tools
-      const tool = planningResponse as ReadOnlyTools;
+      // Execute read-only tools (single or parallel)
+      const tool = planningResponse as ReadOnlyTools | ParallelReadTools;
       let result: string;
-      if (tool.action === "list_files") {
+      if (tool.action === "parallel_read") {
+        console.log(`[generate-code] Executing parallel_read with ${tool.tools.length} tools...`);
+        result = await executeParallelReads(sandbox, tool.tools);
+      } else if (tool.action === "list_files") {
         console.log("[generate-code] Executing list_files tool...");
         result = await executeListFiles(sandbox, tool);
       } else if (tool.action === "read_file") {
         console.log("[generate-code] Executing read_file tool...");
         result = await executeReadFile(sandbox, tool);
       } else {
-        result = `Unknown tool action: ${(tool as ReadOnlyTools).action}`;
+        result = `Unknown tool action: ${(tool as ReadOnlyTools | ParallelReadTools).action}`;
       }
 
       // Add tool execution to state
@@ -288,23 +316,27 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Execute the tool
+      // Execute the tool (single or parallel)
+      const tool = codingResponse as FileTools | ParallelReadTools | TodoTools;
       let result: string;
-      if (codingResponse.action === "list_files") {
+      if (tool.action === "parallel_read") {
+        console.log(`[generate-code] Executing parallel_read with ${tool.tools.length} tools...`);
+        result = await executeParallelReads(sandbox, tool.tools);
+      } else if (tool.action === "list_files") {
         console.log("[generate-code] Executing list_files tool...");
-        result = await executeListFiles(sandbox, codingResponse);
-      } else if (codingResponse.action === "read_file") {
+        result = await executeListFiles(sandbox, tool);
+      } else if (tool.action === "read_file") {
         console.log("[generate-code] Executing read_file tool...");
-        result = await executeReadFile(sandbox, codingResponse);
-      } else if (codingResponse.action === "write_file") {
+        result = await executeReadFile(sandbox, tool);
+      } else if (tool.action === "write_file") {
         console.log("[generate-code] Executing write_file tool...");
-        result = await executeWriteFile(sandbox, codingResponse);
+        result = await executeWriteFile(sandbox, tool);
         if (!result.startsWith("Error")) {
-          modifiedFiles[codingResponse.filePath] = codingResponse.content;
+          modifiedFiles[tool.filePath] = tool.content;
         }
-      } else if (codingResponse.action === "todo_write") {
+      } else if (tool.action === "todo_write") {
         console.log("[generate-code] Executing todo_write tool...");
-        const writeResult = await executeTodoWrite(codingResponse, todoList);
+        const writeResult = await executeTodoWrite(tool, todoList);
         result = writeResult.result;
         todoList = writeResult.updatedList;
         // Check if all todos are completed
@@ -312,13 +344,13 @@ export async function POST(request: NextRequest) {
           console.log("[generate-code] All todos completed, agent should reply to user");
         }
       } else {
-        result = `Unknown tool action: ${(codingResponse as FileTools | TodoTools).action}`;
+        result = `Unknown tool action: ${(tool as FileTools | ParallelReadTools | TodoTools).action}`;
       }
 
       // Add tool execution to state
       codingState.push({
         role: "assistant",
-        message: codingResponse,
+        message: tool,
       });
       codingState.push({
         role: "user",

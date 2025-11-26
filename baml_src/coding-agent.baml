@@ -6,7 +6,7 @@ function CodingAgent(
   working_dir: string,
   plan: Plan,
   todos: TodoItem[]
-) -> FileTools | TodoTools | ReplyToUser {
+) -> FileTools | ParallelReadTools | TodoTools | ReplyToUser {
   client ClaudeSonnet
   prompt #"
     {{ _.role("system") }}
@@ -54,9 +54,11 @@ function CodingAgent(
       - To update progress, replace the entire todo list with todo_write showing all tasks with updated statuses
 
     # Guidelines
-    - Execute ONE tool at a time
     - **All file paths must be absolute paths starting with {{ working_dir }} (e.g., {{ working_dir }}/App.js, {{ working_dir }}/package.json)**
     - **Do NOT explore directories outside of {{ working_dir }} - work only within the app directory**
+    - **When you need to read multiple independent files, batch them using parallel_read for efficiency**
+    - **Write operations must be executed sequentially - never batch write_file with other operations**
+    - **Never mix write operations with read operations in a parallel batch**
     - Before starting implementation, ensure the todo list matches the plan steps (use todo_write to initialize if needed)
     - Read relevant files before making changes to understand the current implementation
     - Make changes systematically, following the plan steps
@@ -69,7 +71,7 @@ function CodingAgent(
     - Examples of good replies: "I've added a button to your app" or "Your app now displays a welcome message"
     - Examples of bad replies: "I've modified App.js" or "Updated the React Native component"
 
-    {{ ctx.output_format(prefix="Execute ONE tool at a time:\n") }}
+    {{ ctx.output_format(prefix="Execute a tool (or parallel_read for multiple independent reads):\n") }}
 
     {% for message in state %}
     {{ _.role(message.role) }}
