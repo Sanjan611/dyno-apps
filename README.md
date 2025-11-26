@@ -20,23 +20,39 @@ An AI-powered no-code mobile app builder platform. Build mobile applications usi
 ```
 dyno-apps/
 ├── app/
-│   ├── (auth)/           # Authentication pages
+│   ├── (auth)/           # Authentication pages (login/signup)
 │   ├── api/              # API routes
-│   │   ├── create-sandbox/
-│   │   ├── init-expo/
-│   │   ├── generate-code/
-│   │   └── sandbox-logs/
-│   ├── project-gallery/  # Project gallery
-│   ├── builder/          # AI-powered builder
+│   │   ├── create-sandbox/     # Create Modal sandbox
+│   │   ├── delete-sandbox/     # Delete sandbox and project
+│   │   ├── generate-code/      # Two-phase AI code generation
+│   │   ├── init-expo/          # Initialize Expo template
+│   │   ├── projects/           # Project CRUD operations
+│   │   ├── sandbox-logs/       # Get sandbox logs
+│   │   └── validate-sandbox/   # Validate sandbox exists
+│   ├── project-gallery/  # Project gallery with CRUD
+│   ├── builder/          # AI-powered builder interface
 │   └── globals.css
 ├── components/
 │   ├── ui/              # Shadcn UI components
 │   ├── builder/         # Builder components
+│   │   ├── ChatPanel.tsx      # Chat interface
+│   │   ├── PreviewPanel.tsx   # Mobile preview container
+│   │   ├── AppPreview.tsx     # Live app preview
+│   │   └── CodeViewer.tsx     # Code display
 │   ├── layout/          # Layout components
 │   └── shared/          # Shared components
 ├── baml_src/            # BAML AI agent definitions
+│   ├── clients.baml     # LLM client configurations
+│   ├── planning-agent.baml   # Planning agent
+│   ├── coding-agent.baml     # Coding agent
+│   ├── tools.baml       # Shared tool definitions
+│   └── generators.baml  # BAML generators config
+├── baml_client/         # Auto-generated BAML client
 ├── scripts/             # Deployment scripts
 ├── lib/                 # Utils and state management
+│   ├── store.ts         # Zustand store
+│   └── server/          # Server-side utilities
+│       └── projectStore.ts   # Project persistence
 └── types/               # TypeScript type definitions
 ```
 
@@ -44,23 +60,37 @@ dyno-apps/
 
 ### Current
 
-- Landing page with navigation
-- Authentication UI (Login/Signup)
-- Project Gallery for project management
-- AI-powered builder interface with:
+- **Landing Page**: Enter app ideas directly and start building
+- **Authentication UI**: Login/Signup pages (UI ready)
+- **Project Gallery**: View, open, and delete saved projects
+- **AI-powered Builder Interface**:
   - **Chat Panel**: Natural language input for app creation
   - **Preview Panel**: Live mobile app preview via Modal sandboxes
   - **Code Viewer**: View and copy generated code
   - Toggle between Preview and Code views
-- Backend API for sandbox management and code generation
+  - Resizable split-panel layout
+
+### AI Agent Architecture
+
+The system uses a two-phase AI agent architecture:
+
+1. **Planning Agent**: Explores the codebase with read-only tools (`list_files`, `read_file`) and creates a detailed implementation plan
+2. **Coding Agent**: Implements changes based on the plan using file tools (`list_files`, `read_file`, `write_file`) while tracking progress with a structured todo list
+
+### Backend Features
+
+- Modal sandbox creation and management
+- Sandbox validation and cleanup
+- Project persistence (in-memory store)
 - AI code generation using BAML + Claude Sonnet 4.5
-- Modal sandbox integration for running Expo apps
+- Expo app initialization within sandboxes
 
 ### Coming Soon
 
 - Supabase integration for database and auth
 - Export functionality for generated apps
-- Project persistence and version history
+- Project persistence with database
+- Version history
 
 ## Getting Started
 
@@ -90,12 +120,17 @@ cp .env.local.example .env.local
 # - MODAL_TOKEN_ID and MODAL_TOKEN_SECRET (for sandboxes)
 ```
 
-4. Run the development server:
+4. Generate BAML client:
+```bash
+pnpm baml:generate
+```
+
+5. Run the development server:
 ```bash
 pnpm dev
 ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
+6. Open [http://localhost:3000](http://localhost:3000) in your browser
 
 ## Available Scripts
 
@@ -112,9 +147,29 @@ pnpm dev
 The builder features a split-panel layout:
 
 - **Left Panel**: Chat interface for natural language app creation
+  - Enter prompts to describe what you want to build
+  - AI creates a plan, then implements changes step by step
+  - Progress tracked via structured todo list
 - **Right Panel**: Mobile app preview with code toggle
-  - **Preview Mode**: See your app in a mobile phone frame
+  - **Preview Mode**: See your app in a mobile phone frame (live Expo preview)
   - **Code Mode**: View and copy the generated React Native code
+
+## Architecture
+
+### BAML Agent System
+
+The AI agents are defined using BAML (Boundary ML):
+
+- **Planning Agent** (`planning-agent.baml`): Analyzes user requests, explores the codebase, and creates actionable implementation plans
+- **Coding Agent** (`coding-agent.baml`): Executes the plan, manages todos, and implements file changes
+- **Tools** (`tools.baml`): Shared tool definitions including file operations and todo management
+
+### Modal Sandboxes
+
+Each project runs in an isolated Modal sandbox:
+- Expo apps are initialized and run within sandboxes
+- Sandboxes provide live preview URLs
+- Automatic cleanup when projects are deleted
 
 ## License
 
