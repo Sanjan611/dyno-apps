@@ -61,20 +61,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/projects - Create a new project
+// POST /api/projects - Create a new project (no sandbox creation)
 export async function POST(request: NextRequest) {
   try {
-    const { sandboxId, name, description, firstMessage } = await request.json();
-
-    if (!sandboxId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "sandboxId is required",
-        },
-        { status: 400 }
-      );
-    }
+    const { name, description, firstMessage } = await request.json();
 
     // Extract project name from first message or use default
     const projectName = name || (firstMessage ? firstMessage.substring(0, 50) : "Untitled Project");
@@ -85,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     const project: Project = {
       id: projectId,
-      sandboxId,
+      sandboxId: null, // Sandbox will be created when project is opened
       name: projectName,
       description: projectDescription,
       createdAt: now,
@@ -94,7 +84,7 @@ export async function POST(request: NextRequest) {
 
     addProject(project);
 
-    console.log("[projects] Created project:", projectId, "for sandbox:", sandboxId);
+    console.log("[projects] Created project:", projectId, "(sandbox will be created when opened)");
 
     return NextResponse.json({
       success: true,

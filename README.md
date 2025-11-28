@@ -22,13 +22,17 @@ dyno-apps/
 ├── app/
 │   ├── (auth)/           # Authentication pages (login/signup)
 │   ├── api/              # API routes
-│   │   ├── create-sandbox/     # Create Modal sandbox
-│   │   ├── delete-sandbox/     # Delete sandbox and project
 │   │   ├── generate-code/      # Two-phase AI code generation
 │   │   ├── init-expo/          # Initialize Expo template
 │   │   ├── projects/           # Project CRUD operations
-│   │   ├── sandbox-logs/       # Get sandbox logs
-│   │   └── validate-sandbox/   # Validate sandbox exists
+│   │   │   ├── route.ts        # GET (list/get), POST (create), PATCH (update)
+│   │   │   └── [id]/           # Project-specific operations
+│   │   │       ├── route.ts    # DELETE (delete project + sandbox)
+│   │   │       └── sandbox/    # Sandbox management
+│   │   │           ├── route.ts      # POST (create/get), GET (status), DELETE (terminate)
+│   │   │           └── health/       # Health check endpoint
+│   │   │               └── route.ts  # GET (comprehensive health check)
+│   │   └── sandbox-logs/       # Get sandbox logs
 │   ├── project-gallery/  # Project gallery with CRUD
 │   ├── builder/          # AI-powered builder interface
 │   └── globals.css
@@ -52,6 +56,7 @@ dyno-apps/
 ├── lib/                 # Utils and state management
 │   ├── store.ts         # Zustand store
 │   └── server/          # Server-side utilities
+│       ├── modal.ts          # Shared Modal client utilities
 │       └── projectStore.ts   # Project persistence
 └── types/               # TypeScript type definitions
 ```
@@ -79,11 +84,13 @@ The system uses a two-phase AI agent architecture:
 
 ### Backend Features
 
-- Modal sandbox creation and management
-- Sandbox validation and cleanup
-- Project persistence (in-memory store)
-- AI code generation using BAML + Claude Sonnet 4.5
-- Expo app initialization within sandboxes
+- **RESTful API Design**: Nested routes following REST conventions (`/api/projects/[id]/sandbox`)
+- **Sandbox Lifecycle Management**: Sandboxes created on-demand when projects are opened
+- **Health Checks**: Comprehensive sandbox health monitoring (process status, port listening)
+- **Smart Sandbox Reuse**: Reuses healthy existing sandboxes instead of creating new ones
+- **Project Persistence**: In-memory store with proper CRUD operations
+- **AI Code Generation**: Two-phase generation using BAML + Claude Sonnet 4.5
+- **Expo Initialization**: Automated Expo app setup within sandboxes
 
 ### Coming Soon
 
@@ -166,10 +173,15 @@ The AI agents are defined using BAML (Boundary ML):
 
 ### Modal Sandboxes
 
-Each project runs in an isolated Modal sandbox:
-- Expo apps are initialized and run within sandboxes
-- Sandboxes provide live preview URLs
-- Automatic cleanup when projects are deleted
+Each project runs in an isolated Modal sandbox with smart lifecycle management:
+
+- **On-Demand Creation**: Sandboxes are created when a project is opened, not at project creation
+- **Health Monitoring**: `/api/projects/[id]/sandbox/health` checks sandbox status, Expo process, and port availability
+- **Smart Reuse**: When opening a project, existing healthy sandboxes are reused instead of creating new ones
+- **Separate Lifecycles**: Projects and sandboxes have independent lifecycles
+  - Delete sandbox only: `DELETE /api/projects/[id]/sandbox` (keeps project)
+  - Delete project: `DELETE /api/projects/[id]` (also terminates sandbox)
+- **Live Preview**: Sandboxes provide tunnel URLs for live Expo preview
 
 ## License
 

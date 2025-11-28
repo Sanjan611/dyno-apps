@@ -127,28 +127,81 @@ export default function BuilderPage() {
             const projectSandboxId = data.project.sandboxId;
             setSandboxId(projectSandboxId);
 
-            // Validate sandbox exists
-            if (projectSandboxId) {
-              setIsValidatingSandbox(true);
-              try {
-                const validateResponse = await fetch(
-                  `/api/validate-sandbox?sandboxId=${projectSandboxId}`
-                );
-                const validateData = await validateResponse.json();
+            // Check sandbox health and create if needed
+            setIsValidatingSandbox(true);
+            try {
+              // First check health
+              const healthResponse = await fetch(
+                `/api/projects/${projectId}/sandbox/health`
+              );
+              const healthData = await healthResponse.json();
 
-                if (validateData.success && !validateData.exists) {
+              if (healthData.success) {
+                if (!healthData.exists || !healthData.healthy) {
+                  // Sandbox doesn't exist or is unhealthy, create/get a new one
+                  const sandboxResponse = await fetch(
+                    `/api/projects/${projectId}/sandbox`,
+                    {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                    }
+                  );
+                  const sandboxData = await sandboxResponse.json();
+
+                  if (sandboxData.success) {
+                    setSandboxId(sandboxData.sandboxId);
+                  } else {
+                    setSandboxMissing(true);
+                  }
+                } else {
+                  // Sandbox is healthy, use existing one
+                  setSandboxId(projectSandboxId);
+                }
+              } else {
+                // Health check failed, try to create sandbox
+                const sandboxResponse = await fetch(
+                  `/api/projects/${projectId}/sandbox`,
+                  {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                    },
+                  }
+                );
+                const sandboxData = await sandboxResponse.json();
+
+                if (sandboxData.success) {
+                  setSandboxId(sandboxData.sandboxId);
+                } else {
                   setSandboxMissing(true);
                 }
-              } catch (error) {
-                console.error("Error validating sandbox:", error);
-                // Assume sandbox is missing if validation fails
-                setSandboxMissing(true);
-              } finally {
-                setIsValidatingSandbox(false);
               }
-            } else {
-              // No sandboxId in project, treat as missing
-              setSandboxMissing(true);
+            } catch (error) {
+              console.error("Error checking/creating sandbox:", error);
+              // Try to create sandbox as fallback
+              try {
+                const sandboxResponse = await fetch(
+                  `/api/projects/${projectId}/sandbox`,
+                  {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                    },
+                  }
+                );
+                const sandboxData = await sandboxResponse.json();
+                if (sandboxData.success) {
+                  setSandboxId(sandboxData.sandboxId);
+                } else {
+                  setSandboxMissing(true);
+                }
+              } catch (fallbackError) {
+                setSandboxMissing(true);
+              }
+            } finally {
+              setIsValidatingSandbox(false);
             }
           }
         } catch (error) {

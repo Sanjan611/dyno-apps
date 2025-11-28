@@ -61,114 +61,62 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
         setHasSentInitialMessage(true);
       }
 
-      // If projectId exists (loading existing project), skip sandbox creation
-      if (isFirstMessage && projectId && sandboxId) {
-        // Sandbox already exists for existing project, just generate code
-        setIsLoading(true);
-        try {
-          const codeResponse = await fetch("/api/generate-code", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              userPrompt: newMessage.content,
-              sandboxId: sandboxId,
-            }),
-          });
-
-          const codeData = await codeResponse.json();
-
-          if (codeData.success) {
-            const newMessages: Message[] = [];
-            
-            // Add planning message if present
-            if (codeData.planningMessage) {
-              newMessages.push({
-                id: (Date.now() + 1).toString(),
-                role: "assistant",
-                content: codeData.planningMessage,
-                timestamp: new Date(),
-              });
-            }
-            
-            // Add success message
-            newMessages.push({
-              id: (Date.now() + 2).toString(),
-              role: "assistant",
-              content: codeData.message || `App code generated successfully! Your app is now ready. Check the preview panel to see it.`,
-              timestamp: new Date(),
-            });
-            
-            setMessages((prev) => [...prev, ...newMessages]);
-          } else {
-            const errorMessage: Message = {
-              id: (Date.now() + 1).toString(),
-              role: "assistant",
-              content: `Failed to generate code: ${codeData.error || "Unknown error"}`,
-              timestamp: new Date(),
-            };
-            setMessages((prev) => [...prev, errorMessage]);
-          }
-        } catch (error) {
-          const errorMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            role: "assistant",
-            content: `Error generating code: ${error instanceof Error ? error.message : "Unknown error"}`,
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, errorMessage]);
-        } finally {
-          setIsLoading(false);
-        }
-        return;
-      }
-
       if (isFirstMessage) {
         setIsLoading(true);
         try {
-          const response = await fetch("/api/create-sandbox", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-          });
+          let currentProjectId = projectId;
+          let currentSandboxId = sandboxId;
 
-          const data = await response.json();
+          // If no project exists, create one first
+          if (!currentProjectId) {
+            const saveResponse = await fetch("/api/projects", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                name: null, // Will be extracted from firstMessage
+                description: null, // Will use firstMessage
+                firstMessage: newMessage.content,
+              }),
+            });
 
-          if (data.success) {
-            setSandboxId(data.sandboxId);
+            const saveData = await saveResponse.json();
+            if (saveData.success && saveData.project) {
+              currentProjectId = saveData.project.id;
+              setProjectId(currentProjectId);
+            } else {
+              throw new Error(saveData.error || "Failed to create project");
+            }
+          }
+
+          // Get or create sandbox for the project
+          const sandboxResponse = await fetch(
+            `/api/projects/${currentProjectId}/sandbox`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+            }
+          );
+
+          const sandboxData = await sandboxResponse.json();
+
+          if (sandboxData.success) {
+            currentSandboxId = sandboxData.sandboxId;
+            setSandboxId(currentSandboxId);
+            
             const sandboxMessage: Message = {
               id: (Date.now() + 1).toString(),
               role: "assistant",
-              content: `Sandbox created successfully! Initializing Expo application...`,
+              content:
+                sandboxData.status === "reused"
+                  ? `Using existing sandbox. Initializing Expo application...`
+                  : `Sandbox created successfully! Initializing Expo application...`,
               timestamp: new Date(),
             };
             setMessages((prev) => [...prev, sandboxMessage]);
-
-            // Auto-save project to gallery
-            try {
-              const saveResponse = await fetch("/api/projects", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  sandboxId: data.sandboxId,
-                  name: null, // Will be extracted from firstMessage
-                  description: null, // Will use firstMessage
-                  firstMessage: newMessage.content,
-                }),
-              });
-
-              const saveData = await saveResponse.json();
-              if (saveData.success && saveData.project) {
-                setProjectId(saveData.project.id);
-              }
-            } catch (error) {
-              console.error("Error saving project:", error);
-              // Don't show error to user, just log it
-            }
 
             // Initialize Expo in the sandbox
             try {
@@ -177,7 +125,7 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
                 headers: {
                   "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ sandboxId: data.sandboxId }),
+                body: JSON.stringify({ sandboxId: currentSandboxId }),
               });
 
               const initData = await initResponse.json();
@@ -201,7 +149,7 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
                     },
                     body: JSON.stringify({
                       userPrompt: newMessage.content,
-                      sandboxId: data.sandboxId,
+                      sandboxId: currentSandboxId,
                     }),
                   });
 
@@ -269,19 +217,13 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
               setMessages((prev) => [...prev, errorMessage]);
             }
           } else {
-            const errorMessage: Message = {
-              id: (Date.now() + 1).toString(),
-              role: "assistant",
-              content: `Failed to create sandbox: ${data.error || "Unknown error"}`,
-              timestamp: new Date(),
-            };
-            setMessages((prev) => [...prev, errorMessage]);
+            throw new Error(sandboxData.error || "Failed to create/get sandbox");
           }
         } catch (error) {
           const errorMessage: Message = {
             id: (Date.now() + 1).toString(),
             role: "assistant",
-            content: `Error creating sandbox: ${error instanceof Error ? error.message : "Unknown error"}`,
+            content: `Error setting up project: ${error instanceof Error ? error.message : "Unknown error"}`,
             timestamp: new Date(),
           };
           setMessages((prev) => [...prev, errorMessage]);

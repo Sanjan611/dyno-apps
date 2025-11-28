@@ -66,12 +66,11 @@ export default function ProjectGalleryPage() {
     try {
       setDeletingProjectId(projectId);
       setActionError(null);
-      const response = await fetch("/api/delete-sandbox", {
-        method: "POST",
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: "DELETE",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ projectId }),
       });
 
       const data = await response.json();

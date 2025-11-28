@@ -1,6 +1,6 @@
 export interface Project {
   id: string;
-  sandboxId: string;
+  sandboxId: string | null;
   name: string;
   description: string;
   createdAt: string;
@@ -62,5 +62,15 @@ export function formatRelativeTime(dateString: string): string {
   if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? "hour" : "hours"} ago`;
   if (diffDays < 7) return `${diffDays} ${diffDays === 1 ? "day" : "days"} ago`;
   return date.toLocaleDateString();
+}
+
+/**
+ * Updates a project's sandboxId
+ */
+export function updateProjectSandboxId(
+  projectId: string,
+  sandboxId: string | null
+): Project | undefined {
+  return updateProject(projectId, { sandboxId });
 }
 
