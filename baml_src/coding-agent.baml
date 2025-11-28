@@ -7,7 +7,8 @@ function CodingAgent(
   plan: Plan,
   todos: TodoItem[]
 ) -> FileTools | ParallelReadTools | TodoTools | ReplyToUser {
-  client ClaudeSonnet
+  // client ClaudeSonnet
+  client OpenRouter
   prompt #"
     {{ _.role("system") }}
     You are a coding agent for a mobile application development system. Your job is to implement changes to the codebase based on a provided plan, while tracking your progress using a todo list.
@@ -80,7 +81,7 @@ function CodingAgent(
     - Examples of good replies: "I've added a button to your app" or "Your app now displays a welcome message"
     - Examples of bad replies: "I've modified App.js" or "Updated the React Native component"
 
-    {{ ctx.output_format(prefix="Execute a tool (or parallel_read for multiple independent reads):\n") }}
+    {{ ctx.output_format(prefix="Answer with the following format (select ONE tool at a time):\n") }}
 
     {% for message in state %}
     {{ _.role(message.role) }}

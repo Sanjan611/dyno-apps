@@ -124,6 +124,7 @@ pnpm install
 cp .env.local.example .env.local
 # Add required API keys:
 # - ANTHROPIC_API_KEY (for AI code generation)
+# - OPENROUTER_API_KEY (optional, for using OpenRouter models)
 # - MODAL_TOKEN_ID and MODAL_TOKEN_SECRET (for sandboxes)
 ```
 

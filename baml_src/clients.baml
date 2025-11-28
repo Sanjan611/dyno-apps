@@ -62,6 +62,17 @@ client<llm> ClaudeSonnet {
   }
 }
 
+// OpenRouter client - access models through OpenRouter
+// https://docs.boundaryml.com/ref/llm-client-providers/openrouter
+client<llm> OpenRouter {
+  provider openai-generic
+  options {
+    base_url "https://openrouter.ai/api/v1"
+    api_key env.OPENROUTER_API_KEY
+    model "z-ai/glm-4.6"
+  }
+}
+
 // Example Google AI client (uncomment to use)
 // client<llm> CustomGemini {
 //   provider google-ai
