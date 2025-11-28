@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { ModalClient } from "modal";
 import { dirname } from "path";
 import { b } from "@/baml_client";
+import {
+  BamlValidationError,
+  BamlClientFinishReasonError,
+  BamlAbortError,
+} from "@boundaryml/baml";
 import type {
   ListFilesTool,
   ReadFileTool,
@@ -210,6 +215,67 @@ function areAllTodosCompleted(todoList: TodoItem[]): boolean {
   return todoList.length > 0 && todoList.every((todo) => todo.status === "completed");
 }
 
+// Helper function to handle BAML errors with detailed logging
+function handleBamlError(
+  error: unknown,
+  context: string = ""
+): NextResponse | never {
+  const contextPrefix = context ? `${context} ` : "";
+
+  if (error instanceof BamlAbortError) {
+    // Handle cancellation
+    console.error(`[generate-code] ${contextPrefix}operation was cancelled:`, error.message);
+    console.error(`[generate-code] Cancellation reason:`, error.reason);
+    return NextResponse.json(
+      {
+        success: false,
+        error: `${contextPrefix}operation was cancelled`,
+        details: error.reason || error.message,
+      },
+      { status: 500 }
+    );
+  } else if (error instanceof BamlValidationError || error instanceof BamlClientFinishReasonError) {
+    // Handle validation and finish reason errors with detailed logging
+    console.error(`[generate-code] ${contextPrefix}BAML error:`, error.message);
+    console.error(`[generate-code] BAML error detailed message:`, error.detailed_message);
+    if (error.prompt) {
+      console.error(`[generate-code] BAML error prompt:`, error.prompt);
+    }
+    if (error.raw_output) {
+      console.error(`[generate-code] BAML error raw output:`, error.raw_output);
+    }
+    return NextResponse.json(
+      {
+        success: false,
+        error: `${contextPrefix}encountered a BAML error`,
+        details: error.detailed_message || error.message,
+        bamlError: {
+          message: error.message,
+          detailedMessage: error.detailed_message,
+          rawOutput: error.raw_output,
+        },
+      },
+      { status: 500 }
+    );
+  } else {
+    // Handle other BAML errors (check for "BamlError:" prefix)
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes("BamlError:")) {
+      console.error(`[generate-code] ${contextPrefix}BAML error:`, errorMessage);
+      return NextResponse.json(
+        {
+          success: false,
+          error: `${contextPrefix}encountered a BAML error`,
+          details: errorMessage,
+        },
+        { status: 500 }
+      );
+    }
+    // Re-throw non-BAML errors to be handled by outer catch
+    throw error;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { userPrompt, sandboxId } = await request.json();
@@ -251,7 +317,7 @@ export async function POST(request: NextRequest) {
     console.log("[generate-code] Sandbox reference obtained:", sandbox.sandboxId);
 
     const workingDir = "/my-app";
-    const maxIterations = 20;
+    const maxIterations = 50;
     const modifiedFiles: Record<string, string> = {};
 
     // ============================================
@@ -272,10 +338,20 @@ export async function POST(request: NextRequest) {
       planIterations++;
       console.log(`[generate-code] Planning iteration ${planIterations}/${maxIterations}`);
 
-      const planningResponse = await b.PlanningAgent(planningState, workingDir);
+      let planningResponse;
+      try {
+        planningResponse = await b.PlanningAgent(planningState, workingDir);
+      } catch (e) {
+        const errorResponse = handleBamlError(e, "Planning agent");
+        if (errorResponse) {
+          return errorResponse;
+        }
+        // Non-BAML errors are re-thrown by handleBamlError, so this won't be reached
+        throw e;
+      }
 
       // Check if planning agent has output a plan
-      if ("summary" in planningResponse && "steps" in planningResponse) {
+      if (planningResponse && "summary" in planningResponse && "steps" in planningResponse) {
         plan = planningResponse as Plan;
         console.log("[generate-code] Planning complete:", plan.summary);
         break;
@@ -344,27 +420,38 @@ export async function POST(request: NextRequest) {
       codingIterations++;
       console.log(`[generate-code] Coding iteration ${codingIterations}/${maxIterations}`);
 
-      const codingResponse = await b.CodingAgent(
-        codingState,
-        workingDir,
-        plan,
-        todoList
-      );
+      let codingResponse;
+      try {
+        codingResponse = await b.CodingAgent(
+          codingState,
+          workingDir,
+          plan,
+          todoList
+        );
+      } catch (e) {
+        const errorResponse = handleBamlError(e, "Coding agent");
+        if (errorResponse) {
+          return errorResponse;
+        }
+        // Non-BAML errors are re-thrown by handleBamlError, so this won't be reached
+        throw e;
+      }
 
       // Check if coding agent is replying (done)
-      if (codingResponse.action === "reply_to_user") {
+      if (codingResponse && "action" in codingResponse && codingResponse.action === "reply_to_user") {
         // Extract all modified files
         const allFiles =
           Object.keys(modifiedFiles).length > 0
             ? modifiedFiles
             : extractFilesFromState(codingState);
 
-        console.log("[generate-code] Coding agent completed with reply:", codingResponse.message);
+        const replyMessage = "message" in codingResponse ? codingResponse.message : "";
+        console.log("[generate-code] Coding agent completed with reply:", replyMessage);
         return NextResponse.json({
           success: true,
           planningMessage: planningMessage,
           plan: plan,
-          message: codingResponse.message,
+          message: replyMessage,
           files: allFiles,
           code: Object.values(allFiles)[0] || "",
         });
@@ -426,6 +513,18 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error("[generate-code] Error generating code:", error);
+    
+    // Handle BAML errors that might escape inner handlers
+    try {
+      const bamlErrorResponse = handleBamlError(error);
+      if (bamlErrorResponse) {
+        return bamlErrorResponse;
+      }
+    } catch {
+      // handleBamlError throws non-BAML errors, so we handle them below
+    }
+    
+    // Handle generic errors
     if (error instanceof Error) {
       console.error("[generate-code] Error stack:", error.stack);
     }
