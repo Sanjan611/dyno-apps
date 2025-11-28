@@ -6,6 +6,7 @@ import type {
   ListFilesTool,
   ReadFileTool,
   WriteFileTool,
+  BashTool,
   Message,
   ReplyToUser,
   FileTools,
@@ -116,6 +117,59 @@ async function executeParallelReads(
     })
   );
   return `Results for parallel read:\n${results.join("\n")}`;
+}
+
+// Bash command execution function
+async function executeBashCommand(
+  sandbox: any,
+  tool: BashTool
+): Promise<string> {
+  try {
+    const timeout = tool.timeout || 120000; // Default 2 minutes, max 10 minutes
+    const maxTimeout = Math.min(timeout, 600000);
+    
+    console.log(`[generate-code] Executing bash command: ${tool.command} (timeout: ${maxTimeout}ms)`);
+    
+    // Execute command using bash -c in the sandbox
+    const process = await sandbox.exec(["bash", "-c", tool.command]);
+    
+    // Read stdout and stderr
+    const stdoutPromise = process.stdout.readText();
+    const stderrPromise = process.stderr.readText();
+    
+    // Wait for process to complete with timeout
+    const waitPromise = process.wait();
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error("Command timed out")), maxTimeout)
+    );
+    
+    const exitCode = await Promise.race([waitPromise, timeoutPromise]);
+    
+    const stdout = await stdoutPromise;
+    const stderr = await stderrPromise;
+    
+    // Combine stdout and stderr, truncate if too long
+    let output = "";
+    if (stdout) output += stdout;
+    if (stderr) {
+      if (output) output += "\n";
+      output += `STDERR: ${stderr}`;
+    }
+    
+    // Truncate if output exceeds 30000 characters
+    if (output.length > 30000) {
+      output = output.substring(0, 30000) + "\n... (output truncated)";
+    }
+    
+    if (exitCode === 0) {
+      return `Command executed successfully:\n${output || "(no output)"}`;
+    } else {
+      return `Command exited with code ${exitCode}:\n${output || "(no output)"}`;
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return `Error executing bash command: ${errorMessage}. Please check the command syntax and try again.`;
+  }
 }
 
 // Helper function to extract all written files from message state
@@ -343,6 +397,9 @@ export async function POST(request: NextRequest) {
         if (areAllTodosCompleted(todoList)) {
           console.log("[generate-code] All todos completed, agent should reply to user");
         }
+      } else if (tool.action === "bash") {
+        console.log("[generate-code] Executing bash tool...");
+        result = await executeBashCommand(sandbox, tool);
       } else {
         result = `Unknown tool action: ${(tool as FileTools | ParallelReadTools | TodoTools).action}`;
       }

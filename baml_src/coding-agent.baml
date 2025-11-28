@@ -65,6 +65,15 @@ function CodingAgent(
     - Update your todo list regularly to track progress
     - When all todos are completed, use reply_to_user with a simple, user-friendly message
 
+    # Bash Tool Usage
+    - Use the bash tool for running installation commands (e.g., npm install, yarn install, pip install) and other shell operations
+    - **IMPORTANT: Do NOT use bash for reading files or searching - use read_file and list_files instead**
+    - Always quote file paths that contain spaces with double quotes (e.g., cd "path with spaces/file.txt")
+    - When issuing multiple commands, use ';' or '&&' to separate them (do not use newlines)
+    - Prefer absolute paths and avoid using `cd` unless necessary
+    - Commands default to 120000ms (2 minutes) timeout, but you can specify up to 600000ms (10 minutes) for longer operations
+    - Provide a clear, concise description (5-10 words) of what the command does
+
     # Communication Rules
     - NEVER mention technical details like file paths, code, file names, or implementation details in your reply_to_user messages
     - Keep replies brief and focused on what the app now does, not how it was implemented
