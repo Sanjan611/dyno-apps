@@ -24,6 +24,305 @@ interface Message {
   timestamp: Date;
 }
 
+interface SSEProgressEvent {
+  type: 'status' | 'planning_iteration' | 'plan_complete' | 'coding_iteration' | 'todo_update' | 'complete' | 'error';
+  message?: string;
+  iteration?: number;
+  tool?: string;
+  todo?: string;
+  plan?: {
+    summary: string;
+    steps: string[];
+  };
+  todos?: Array<{
+    content: string;
+    activeForm: string;
+    status: string;
+  }>;
+  error?: string;
+  details?: any;
+  files?: Record<string, string>;
+  planningMessage?: string;
+}
+
+// Helper function to parse SSE stream
+function parseSSEEvents(chunk: string): string[] {
+  const events: string[] = [];
+  const lines = chunk.split('\n');
+  let currentEvent = '';
+  
+  for (const line of lines) {
+    if (line.startsWith('data: ')) {
+      if (currentEvent) {
+        events.push(currentEvent);
+      }
+      currentEvent = line.substring(6); // Remove 'data: ' prefix
+    } else if (line.trim() === '' && currentEvent) {
+      events.push(currentEvent);
+      currentEvent = '';
+    } else if (currentEvent) {
+      currentEvent += '\n' + line;
+    }
+  }
+  
+  if (currentEvent) {
+    events.push(currentEvent);
+  }
+  
+  return events;
+}
+
+// Helper function to consume the code generation SSE stream
+async function consumeCodeGenerationStream(
+  userPrompt: string,
+  sandboxId: string,
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>
+): Promise<void> {
+  const response = await fetch("/api/generate-code-stream", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      userPrompt,
+      sandboxId,
+    }),
+  });
+
+  if (!response.ok || !response.body) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  
+  let progressMessageId: string | null = null;
+  let planningMessageId: string | null = null;
+  let hasPlanningMessage = false;
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      
+      if (done) break;
+      
+      buffer += decoder.decode(value, { stream: true });
+      
+      // Try to parse complete SSE events
+      const events = parseSSEEvents(buffer);
+      
+      // Keep incomplete events in buffer
+      const lastNewlineIndex = buffer.lastIndexOf('\n\n');
+      if (lastNewlineIndex !== -1) {
+        buffer = buffer.substring(lastNewlineIndex + 2);
+      } else {
+        // Check if we have a partial event
+        const lastDataIndex = buffer.lastIndexOf('data: ');
+        if (lastDataIndex !== -1) {
+          buffer = buffer.substring(lastDataIndex);
+        }
+      }
+      
+      for (const eventData of events) {
+        if (!eventData.trim()) continue;
+        
+        try {
+          const event: SSEProgressEvent = JSON.parse(eventData);
+          
+          switch (event.type) {
+            case 'status':
+              if (event.message) {
+                // Update or create progress message
+                setMessages((prev) => {
+                  if (progressMessageId) {
+                    return prev.map((msg) =>
+                      msg.id === progressMessageId
+                        ? { ...msg, content: event.message! }
+                        : msg
+                    );
+                  } else {
+                    progressMessageId = Date.now().toString();
+                    return [
+                      ...prev,
+                      {
+                        id: progressMessageId,
+                        role: "assistant",
+                        content: event.message,
+                        timestamp: new Date(),
+                      },
+                    ];
+                  }
+                });
+              }
+              break;
+              
+            case 'planning_iteration':
+              if (event.message) {
+                setMessages((prev) => {
+                  const content = `Planning... (iteration ${event.iteration})`;
+                  if (progressMessageId) {
+                    return prev.map((msg) =>
+                      msg.id === progressMessageId
+                        ? { ...msg, content }
+                        : msg
+                    );
+                  } else {
+                    progressMessageId = Date.now().toString();
+                    return [
+                      ...prev,
+                      {
+                        id: progressMessageId,
+                        role: "assistant",
+                        content,
+                        timestamp: new Date(),
+                      },
+                    ];
+                  }
+                });
+              }
+              break;
+              
+            case 'plan_complete':
+              if (event.plan && !hasPlanningMessage) {
+                const planningMsg = `I've analyzed your request and created a plan to implement your changes. The plan includes ${event.plan.steps.length} steps.`;
+                planningMessageId = (Date.now() + 1).toString();
+                hasPlanningMessage = true;
+                
+                setMessages((prev) => {
+                  const filtered = prev.filter((msg) => msg.id !== progressMessageId);
+                  progressMessageId = null;
+                  
+                  return [
+                    ...filtered,
+                    {
+                      id: planningMessageId,
+                      role: "assistant",
+                      content: planningMsg,
+                      timestamp: new Date(),
+                    },
+                  ];
+                });
+              }
+              break;
+              
+            case 'coding_iteration':
+              if (event.todo || event.tool) {
+                const content = event.todo 
+                  ? `Implementing: ${event.todo}`
+                  : `Working... (${event.tool})`;
+                
+                setMessages((prev) => {
+                  if (progressMessageId) {
+                    return prev.map((msg) =>
+                      msg.id === progressMessageId
+                        ? { ...msg, content }
+                        : msg
+                    );
+                  } else {
+                    progressMessageId = Date.now().toString();
+                    return [
+                      ...prev,
+                      {
+                        id: progressMessageId,
+                        role: "assistant",
+                        content,
+                        timestamp: new Date(),
+                      },
+                    ];
+                  }
+                });
+              }
+              break;
+              
+            case 'todo_update':
+              if (event.todos && event.todos.length > 0) {
+                const inProgressTodo = event.todos.find(t => t.status === "in_progress");
+                if (inProgressTodo) {
+                  setMessages((prev) => {
+                    const content = `Implementing: ${inProgressTodo.content}`;
+                    if (progressMessageId) {
+                      return prev.map((msg) =>
+                        msg.id === progressMessageId
+                          ? { ...msg, content }
+                          : msg
+                      );
+                    } else {
+                      progressMessageId = Date.now().toString();
+                      return [
+                        ...prev,
+                        {
+                          id: progressMessageId,
+                          role: "assistant",
+                          content,
+                          timestamp: new Date(),
+                        },
+                      ];
+                    }
+                  });
+                }
+              }
+              break;
+              
+            case 'complete':
+              // Remove progress message and add final messages
+              setMessages((prev) => {
+                const filtered = prev.filter((msg) => 
+                  msg.id !== progressMessageId && msg.id !== planningMessageId
+                );
+                const newMessages = [...filtered];
+                
+                // Add planning message if present and not already added
+                if (event.planningMessage && !hasPlanningMessage) {
+                  hasPlanningMessage = true;
+                  newMessages.push({
+                    id: (Date.now() + 1).toString(),
+                    role: "assistant",
+                    content: event.planningMessage,
+                    timestamp: new Date(),
+                  });
+                }
+                
+                // Add completion message
+                newMessages.push({
+                  id: (Date.now() + 2).toString(),
+                  role: "assistant",
+                  content: event.message || "App updated successfully! The changes should be visible in the preview.",
+                  timestamp: new Date(),
+                });
+                
+                return newMessages;
+              });
+              break;
+              
+            case 'error':
+              // Remove progress message and add error message
+              setMessages((prev) => {
+                const filtered = prev.filter((msg) => 
+                  msg.id !== progressMessageId && msg.id !== planningMessageId
+                );
+                return [
+                  ...filtered,
+                  {
+                    id: (Date.now() + 1).toString(),
+                    role: "assistant",
+                    content: `Error: ${event.error || "Unknown error"}`,
+                    timestamp: new Date(),
+                  },
+                ];
+              });
+              break;
+          }
+        } catch (parseError) {
+          console.error("Error parsing SSE event:", parseError, "Event data:", eventData);
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -140,52 +439,13 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
                 };
                 setMessages((prev) => [...prev, expoMessage]);
 
-                // Call the coding agent to generate/modify App.js
+                // Call the coding agent to generate/modify App.js using SSE streaming
                 try {
-                  const codeResponse = await fetch("/api/generate-code", {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                      userPrompt: newMessage.content,
-                      sandboxId: currentSandboxId,
-                    }),
-                  });
-
-                  const codeData = await codeResponse.json();
-
-                  if (codeData.success) {
-                    const newMessages: Message[] = [];
-                    
-                    // Add planning message if present
-                    if (codeData.planningMessage) {
-                      newMessages.push({
-                        id: (Date.now() + 2).toString(),
-                        role: "assistant",
-                        content: codeData.planningMessage,
-                        timestamp: new Date(),
-                      });
-                    }
-                    
-                    // Add success message
-                    newMessages.push({
-                      id: (Date.now() + 3).toString(),
-                      role: "assistant",
-                      content: codeData.message || `App code generated successfully! Your app is now ready. Check the preview panel to see it.`,
-                      timestamp: new Date(),
-                    });
-                    
-                    setMessages((prev) => [...prev, ...newMessages]);
-                  } else {
-                    const errorMessage: Message = {
-                      id: (Date.now() + 3).toString(),
-                      role: "assistant",
-                      content: `Failed to generate code: ${codeData.error || "Unknown error"}`,
-                      timestamp: new Date(),
-                    };
-                    setMessages((prev) => [...prev, errorMessage]);
-                  }
+                  await consumeCodeGenerationStream(
+                    newMessage.content,
+                    currentSandboxId,
+                    setMessages
+                  );
                 } catch (error) {
                   const errorMessage: Message = {
                     id: (Date.now() + 3).toString(),
@@ -246,82 +506,20 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
       }
 
       setIsLoading(true);
-      const thinkingMessageId = (Date.now() + 1).toString();
-      const thinkingMessage: Message = {
-        id: thinkingMessageId,
-        role: "assistant",
-        content: "Updating your app...",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, thinkingMessage]);
-
       try {
-        const codeResponse = await fetch("/api/generate-code", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            userPrompt: newMessage.content,
-            sandboxId: sandboxId,
-          }),
-        });
-
-        const codeData = await codeResponse.json();
-
-        if (codeData.success) {
-          // Remove the "thinking" message
-          setMessages((prev) => {
-            const filtered = prev.filter((msg) => msg.id !== thinkingMessageId);
-            const newMessages = [...filtered];
-            
-            // Add planning message if present
-            if (codeData.planningMessage) {
-              newMessages.push({
-                id: (Date.now() + 1).toString(),
-                role: "assistant",
-                content: codeData.planningMessage,
-                timestamp: new Date(),
-              });
-            }
-            
-            // Add success message
-            newMessages.push({
-              id: (Date.now() + 2).toString(),
-              role: "assistant",
-              content: codeData.message || "App updated successfully! The changes should be visible in the preview.",
-              timestamp: new Date(),
-            });
-            
-            return newMessages;
-          });
-        } else {
-          setMessages((prev) => {
-            const filtered = prev.filter((msg) => msg.id !== thinkingMessageId);
-            return [
-              ...filtered,
-              {
-                id: (Date.now() + 2).toString(),
-                role: "assistant",
-                content: `Failed to update app: ${codeData.error || "Unknown error"}`,
-                timestamp: new Date(),
-              },
-            ];
-          });
-        }
+        await consumeCodeGenerationStream(
+          newMessage.content,
+          sandboxId,
+          setMessages
+        );
       } catch (error) {
-        setMessages((prev) => {
-          const filtered = prev.filter((msg) => msg.id !== thinkingMessageId);
-          return [
-            ...filtered,
-            {
-              id: (Date.now() + 2).toString(),
-              role: "assistant",
-              content: `Error updating app: ${error instanceof Error ? error.message : "Unknown error"}`,
-              timestamp: new Date(),
-            },
-          ];
-        });
+        const errorMessage: Message = {
+          id: (Date.now() + 2).toString(),
+          role: "assistant",
+          content: `Error updating app: ${error instanceof Error ? error.message : "Unknown error"}`,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
       } finally {
         setIsLoading(false);
       }
