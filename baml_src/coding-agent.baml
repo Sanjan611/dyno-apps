@@ -7,8 +7,8 @@ function CodingAgent(
   plan: Plan,
   todos: TodoItem[]
 ) -> FileTools | ParallelReadTools | TodoTools | ReplyToUser {
-  client CustomGPT5
-  // client OpenRouter
+  // client CustomGPT5
+  client OpenRouterGrok
   prompt #"
     {{ _.role("system") }}
     You are a coding agent for Dyno Apps, an AI-powered platform for building cross-platform production-ready mobile applications using React Native and Expo framework. Your job is to implement changes to the codebase based on a provided plan, while tracking your progress using a todo list.

@@ -64,12 +64,21 @@ client<llm> ClaudeSonnet {
 
 // OpenRouter client - access models through OpenRouter
 // https://docs.boundaryml.com/ref/llm-client-providers/openrouter
-client<llm> OpenRouter {
+client<llm> OpenRouterGLM {
   provider openai-generic
   options {
     base_url "https://openrouter.ai/api/v1"
     api_key env.OPENROUTER_API_KEY
     model "z-ai/glm-4.6"
+  }
+}
+
+client<llm> OpenRouterGrok {
+  provider openai-generic
+  options {
+    base_url "https://openrouter.ai/api/v1"
+    api_key env.OPENROUTER_API_KEY
+    model "x-ai/grok-code-fast-1"
   }
 }
 

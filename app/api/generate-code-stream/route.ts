@@ -6,6 +6,7 @@ import {
   BamlValidationError,
   BamlClientFinishReasonError,
   BamlAbortError,
+  Collector,
 } from "@boundaryml/baml";
 import type {
   ListFilesTool,
@@ -240,7 +241,7 @@ function sendErrorViaStream(
     console.error(`[generate-code-stream] ${errorMessage}:`, error.message);
     console.error(`[generate-code-stream] BAML error detailed message:`, error.detailed_message);
     if (error.prompt) {
-      console.error(`[generate-code-stream] BAML error prompt:`, error.prompt);
+      // console.error(`[generate-code-stream] BAML error prompt:`, error.prompt);
     }
     if (error.raw_output) {
       console.error(`[generate-code-stream] BAML error raw output:`, error.raw_output);
@@ -342,6 +343,9 @@ export async function POST(request: NextRequest) {
       console.log("[generate-code-stream] Starting planning phase...");
       await sendProgress({ type: 'status', message: 'Planning phase started...' });
 
+      // Create collector for planning phase to track token usage and latency
+      const planningCollector = new Collector("planning-phase");
+
       const planningState: Message[] = [
         {
           role: "user",
@@ -363,7 +367,16 @@ export async function POST(request: NextRequest) {
 
         let planningResponse;
         try {
-          planningResponse = await b.PlanningAgent(planningState, workingDir);
+          planningResponse = await b.PlanningAgent(planningState, workingDir, { collector: planningCollector });
+          
+          // Log token usage and latency for this iteration
+          if (planningCollector.last) {
+            console.log(`[generate-code-stream] PlanningAgent iteration ${planIterations} usage:`, {
+              inputTokens: planningCollector.last.usage?.inputTokens ?? null,
+              outputTokens: planningCollector.last.usage?.outputTokens ?? null,
+              durationMs: planningCollector.last.timing?.durationMs ?? null,
+            });
+          }
         } catch (e) {
           clearInterval(keepaliveInterval);
           sendErrorViaStream(writer, encoder, e, "Planning agent");
@@ -377,6 +390,13 @@ export async function POST(request: NextRequest) {
         if (planningResponse && "summary" in planningResponse && "steps" in planningResponse) {
           plan = planningResponse as Plan;
           console.log("[generate-code-stream] Planning complete:", plan.summary);
+          
+          // Log cumulative token usage and latency for planning phase
+          console.log(`[generate-code-stream] PlanningAgent phase complete - cumulative usage:`, {
+            totalInputTokens: planningCollector.usage?.inputTokens ?? null,
+            totalOutputTokens: planningCollector.usage?.outputTokens ?? null,
+            totalCalls: planningCollector.logs.length,
+          });
           
           await sendProgress({
             type: 'plan_complete',
@@ -445,6 +465,9 @@ export async function POST(request: NextRequest) {
       console.log("[generate-code-stream] Starting coding phase...");
       await sendProgress({ type: 'status', message: 'Coding phase started...' });
       
+      // Create collector for coding phase to track token usage and latency
+      const codingCollector = new Collector("coding-phase");
+      
       // Initialize empty todo list - the coding agent will create todos using todo_write
       // This aligns with Claude Code's approach where the agent manages the todo list
       let todoList: TodoItem[] = [];
@@ -473,8 +496,18 @@ export async function POST(request: NextRequest) {
             codingState,
             workingDir,
             plan,
-            todoList
+            todoList,
+            { collector: codingCollector }
           );
+          
+          // Log token usage and latency for this iteration
+          if (codingCollector.last) {
+            console.log(`[generate-code-stream] CodingAgent iteration ${codingIterations} usage:`, {
+              inputTokens: codingCollector.last.usage?.inputTokens ?? null,
+              outputTokens: codingCollector.last.usage?.outputTokens ?? null,
+              durationMs: codingCollector.last.timing?.durationMs ?? null,
+            });
+          }
         } catch (e) {
           clearInterval(keepaliveInterval);
           sendErrorViaStream(writer, encoder, e, "Coding agent");
@@ -494,6 +527,22 @@ export async function POST(request: NextRequest) {
 
           const replyMessage = "message" in codingResponse ? codingResponse.message : "";
           console.log("[generate-code-stream] Coding agent completed with reply:", replyMessage);
+          
+          // Log cumulative token usage and latency for coding phase
+          console.log(`[generate-code-stream] CodingAgent phase complete - cumulative usage:`, {
+            totalInputTokens: codingCollector.usage?.inputTokens ?? null,
+            totalOutputTokens: codingCollector.usage?.outputTokens ?? null,
+            totalCalls: codingCollector.logs.length,
+          });
+          
+          // Log total usage across both phases
+          const totalInputTokens = (planningCollector.usage?.inputTokens ?? 0) + (codingCollector.usage?.inputTokens ?? 0);
+          const totalOutputTokens = (planningCollector.usage?.outputTokens ?? 0) + (codingCollector.usage?.outputTokens ?? 0);
+          console.log(`[generate-code-stream] Total usage across all phases:`, {
+            totalInputTokens,
+            totalOutputTokens,
+            totalCalls: planningCollector.logs.length + codingCollector.logs.length,
+          });
           
           await sendProgress({
             type: 'complete',
