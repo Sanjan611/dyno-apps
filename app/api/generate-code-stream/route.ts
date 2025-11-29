@@ -218,6 +218,70 @@ function areAllTodosCompleted(todoList: TodoItem[]): boolean {
   return todoList.length > 0 && todoList.every((todo) => todo.status === "completed");
 }
 
+// Retry wrapper for CodingAgent with exponential backoff for validation errors
+async function callCodingAgentWithRetry(
+  state: Message[],
+  workingDir: string,
+  todoList: TodoItem[],
+  collector: Collector,
+  maxRetries: number = 3
+): Promise<FileTools | ParallelReadTools | TodoTools | ReplyToUser> {
+  let lastError: BamlValidationError | BamlClientFinishReasonError | null = null;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await b.CodingAgent(
+        state,
+        workingDir,
+        todoList,
+        { collector }
+      );
+      
+      // Success - return the response
+      if (attempt > 0) {
+        console.log(`[generate-code-stream] CodingAgent succeeded on retry attempt ${attempt}`);
+      }
+      return response;
+    } catch (error) {
+      // Only retry on BamlValidationError or BamlClientFinishReasonError
+      if (
+        error instanceof BamlValidationError ||
+        error instanceof BamlClientFinishReasonError
+      ) {
+        lastError = error;
+        
+        if (attempt < maxRetries) {
+          // Calculate exponential backoff delay: 1s, 2s, 4s
+          const delayMs = Math.pow(2, attempt) * 1000;
+          console.log(
+            `[generate-code-stream] CodingAgent validation error on attempt ${attempt + 1}/${maxRetries + 1}, retrying in ${delayMs}ms...`
+          );
+          console.error(`[generate-code-stream] Validation error details:`, error.detailed_message || error.message);
+          
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        } else {
+          // All retries exhausted
+          console.error(
+            `[generate-code-stream] CodingAgent failed after ${maxRetries + 1} attempts with validation error`
+          );
+        }
+      } else {
+        // Non-retryable error (BamlAbortError, network errors, etc.) - throw immediately
+        throw error;
+      }
+    }
+  }
+  
+  // If we get here, all retries were exhausted
+  if (lastError) {
+    throw lastError;
+  }
+  
+  // This should never happen, but TypeScript needs it
+  throw new Error("Unexpected error in retry logic");
+}
+
 // Helper function to send error via SSE stream
 function sendErrorViaStream(
   writer: WritableStreamDefaultWriter,
@@ -369,11 +433,11 @@ export async function POST(request: NextRequest) {
 
         let response;
         try {
-          response = await b.CodingAgent(
+          response = await callCodingAgentWithRetry(
             state,
             workingDir,
             todoList,
-            { collector }
+            collector
           );
           
           // Log token usage and latency for this iteration

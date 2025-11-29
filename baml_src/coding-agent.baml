@@ -7,8 +7,9 @@ function CodingAgent(
   todos: TodoItem[]
 ) -> FileTools | ParallelReadTools | TodoTools | ReplyToUser {
   // client CustomGPT5Mini
-  client CustomGPT5
+  // client CustomGPT5
   // client OpenRouterGrok
+  client OpenRouterGLM
   // client ClaudeSonnet
   prompt #"
     {{ _.role("system") }}
