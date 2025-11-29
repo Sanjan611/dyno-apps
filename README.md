@@ -22,7 +22,7 @@ dyno-apps/
 ├── app/
 │   ├── (auth)/           # Authentication pages (login/signup)
 │   ├── api/              # API routes
-│   │   ├── generate-code/      # Two-phase AI code generation
+│   │   ├── generate-code/      # AI code generation
 │   │   ├── init-expo/          # Initialize Expo template
 │   │   ├── projects/           # Project CRUD operations
 │   │   │   ├── route.ts        # GET (list/get), POST (create), PATCH (update)
@@ -47,8 +47,7 @@ dyno-apps/
 │   └── shared/          # Shared components
 ├── baml_src/            # BAML AI agent definitions
 │   ├── clients.baml     # LLM client configurations
-│   ├── planning-agent.baml   # Planning agent
-│   ├── coding-agent.baml     # Coding agent
+│   ├── coding-agent.baml     # Coding agent (explores and implements)
 │   ├── tools.baml       # Shared tool definitions
 │   └── generators.baml  # BAML generators config
 ├── baml_client/         # Auto-generated BAML client
@@ -77,10 +76,9 @@ dyno-apps/
 
 ### AI Agent Architecture
 
-The system uses a two-phase AI agent architecture:
+The system uses a single AI agent architecture:
 
-1. **Planning Agent**: Explores the codebase with read-only tools (`list_files`, `read_file`) and creates a detailed implementation plan
-2. **Coding Agent**: Implements changes based on the plan using file tools (`list_files`, `read_file`, `write_file`) while tracking progress with a structured todo list
+1. **Coding Agent**: Explores the codebase, understands the user's request, creates a todo list based on its understanding, and implements changes using file tools (`list_files`, `read_file`, `write_file`) while tracking progress with a structured todo list. The agent autonomously handles both exploration and implementation phases.
 
 ### Backend Features
 
@@ -89,7 +87,7 @@ The system uses a two-phase AI agent architecture:
 - **Health Checks**: Comprehensive sandbox health monitoring (process status, port listening)
 - **Smart Sandbox Reuse**: Reuses healthy existing sandboxes instead of creating new ones
 - **Project Persistence**: In-memory store with proper CRUD operations
-- **AI Code Generation**: Two-phase generation using BAML + Claude Sonnet 4.5
+- **AI Code Generation**: Single-agent generation using BAML + Claude Sonnet 4.5
 - **Expo Initialization**: Automated Expo app setup within sandboxes
 
 ### Coming Soon
@@ -156,7 +154,7 @@ The builder features a split-panel layout:
 
 - **Left Panel**: Chat interface for natural language app creation
   - Enter prompts to describe what you want to build
-  - AI creates a plan, then implements changes step by step
+  - AI explores the codebase, creates a plan (via todos), and implements changes step by step
   - Progress tracked via structured todo list
 - **Right Panel**: Mobile app preview with code toggle
   - **Preview Mode**: See your app in a mobile phone frame (live Expo preview)
@@ -166,10 +164,9 @@ The builder features a split-panel layout:
 
 ### BAML Agent System
 
-The AI agents are defined using BAML (Boundary ML):
+The AI agent is defined using BAML (Boundary ML):
 
-- **Planning Agent** (`planning-agent.baml`): Analyzes user requests, explores the codebase, and creates actionable implementation plans
-- **Coding Agent** (`coding-agent.baml`): Executes the plan, manages todos, and implements file changes
+- **Coding Agent** (`coding-agent.baml`): Explores the codebase, understands user requests, creates todos based on its understanding, and implements file changes while managing progress
 - **Tools** (`tools.baml`): Shared tool definitions including file operations and todo management
 
 ### Modal Sandboxes

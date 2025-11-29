@@ -17,7 +17,6 @@ import type {
   ReplyToUser,
   FileTools,
   ReadOnlyTools,
-  Plan,
   TodoItem,
   TodoWriteTool,
   TodoTools,
@@ -338,174 +337,51 @@ export async function POST(request: NextRequest) {
       const modifiedFiles: Record<string, string> = {};
 
       // ============================================
-      // PHASE 1: PLANNING AGENT
+      // CODING AGENT
       // ============================================
-      console.log("[generate-code-stream] Starting planning phase...");
-      await sendProgress({ type: 'status', message: 'Planning phase started...' });
-
-      // Create collector for planning phase to track token usage and latency
-      const planningCollector = new Collector("planning-phase");
-
-      const planningState: Message[] = [
-        {
-          role: "user",
-          message: userPrompt,
-        },
-      ];
-
-      let plan: Plan | null = null;
-      let planIterations = 0;
-
-      while (planIterations < maxIterations) {
-        planIterations++;
-        console.log(`[generate-code-stream] Planning iteration ${planIterations}/${maxIterations}`);
-
-        // Start keepalive interval during long LLM calls
-        const keepaliveInterval = setInterval(() => {
-          sendKeepalive();
-        }, 15000); // Send keepalive every 15 seconds
-
-        let planningResponse;
-        try {
-          planningResponse = await b.PlanningAgent(planningState, workingDir, { collector: planningCollector });
-          
-          // Log token usage and latency for this iteration
-          if (planningCollector.last) {
-            console.log(`[generate-code-stream] PlanningAgent iteration ${planIterations} usage:`, {
-              inputTokens: planningCollector.last.usage?.inputTokens ?? null,
-              outputTokens: planningCollector.last.usage?.outputTokens ?? null,
-              durationMs: planningCollector.last.timing?.durationMs ?? null,
-            });
-          }
-        } catch (e) {
-          clearInterval(keepaliveInterval);
-          sendErrorViaStream(writer, encoder, e, "Planning agent");
-          await writer.close();
-          return;
-        } finally {
-          clearInterval(keepaliveInterval);
-        }
-
-        // Check if planning agent has output a plan
-        if (planningResponse && "summary" in planningResponse && "steps" in planningResponse) {
-          plan = planningResponse as Plan;
-          console.log("[generate-code-stream] Planning complete:", plan.summary);
-          
-          // Log cumulative token usage and latency for planning phase
-          console.log(`[generate-code-stream] PlanningAgent phase complete - cumulative usage:`, {
-            totalInputTokens: planningCollector.usage?.inputTokens ?? null,
-            totalOutputTokens: planningCollector.usage?.outputTokens ?? null,
-            totalCalls: planningCollector.logs.length,
-          });
-          
-          await sendProgress({
-            type: 'plan_complete',
-            plan: {
-              summary: plan.summary,
-              steps: plan.steps,
-            },
-          });
-          break;
-        }
-
-        // Execute read-only tools (single or parallel)
-        const tool = planningResponse as ReadOnlyTools | ParallelReadTools;
-        let toolName = tool.action;
-        if (tool.action === "parallel_read") {
-          toolName = `parallel_read (${(tool as ParallelReadTools).tools.length} files)`;
-        }
-        
-        await sendProgress({
-          type: 'planning_iteration',
-          iteration: planIterations,
-          tool: toolName,
-        });
-
-        let result: string;
-        if (tool.action === "parallel_read") {
-          console.log(`[generate-code-stream] Executing parallel_read with ${tool.tools.length} tools...`);
-          result = await executeParallelReads(sandbox, tool.tools);
-        } else if (tool.action === "list_files") {
-          console.log("[generate-code-stream] Executing list_files tool...");
-          result = await executeListFiles(sandbox, tool);
-        } else if (tool.action === "read_file") {
-          console.log("[generate-code-stream] Executing read_file tool...");
-          result = await executeReadFile(sandbox, tool);
-        } else {
-          result = `Unknown tool action: ${(tool as ReadOnlyTools | ParallelReadTools).action}`;
-        }
-
-        // Add tool execution to state
-        planningState.push({
-          role: "assistant",
-          message: tool,
-        });
-        planningState.push({
-          role: "user",
-          message: result,
-        });
-      }
-
-      if (!plan) {
-        console.error("[generate-code-stream] Planning agent exceeded maximum iterations");
-        await sendProgress({
-          type: 'error',
-          error: 'Planning agent exceeded maximum iterations. Please try again with a simpler request.',
-        });
-        await writer.close();
-        return;
-      }
-
-      // Create planning message for user
-      const planningMessage = `I've analyzed your request and created a plan to implement your changes. The plan includes ${plan.steps.length} steps.`;
-
-      // ============================================
-      // PHASE 2: CODING AGENT
-      // ============================================
-      console.log("[generate-code-stream] Starting coding phase...");
-      await sendProgress({ type: 'status', message: 'Coding phase started...' });
+      console.log("[generate-code-stream] Starting code generation...");
+      await sendProgress({ type: 'status', message: 'Starting code generation...' });
       
-      // Create collector for coding phase to track token usage and latency
-      const codingCollector = new Collector("coding-phase");
+      // Create collector to track token usage and latency
+      const collector = new Collector("code-generation");
       
       // Initialize empty todo list - the coding agent will create todos using todo_write
       // This aligns with Claude Code's approach where the agent manages the todo list
       let todoList: TodoItem[] = [];
 
-      const codingState: Message[] = [
+      const state: Message[] = [
         {
           role: "user",
           message: userPrompt,
         },
       ];
 
-      let codingIterations = 0;
+      let iterations = 0;
 
-      while (codingIterations < maxIterations) {
-        codingIterations++;
-        console.log(`[generate-code-stream] Coding iteration ${codingIterations}/${maxIterations}`);
+      while (iterations < maxIterations) {
+        iterations++;
+        console.log(`[generate-code-stream] Iteration ${iterations}/${maxIterations}`);
 
         // Start keepalive interval during long LLM calls
         const keepaliveInterval = setInterval(() => {
           sendKeepalive();
         }, 15000); // Send keepalive every 15 seconds
 
-        let codingResponse;
+        let response;
         try {
-          codingResponse = await b.CodingAgent(
-            codingState,
+          response = await b.CodingAgent(
+            state,
             workingDir,
-            plan,
             todoList,
-            { collector: codingCollector }
+            { collector }
           );
           
           // Log token usage and latency for this iteration
-          if (codingCollector.last) {
-            console.log(`[generate-code-stream] CodingAgent iteration ${codingIterations} usage:`, {
-              inputTokens: codingCollector.last.usage?.inputTokens ?? null,
-              outputTokens: codingCollector.last.usage?.outputTokens ?? null,
-              durationMs: codingCollector.last.timing?.durationMs ?? null,
+          if (collector.last) {
+            console.log(`[generate-code-stream] CodingAgent iteration ${iterations} usage:`, {
+              inputTokens: collector.last.usage?.inputTokens ?? null,
+              outputTokens: collector.last.usage?.outputTokens ?? null,
+              durationMs: collector.last.timing?.durationMs ?? null,
             });
           }
         } catch (e) {
@@ -518,41 +394,27 @@ export async function POST(request: NextRequest) {
         }
 
         // Check if coding agent is replying (done)
-        if (codingResponse && "action" in codingResponse && codingResponse.action === "reply_to_user") {
+        if (response && "action" in response && response.action === "reply_to_user") {
           // Extract all modified files
           const allFiles =
             Object.keys(modifiedFiles).length > 0
               ? modifiedFiles
-              : extractFilesFromState(codingState);
+              : extractFilesFromState(state);
 
-          const replyMessage = "message" in codingResponse ? codingResponse.message : "";
+          const replyMessage = "message" in response ? response.message : "";
           console.log("[generate-code-stream] Coding agent completed with reply:", replyMessage);
           
-          // Log cumulative token usage and latency for coding phase
-          console.log(`[generate-code-stream] CodingAgent phase complete - cumulative usage:`, {
-            totalInputTokens: codingCollector.usage?.inputTokens ?? null,
-            totalOutputTokens: codingCollector.usage?.outputTokens ?? null,
-            totalCalls: codingCollector.logs.length,
-          });
-          
-          // Log total usage across both phases
-          const totalInputTokens = (planningCollector.usage?.inputTokens ?? 0) + (codingCollector.usage?.inputTokens ?? 0);
-          const totalOutputTokens = (planningCollector.usage?.outputTokens ?? 0) + (codingCollector.usage?.outputTokens ?? 0);
-          console.log(`[generate-code-stream] Total usage across all phases:`, {
-            totalInputTokens,
-            totalOutputTokens,
-            totalCalls: planningCollector.logs.length + codingCollector.logs.length,
+          // Log cumulative token usage and latency
+          console.log(`[generate-code-stream] CodingAgent complete - cumulative usage:`, {
+            totalInputTokens: collector.usage?.inputTokens ?? null,
+            totalOutputTokens: collector.usage?.outputTokens ?? null,
+            totalCalls: collector.logs.length,
           });
           
           await sendProgress({
             type: 'complete',
             message: replyMessage,
             files: allFiles,
-            planningMessage: planningMessage,
-            plan: {
-              summary: plan.summary,
-              steps: plan.steps,
-            },
           });
           
           await writer.close();
@@ -560,8 +422,8 @@ export async function POST(request: NextRequest) {
         }
 
         // Execute the tool (single or parallel)
-        const tool = codingResponse as FileTools | ParallelReadTools | TodoTools;
-        let toolName = tool.action;
+        const tool = response as FileTools | ParallelReadTools | TodoTools;
+        let toolName: string = tool.action;
         let currentTodo: string | undefined = undefined;
 
         if (tool.action === "parallel_read") {
@@ -579,7 +441,7 @@ export async function POST(request: NextRequest) {
 
         await sendProgress({
           type: 'coding_iteration',
-          iteration: codingIterations,
+          iteration: iterations,
           tool: toolName,
           todo: currentTodo,
         });
@@ -603,6 +465,8 @@ export async function POST(request: NextRequest) {
         } else if (tool.action === "todo_write") {
           console.log("[generate-code-stream] Executing todo_write tool...");
           const writeResult = await executeTodoWrite(tool, todoList);
+          console.log("[generate-code-stream] Todo write result:", writeResult);
+          console.log("[generate-code-stream] Todo write result:", writeResult.updatedList);
           result = writeResult.result;
           todoList = writeResult.updatedList;
           
@@ -624,17 +488,17 @@ export async function POST(request: NextRequest) {
         }
 
         // Add tool execution to state
-        codingState.push({
+        state.push({
           role: "assistant",
           message: tool,
         });
-        codingState.push({
+        state.push({
           role: "user",
           message: result,
         });
       }
 
-      // Handle timeout if coding loop exceeds max iterations
+      // Handle timeout if loop exceeds max iterations
       console.error("[generate-code-stream] Coding agent exceeded maximum iterations");
       await sendProgress({
         type: 'error',

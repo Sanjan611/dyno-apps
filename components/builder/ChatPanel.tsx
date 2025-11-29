@@ -25,15 +25,11 @@ interface Message {
 }
 
 interface SSEProgressEvent {
-  type: 'status' | 'planning_iteration' | 'plan_complete' | 'coding_iteration' | 'todo_update' | 'complete' | 'error';
+  type: 'status' | 'coding_iteration' | 'todo_update' | 'complete' | 'error';
   message?: string;
   iteration?: number;
   tool?: string;
   todo?: string;
-  plan?: {
-    summary: string;
-    steps: string[];
-  };
   todos?: Array<{
     content: string;
     activeForm: string;
@@ -42,7 +38,6 @@ interface SSEProgressEvent {
   error?: string;
   details?: any;
   files?: Record<string, string>;
-  planningMessage?: string;
 }
 
 // Helper function to parse SSE stream
@@ -97,8 +92,6 @@ async function consumeCodeGenerationStream(
   const decoder = new TextDecoder();
   
   let progressMessageId: string | null = null;
-  let planningMessageId: string | null = null;
-  let hasPlanningMessage = false;
   let buffer = '';
 
   try {
@@ -153,55 +146,6 @@ async function consumeCodeGenerationStream(
                       },
                     ];
                   }
-                });
-              }
-              break;
-              
-            case 'planning_iteration':
-              if (event.message) {
-                setMessages((prev) => {
-                  const content = `Planning... (iteration ${event.iteration})`;
-                  if (progressMessageId) {
-                    return prev.map((msg) =>
-                      msg.id === progressMessageId
-                        ? { ...msg, content }
-                        : msg
-                    );
-                  } else {
-                    progressMessageId = Date.now().toString();
-                    return [
-                      ...prev,
-                      {
-                        id: progressMessageId,
-                        role: "assistant",
-                        content,
-                        timestamp: new Date(),
-                      },
-                    ];
-                  }
-                });
-              }
-              break;
-              
-            case 'plan_complete':
-              if (event.plan && !hasPlanningMessage) {
-                const planningMsg = `I've analyzed your request and created a plan to implement your changes. The plan includes ${event.plan.steps.length} steps.`;
-                planningMessageId = (Date.now() + 1).toString();
-                hasPlanningMessage = true;
-                
-                setMessages((prev) => {
-                  const filtered = prev.filter((msg) => msg.id !== progressMessageId);
-                  progressMessageId = null;
-                  
-                  return [
-                    ...filtered,
-                    {
-                      id: planningMessageId,
-                      role: "assistant",
-                      content: planningMsg,
-                      timestamp: new Date(),
-                    },
-                  ];
                 });
               }
               break;
@@ -265,33 +209,22 @@ async function consumeCodeGenerationStream(
               break;
               
             case 'complete':
-              // Remove progress message and add final messages
+              // Remove progress message and add final message
               setMessages((prev) => {
                 const filtered = prev.filter((msg) => 
-                  msg.id !== progressMessageId && msg.id !== planningMessageId
+                  msg.id !== progressMessageId
                 );
-                const newMessages = [...filtered];
-                
-                // Add planning message if present and not already added
-                if (event.planningMessage && !hasPlanningMessage) {
-                  hasPlanningMessage = true;
-                  newMessages.push({
-                    id: (Date.now() + 1).toString(),
-                    role: "assistant",
-                    content: event.planningMessage,
-                    timestamp: new Date(),
-                  });
-                }
                 
                 // Add completion message
-                newMessages.push({
-                  id: (Date.now() + 2).toString(),
-                  role: "assistant",
-                  content: event.message || "App updated successfully! The changes should be visible in the preview.",
-                  timestamp: new Date(),
-                });
-                
-                return newMessages;
+                return [
+                  ...filtered,
+                  {
+                    id: (Date.now() + 1).toString(),
+                    role: "assistant",
+                    content: event.message || "App updated successfully! The changes should be visible in the preview.",
+                    timestamp: new Date(),
+                  },
+                ];
               });
               break;
               
@@ -299,7 +232,7 @@ async function consumeCodeGenerationStream(
               // Remove progress message and add error message
               setMessages((prev) => {
                 const filtered = prev.filter((msg) => 
-                  msg.id !== progressMessageId && msg.id !== planningMessageId
+                  msg.id !== progressMessageId
                 );
                 return [
                   ...filtered,
