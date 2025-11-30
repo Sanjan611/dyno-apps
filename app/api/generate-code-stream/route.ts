@@ -307,6 +307,28 @@ function areAllTodosCompleted(todoList: TodoItem[]): boolean {
   return todoList.length > 0 && todoList.every((todo) => todo.status === "completed");
 }
 
+// Helper function to extract tool parameters for display (excluding content for WriteFileTool)
+function extractToolParams(
+  tool: FileTools | ParallelReadTools | TodoTools
+): Record<string, any> {
+  if (tool.action === "write_file") {
+    // For WriteFileTool, exclude content field
+    const { content, ...params } = tool as WriteFileTool;
+    return params;
+  } else if (tool.action === "parallel_read") {
+    // For ParallelReadTools, show the count and tool types
+    const parallelTool = tool as ParallelReadTools;
+    return {
+      action: tool.action,
+      toolCount: parallelTool.tools.length,
+      toolTypes: parallelTool.tools.map(t => t.action),
+    };
+  } else {
+    // For all other tools, return all fields
+    return { ...tool };
+  }
+}
+
 // Retry wrapper for CodingAgent with exponential backoff for validation errors
 async function callCodingAgentWithRetry(
   state: Message[],
@@ -591,6 +613,9 @@ export async function POST(request: NextRequest) {
         } else if (tool.action === "write_file") {
           currentTodo = `Writing ${(tool as WriteFileTool).filePath}`;
         }
+
+        // Log tool parameters (excluding content for WriteFileTool)
+        console.log(`[generate-code-stream] Tool call parameters:`, extractToolParams(tool));
 
         await sendProgress({
           type: 'coding_iteration',
