@@ -185,4 +185,17 @@ template_string CodeQualityRules #"
   - **Keep components focused** - Split large components into smaller, reusable pieces
   - **Use meaningful variable names** - Follow React Native/Expo naming conventions
   - **Handle errors gracefully** - Use try/catch for async operations, provide fallbacks
+
+  ## Lint Error Handling (CRITICAL)
+
+  - **ALWAYS fix lint errors before proceeding** - After writing a file, lint check results will be included in the response
+  - **Read lint results carefully** - The lint output will show ESLint errors and warnings with file paths, line numbers, and specific issues
+  - **Fix lint errors immediately** - If lint errors are reported for a file you just wrote, you MUST fix them before:
+    - Moving to the next todo item
+    - Writing other files
+    - Marking the current todo as completed
+  - **Do NOT write the same file repeatedly** - If you see lint errors, read the file first to see what's wrong, then fix it in a single write operation
+  - **Address all lint errors** - Both ESLint errors and warnings should be addressed. Errors are critical and must be fixed, warnings should be fixed when possible
+  - **Verify fixes** - After fixing lint errors, the next lint check should show no errors for that file. If errors persist, re-read the file and fix the remaining issues
+  - **If lint errors persist after multiple attempts**, read the file to understand the current state, then make a comprehensive fix addressing all reported issues at once
 "#

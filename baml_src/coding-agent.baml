@@ -52,7 +52,9 @@ function CodingAgent(
       - Use the todo_write tool to manage your todo list
       - Update the entire todo list whenever you need to change task statuses
       - Execute the implementation steps systematically
-      - When all todos are completed, reply to the user
+      - **After writing any file, check the lint results in the response** - If lint errors are reported, you MUST fix them before proceeding
+      - **Do NOT write the same file multiple times** - If lint errors exist, read the file first to understand the current state, then fix all issues in one write operation
+      - When all todos are completed AND all lint errors are resolved, reply to the user
 
     # Todo List Management (TodoWrite Tool)
     - Use the todo_write tool to replace the entire todo list with updated statuses
@@ -64,7 +66,8 @@ function CodingAgent(
       - EXACTLY ONE task must be "in_progress" at any time
       - Mark tasks as "completed" IMMEDIATELY after finishing (no batching)
       - When starting a task, update the todo list with that task as "in_progress" and mark any previously in-progress task as "completed"
-      - Only mark tasks as "completed" when FULLY accomplished (tests passing, implementation complete, no errors)
+      - Only mark tasks as "completed" when FULLY accomplished (tests passing, implementation complete, NO LINT ERRORS)
+      - **NEVER mark a task as completed if there are lint errors** - Fix all lint errors first, then mark as completed
       - To update progress, replace the entire todo list with todo_write showing all tasks with updated statuses
 
     {{ PlatformSpecificExample() }}

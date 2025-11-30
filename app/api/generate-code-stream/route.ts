@@ -87,9 +87,81 @@ async function executeReadFile(
   }
 }
 
+// Lint check function - runs Prettier (auto-fix) and ESLint, returns raw output
+async function executeLintCheck(
+  sandbox: any,
+  workingDir: string
+): Promise<string> {
+  try {
+    console.log("[generate-code-stream] Running lint check in", workingDir);
+    
+    // Run Prettier with --write to auto-fix formatting issues
+    const prettierProcess = await sandbox.exec([
+      "bash",
+      "-c",
+      `cd ${workingDir} && npx prettier --write "**/*.{js,jsx,ts,tsx}" 2>&1 || echo "Prettier check completed"`,
+    ]);
+    const prettierStdout = await prettierProcess.stdout.readText();
+    const prettierStderr = await prettierProcess.stderr.readText();
+    await prettierProcess.wait();
+
+    console.log("[generate-code-stream] Prettier output:");
+    if (prettierStdout) console.log("[generate-code-stream] Prettier stdout:", prettierStdout);
+    if (prettierStderr) console.log("[generate-code-stream] Prettier stderr:", prettierStderr);
+
+    // Run ESLint with default format (human-readable output)
+    const eslintProcess = await sandbox.exec([
+      "bash",
+      "-c",
+      `cd ${workingDir} && npx eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 999999 --no-error-on-unmatched-pattern 2>&1 || true`,
+    ]);
+    const eslintStdout = await eslintProcess.stdout.readText();
+    const eslintStderr = await eslintProcess.stderr.readText();
+    await eslintProcess.wait();
+
+    console.log("[generate-code-stream] ESLint output:");
+    if (eslintStdout) console.log("[generate-code-stream] ESLint stdout:", eslintStdout);
+    if (eslintStderr) console.log("[generate-code-stream] ESLint stderr:", eslintStderr);
+    if (!eslintStdout && !eslintStderr) {
+      console.log("[generate-code-stream] ESLint: No issues found");
+    }
+
+    // Combine outputs into a single string
+    let result = "Lint check results:\n\n";
+    
+    if (prettierStdout || prettierStderr) {
+      result += "Prettier output:\n";
+      if (prettierStdout) result += prettierStdout;
+      if (prettierStderr) result += prettierStderr;
+      result += "\n";
+    }
+    
+    if (eslintStdout || eslintStderr) {
+      result += "ESLint output:\n";
+      if (eslintStdout) result += eslintStdout;
+      if (eslintStderr) result += eslintStderr;
+    } else {
+      result += "ESLint: No issues found.\n";
+    }
+
+    // Truncate if too long (similar to bash command output)
+    if (result.length > 30000) {
+      result = result.substring(0, 30000) + "\n... (lint output truncated)";
+    }
+
+    console.log("[generate-code-stream] Lint check completed. Result length:", result.length, "characters");
+    return result;
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    return `Lint check encountered an error: ${errorMessage}. Continuing without lint results.`;
+  }
+}
+
 async function executeWriteFile(
   sandbox: any,
-  tool: WriteFileTool
+  tool: WriteFileTool,
+  workingDir: string
 ): Promise<string> {
   try {
     const dirPath = dirname(tool.filePath);
@@ -101,7 +173,24 @@ async function executeWriteFile(
     const file = await sandbox.open(tool.filePath, "w");
     await file.write(new TextEncoder().encode(tool.content));
     await file.close();
-    return `Successfully wrote file ${tool.filePath}`;
+    
+    let result = `Successfully wrote file ${tool.filePath}`;
+    
+    // Run lint checks after successful write (only for files in working directory)
+    if (tool.filePath.startsWith(workingDir) || tool.filePath.startsWith("/my-app")) {
+      try {
+        console.log("[generate-code-stream] Triggering lint check after writing file:", tool.filePath);
+        const lintResults = await executeLintCheck(sandbox, workingDir);
+        result += `\n\n${lintResults}`;
+        console.log("[generate-code-stream] Lint check results:", lintResults);
+      } catch (lintError) {
+        // Don't fail the write operation if lint check fails
+        console.error("[generate-code-stream] Lint check failed:", lintError);
+        result += `\n\n(Lint check encountered an error, but file was written successfully)`;
+      }
+    }
+    
+    return result;
   } catch (error) {
     // Return error message so agent can handle it
     const errorMessage =
@@ -522,7 +611,7 @@ export async function POST(request: NextRequest) {
           result = await executeReadFile(sandbox, tool);
         } else if (tool.action === "write_file") {
           console.log("[generate-code-stream] Executing write_file tool...");
-          result = await executeWriteFile(sandbox, tool);
+          result = await executeWriteFile(sandbox, tool, workingDir);
           if (!result.startsWith("Error")) {
             modifiedFiles[tool.filePath] = tool.content;
           }
