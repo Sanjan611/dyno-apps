@@ -1,4 +1,3 @@
-// Shared prompt templates for planning and coding agents
 // These template_string sections can be referenced in agent prompts to avoid duplication
 
 template_string ProjectContext #"

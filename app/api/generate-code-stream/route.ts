@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ModalClient } from "modal";
-import { dirname } from "path";
 import { b } from "@/baml_client";
 import {
   BamlValidationError,
@@ -12,322 +11,23 @@ import type {
   ListFilesTool,
   ReadFileTool,
   WriteFileTool,
-  BashTool,
   Message,
   ReplyToUser,
   FileTools,
-  ReadOnlyTools,
   TodoItem,
   TodoWriteTool,
   TodoTools,
-  ParallelReadTools,
 } from "@/baml_client/types";
+import {
+  executeSingleTool,
+  executeParallelTools,
+  extractFilesFromState,
+  areAllTodosCompleted,
+  extractToolParams,
+} from "./tool-executors";
 
 // Force dynamic route to enable streaming
 export const dynamic = 'force-dynamic';
-
-// Tool execution functions - return error strings on failure
-async function executeListFiles(
-  sandbox: any,
-  tool: ListFilesTool
-): Promise<string> {
-  try {
-    // Use ls command to list directory contents
-    const lsProcess = await sandbox.exec(["ls", "-la", tool.directoryPath]);
-    const output = await lsProcess.stdout.readText();
-    await lsProcess.wait();
-    
-    // Parse the output to extract files and directories
-    const lines = output.split("\n").filter((line: string) => line.trim());
-    const files: string[] = [];
-    const directories: string[] = [];
-    
-    // Skip the first line (total) and parse each line
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i];
-      const parts = line.trim().split(/\s+/);
-      if (parts.length >= 9) {
-        const name = parts.slice(8).join(" ");
-        // Skip . and ..
-        if (name === "." || name === "..") continue;
-        
-        // Check if it's a directory (starts with 'd')
-        if (parts[0].startsWith("d")) {
-          directories.push(name);
-        } else {
-          files.push(name);
-        }
-      }
-    }
-    
-    return `Listed directory ${tool.directoryPath}:\nFiles: ${files.join(", ")}\nDirectories: ${directories.join(", ")}`;
-  } catch (error) {
-    // Return error message so agent can handle it
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    return `Error listing directory ${tool.directoryPath}: ${errorMessage}. Please check the path and try again.`;
-  }
-}
-
-async function executeReadFile(
-  sandbox: any,
-  tool: ReadFileTool
-): Promise<string> {
-  try {
-    const file = await sandbox.open(tool.filePath, "r");
-    const content = await file.read();
-    await file.close();
-    const decoded = new TextDecoder().decode(content);
-    return `Read file ${tool.filePath}:\n${decoded}`;
-  } catch (error) {
-    // Return error message so agent can handle it
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    return `Error reading file ${tool.filePath}: ${errorMessage}. The file may not exist or the path may be incorrect.`;
-  }
-}
-
-// Lint check function - runs Prettier (auto-fix) and ESLint, returns raw output
-async function executeLintCheck(
-  sandbox: any,
-  workingDir: string
-): Promise<string> {
-  try {
-    console.log("[generate-code-stream] Running lint check in", workingDir);
-    
-    // Run Prettier with --write to auto-fix formatting issues
-    const prettierProcess = await sandbox.exec([
-      "bash",
-      "-c",
-      `cd ${workingDir} && npx prettier --write "**/*.{js,jsx,ts,tsx}" 2>&1 || echo "Prettier check completed"`,
-    ]);
-    const prettierStdout = await prettierProcess.stdout.readText();
-    const prettierStderr = await prettierProcess.stderr.readText();
-    await prettierProcess.wait();
-
-    console.log("[generate-code-stream] Prettier output:");
-    if (prettierStdout) console.log("[generate-code-stream] Prettier stdout:", prettierStdout);
-    if (prettierStderr) console.log("[generate-code-stream] Prettier stderr:", prettierStderr);
-
-    // Run ESLint with default format (human-readable output)
-    const eslintProcess = await sandbox.exec([
-      "bash",
-      "-c",
-      `cd ${workingDir} && npx eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 999999 --no-error-on-unmatched-pattern 2>&1 || true`,
-    ]);
-    const eslintStdout = await eslintProcess.stdout.readText();
-    const eslintStderr = await eslintProcess.stderr.readText();
-    await eslintProcess.wait();
-
-    console.log("[generate-code-stream] ESLint output:");
-    if (eslintStdout) console.log("[generate-code-stream] ESLint stdout:", eslintStdout);
-    if (eslintStderr) console.log("[generate-code-stream] ESLint stderr:", eslintStderr);
-    if (!eslintStdout && !eslintStderr) {
-      console.log("[generate-code-stream] ESLint: No issues found");
-    }
-
-    // Combine outputs into a single string
-    let result = "Lint check results:\n\n";
-    
-    if (prettierStdout || prettierStderr) {
-      result += "Prettier output:\n";
-      if (prettierStdout) result += prettierStdout;
-      if (prettierStderr) result += prettierStderr;
-      result += "\n";
-    }
-    
-    if (eslintStdout || eslintStderr) {
-      result += "ESLint output:\n";
-      if (eslintStdout) result += eslintStdout;
-      if (eslintStderr) result += eslintStderr;
-    } else {
-      result += "ESLint: No issues found.\n";
-    }
-
-    // Truncate if too long (similar to bash command output)
-    if (result.length > 30000) {
-      result = result.substring(0, 30000) + "\n... (lint output truncated)";
-    }
-
-    console.log("[generate-code-stream] Lint check completed. Result length:", result.length, "characters");
-    return result;
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    return `Lint check encountered an error: ${errorMessage}. Continuing without lint results.`;
-  }
-}
-
-async function executeWriteFile(
-  sandbox: any,
-  tool: WriteFileTool,
-  workingDir: string
-): Promise<string> {
-  try {
-    const dirPath = dirname(tool.filePath);
-    if (dirPath && dirPath !== "/" && dirPath !== ".") {
-      const mkdirProcess = await sandbox.exec(["mkdir", "-p", dirPath]);
-      await mkdirProcess.wait();
-    }
-
-    const file = await sandbox.open(tool.filePath, "w");
-    await file.write(new TextEncoder().encode(tool.content));
-    await file.close();
-    
-    let result = `Successfully wrote file ${tool.filePath}`;
-    
-    // Run lint checks after successful write (only for files in working directory)
-    if (tool.filePath.startsWith(workingDir) || tool.filePath.startsWith("/my-app")) {
-      try {
-        console.log("[generate-code-stream] Triggering lint check after writing file:", tool.filePath);
-        const lintResults = await executeLintCheck(sandbox, workingDir);
-        result += `\n\n${lintResults}`;
-        console.log("[generate-code-stream] Lint check results:", lintResults);
-      } catch (lintError) {
-        // Don't fail the write operation if lint check fails
-        console.error("[generate-code-stream] Lint check failed:", lintError);
-        result += `\n\n(Lint check encountered an error, but file was written successfully)`;
-      }
-    }
-    
-    return result;
-  } catch (error) {
-    // Return error message so agent can handle it
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    return `Error writing file ${tool.filePath}: ${errorMessage}. Please check the path and content format.`;
-  }
-}
-
-// Parallel execution function for read operations
-async function executeParallelReads(
-  sandbox: any,
-  tools: (ListFilesTool | ReadFileTool)[]
-): Promise<string> {
-  const results = await Promise.all(
-    tools.map(async (tool, index) => {
-      if (tool.action === "list_files") {
-        return `[${index + 1}] ${await executeListFiles(sandbox, tool)}`;
-      } else {
-        return `[${index + 1}] ${await executeReadFile(sandbox, tool)}`;
-      }
-    })
-  );
-  return `Results for parallel read:\n${results.join("\n")}`;
-}
-
-// Bash command execution function
-async function executeBashCommand(
-  sandbox: any,
-  tool: BashTool
-): Promise<string> {
-  try {
-    const timeout = tool.timeout || 120000; // Default 2 minutes, max 10 minutes
-    const maxTimeout = Math.min(timeout, 600000);
-    
-    console.log(`[generate-code-stream] Executing bash command: ${tool.command} (timeout: ${maxTimeout}ms)`);
-    
-    // Execute command using bash -c in the sandbox
-    const process = await sandbox.exec(["bash", "-c", tool.command]);
-    
-    // Read stdout and stderr
-    const stdoutPromise = process.stdout.readText();
-    const stderrPromise = process.stderr.readText();
-    
-    // Wait for process to complete with timeout
-    const waitPromise = process.wait();
-    const timeoutPromise = new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error("Command timed out")), maxTimeout)
-    );
-    
-    const exitCode = await Promise.race([waitPromise, timeoutPromise]);
-    
-    const stdout = await stdoutPromise;
-    const stderr = await stderrPromise;
-    
-    // Combine stdout and stderr, truncate if too long
-    let output = "";
-    if (stdout) output += stdout;
-    if (stderr) {
-      if (output) output += "\n";
-      output += `STDERR: ${stderr}`;
-    }
-    
-    // Truncate if output exceeds 30000 characters
-    if (output.length > 30000) {
-      output = output.substring(0, 30000) + "\n... (output truncated)";
-    }
-    
-    if (exitCode === 0) {
-      return `Command executed successfully:\n${output || "(no output)"}`;
-    } else {
-      return `Command exited with code ${exitCode}:\n${output || "(no output)"}`;
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return `Error executing bash command: ${errorMessage}. Please check the command syntax and try again.`;
-  }
-}
-
-// Helper function to extract all written files from message state
-function extractFilesFromState(state: Message[]): Record<string, string> {
-  const files: Record<string, string> = {};
-  for (const msg of state) {
-    if (
-      msg.role === "assistant" &&
-      typeof msg.message !== "string" &&
-      "action" in msg.message &&
-      msg.message.action === "write_file"
-    ) {
-      files[msg.message.filePath] = msg.message.content;
-    }
-  }
-  return files;
-}
-
-// Todo management function
-async function executeTodoWrite(
-  tool: TodoWriteTool,
-  todoList: TodoItem[]
-): Promise<{ result: string; updatedList: TodoItem[] }> {
-  const updatedList = tool.todos;
-  // Validate that exactly one task is in_progress
-  const inProgressCount = updatedList.filter((todo) => todo.status === "in_progress").length;
-  let result = `Todo list updated. ${updatedList.length} items.`;
-  if (inProgressCount !== 1 && updatedList.some((todo) => todo.status !== "completed")) {
-    result += ` Warning: Expected exactly one task in_progress, found ${inProgressCount}.`;
-  }
-  return {
-    result,
-    updatedList,
-  };
-}
-
-function areAllTodosCompleted(todoList: TodoItem[]): boolean {
-  return todoList.length > 0 && todoList.every((todo) => todo.status === "completed");
-}
-
-// Helper function to extract tool parameters for display (excluding content for WriteFileTool)
-function extractToolParams(
-  tool: FileTools | ParallelReadTools | TodoTools
-): Record<string, any> {
-  if (tool.action === "write_file") {
-    // For WriteFileTool, exclude content field
-    const { content, ...params } = tool as WriteFileTool;
-    return params;
-  } else if (tool.action === "parallel_read") {
-    // For ParallelReadTools, show the count and tool types
-    const parallelTool = tool as ParallelReadTools;
-    return {
-      action: tool.action,
-      toolCount: parallelTool.tools.length,
-      toolTypes: parallelTool.tools.map(t => t.action),
-    };
-  } else {
-    // For all other tools, return all fields
-    return { ...tool };
-  }
-}
 
 // Retry wrapper for CodingAgent with exponential backoff for validation errors
 async function callCodingAgentWithRetry(
@@ -336,7 +36,7 @@ async function callCodingAgentWithRetry(
   todoList: TodoItem[],
   collector: Collector,
   maxRetries: number = 3
-): Promise<FileTools | ParallelReadTools | TodoTools | ReplyToUser> {
+): Promise<FileTools | (ListFilesTool | ReadFileTool)[] | TodoTools | ReplyToUser> {
   let lastError: BamlValidationError | BamlClientFinishReasonError | null = null;
   
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -597,13 +297,14 @@ export async function POST(request: NextRequest) {
         }
 
         // Execute the tool (single or parallel)
-        const tool = response as FileTools | ParallelReadTools | TodoTools;
-        let toolName: string = tool.action;
+        const tool = response as FileTools | (ListFilesTool | ReadFileTool)[] | TodoTools;
+        let toolName: string;
         let currentTodo: string | undefined = undefined;
 
-        if (tool.action === "parallel_read") {
-          toolName = `parallel_read (${(tool as ParallelReadTools).tools.length} files)`;
+        if (Array.isArray(tool)) {
+          toolName = `parallel_read (${tool.length} files)`;
         } else if (tool.action === "todo_write") {
+          toolName = tool.action;
           // Get the in-progress todo for progress display
           const updatedTodos = (tool as TodoWriteTool).todos;
           const inProgressTodo = updatedTodos.find(t => t.status === "in_progress");
@@ -611,7 +312,10 @@ export async function POST(request: NextRequest) {
             currentTodo = inProgressTodo.content;
           }
         } else if (tool.action === "write_file") {
+          toolName = tool.action;
           currentTodo = `Writing ${(tool as WriteFileTool).filePath}`;
+        } else {
+          toolName = tool.action;
         }
 
         // Log tool parameters (excluding content for WriteFileTool)
@@ -625,44 +329,38 @@ export async function POST(request: NextRequest) {
         });
 
         let result: string;
-        if (tool.action === "parallel_read") {
-          console.log(`[generate-code-stream] Executing parallel_read with ${tool.tools.length} tools...`);
-          result = await executeParallelReads(sandbox, tool.tools);
-        } else if (tool.action === "list_files") {
-          console.log("[generate-code-stream] Executing list_files tool...");
-          result = await executeListFiles(sandbox, tool);
-        } else if (tool.action === "read_file") {
-          console.log("[generate-code-stream] Executing read_file tool...");
-          result = await executeReadFile(sandbox, tool);
-        } else if (tool.action === "write_file") {
-          console.log("[generate-code-stream] Executing write_file tool...");
-          result = await executeWriteFile(sandbox, tool, workingDir);
-          if (!result.startsWith("Error")) {
-            modifiedFiles[tool.filePath] = tool.content;
+        if (Array.isArray(tool)) {
+          if (tool.length === 0) {
+            result = "Error: Cannot execute parallel_read with empty array. Please provide at least one read_file or list_files tool, or use a single tool call instead.";
+            console.error("[generate-code-stream] Attempted to execute parallel_read with empty array");
+          } else {
+            console.log(`[generate-code-stream] Executing parallel_read with ${tool.length} tools...`);
+            result = await executeParallelTools(sandbox, tool, workingDir, todoList);
           }
-        } else if (tool.action === "todo_write") {
-          console.log("[generate-code-stream] Executing todo_write tool...");
-          const writeResult = await executeTodoWrite(tool, todoList);
-          console.log("[generate-code-stream] Todo write result:", writeResult);
-          console.log("[generate-code-stream] Todo write result:", writeResult.updatedList);
-          result = writeResult.result;
-          todoList = writeResult.updatedList;
-          
-          // Send todo update event
-          await sendProgress({
-            type: 'todo_update',
-            todos: todoList,
-          });
-          
-          // Check if all todos are completed
-          if (areAllTodosCompleted(todoList)) {
-            console.log("[generate-code-stream] All todos completed, agent should reply to user");
-          }
-        } else if (tool.action === "bash") {
-          console.log("[generate-code-stream] Executing bash tool...");
-          result = await executeBashCommand(sandbox, tool);
         } else {
-          result = `Unknown tool action: ${(tool as FileTools | ParallelReadTools | TodoTools).action}`;
+          console.log(`[generate-code-stream] Executing ${tool.action} tool...`);
+          const execResult = await executeSingleTool(sandbox, tool, workingDir, todoList);
+          result = execResult.result;
+          
+          // Handle side effects
+          if (tool.action === "write_file" && !result.startsWith("Error")) {
+            modifiedFiles[tool.filePath] = tool.content;
+          } else if (tool.action === "todo_write" && execResult.updatedTodoList) {
+            todoList = execResult.updatedTodoList;
+            console.log("[generate-code-stream] Todo write result:", execResult.result);
+            console.log("[generate-code-stream] Todo list updated:", execResult.updatedTodoList);
+            
+            // Send todo update event
+            await sendProgress({
+              type: 'todo_update',
+              todos: todoList,
+            });
+            
+            // Check if all todos are completed
+            if (areAllTodosCompleted(todoList)) {
+              console.log("[generate-code-stream] All todos completed, agent should reply to user");
+            }
+          }
         }
 
         // Add tool execution to state

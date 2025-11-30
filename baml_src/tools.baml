@@ -1,9 +1,7 @@
-// Shared tool definitions for both planning and coding agents
-
 // Message class for agent state
 class Message {
   role "user" | "assistant"
-  message string | ReadOnlyTools | ParallelReadTools | FileTools | TodoTools
+  message string | ReadOnlyTools | (ListFilesTool | ReadFileTool)[] | FileTools | TodoTools
 }
 
 // File operation tools
@@ -57,29 +55,11 @@ class BashTool {
   description string? @description("Clear, concise description of what this command does in 5-10 words")
 }
 
-// Parallel execution wrapper for read-only operations
-class ParallelReadTools {
-  action "parallel_read" @description("Execute multiple read operations in parallel")
-  tools (ListFilesTool | ReadFileTool)[]
-}
-
-// Union type for read-only tools (used by planning agent)
+// Union type for read-only tools
 type ReadOnlyTools = ListFilesTool | ReadFileTool
-
-// Planning agent can use parallel reads
-type ReadOnlyToolsOrParallel = ReadOnlyTools | ParallelReadTools
 
 // Union type for all file tools (used by coding agent)
 type FileTools = ListFilesTool | ReadFileTool | WriteFileTool | BashTool
-
-// Coding agent can use parallel reads (writes stay sequential)
-type FileToolsOrParallel = FileTools | ParallelReadTools
-
-// Plan class for planning agent output
-class Plan {
-  summary string @description("Brief overview of changes to be made")
-  steps string[] @description("Ordered list of implementation steps")
-}
 
 // Todo management classes
 class TodoItem {

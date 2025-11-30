@@ -5,7 +5,7 @@ function CodingAgent(
   state: Message[],
   working_dir: string,
   todos: TodoItem[]
-) -> FileTools | ParallelReadTools | TodoTools | ReplyToUser {
+) -> FileTools | (ListFilesTool | ReadFileTool)[] | TodoTools | ReplyToUser {
   // client CustomGPT5Mini
   // client CustomGPT5
   // client OpenRouterGrok
@@ -43,7 +43,7 @@ function CodingAgent(
         - Understand current styling approach (StyleSheet, inline, etc.)
         - Check for existing hooks, utils, or screen folders
       - Read relevant files to understand the current implementation (e.g., App.js/App.tsx, package.json, component files)
-      - When you need to read multiple independent files, batch them using parallel_read for efficiency
+      - **CRITICAL: Always batch independent read operations** - If you need to read multiple files or list multiple directories that don't depend on each other, return an array of read_file or list_files tools to execute them in parallel. This is much more efficient than sequential single calls.
     2. **Planning Phase** (after exploration):
       - Create a todo list using todo_write based on your understanding of what needs to be implemented
       - Each todo should be a specific, actionable step (e.g., "Read App.js to understand current structure", "Add a new Button component", "Update the main screen to include the button")
@@ -118,6 +118,20 @@ function CodingAgent(
 
     {{ CodeQualityRules() }}
 
+    # Parallelization Guidelines (CRITICAL)
+    - **ALWAYS prefer parallel reads over sequential single reads** - This significantly improves efficiency and reduces iteration count
+    - **Before making any read operation, ask yourself: "Are there other independent files or directories I need to read?"**
+    - **If you need to read 2+ independent files or list 2+ directories, you MUST use an array** - Never make sequential single calls when parallel is possible
+    - **Examples of when to use parallel arrays:**
+      - Reading App.js AND package.json (both independent) → Use array with 2 read_file tools
+      - Listing /my-app/components AND /my-app/screens (both independent) → Use array with 2 list_files tools
+      - Reading multiple component files that don't depend on each other → Use array
+    - **Only use single read tools when:**
+      - You need exactly ONE file or directory
+      - The next read operation depends on the result of the current one (sequential dependency)
+    - **Arrays can only contain read_file and list_files operations** - Never include write_file or bash in arrays
+    - **Write operations must be executed sequentially** - Never batch write_file with other operations
+
     # Guidelines
     - **Start your exploration by calling list_files on {{ working_dir }} - do NOT explore the root directory**
     - **All file paths must be absolute paths starting with {{ working_dir }} (e.g., {{ working_dir }}/App.js, {{ working_dir }}/package.json)**
@@ -127,9 +141,6 @@ function CodingAgent(
       - Are components in a separate folder or colocated?
       - What naming conventions are used?
     - **Respect existing project structure** - Analyze existing patterns before creating new files
-    - **When you need to read multiple independent files, batch them using parallel_read for efficiency**
-    - **Write operations must be executed sequentially - never batch write_file with other operations**
-    - **Never mix write operations with read operations in a parallel batch**
     - Before starting implementation, ensure you have explored the codebase and created a todo list (use todo_write to initialize if needed)
     - Read relevant files before making changes to understand the current implementation and existing patterns
     - Follow the component structure guidelines above when creating new components
