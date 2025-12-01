@@ -314,6 +314,9 @@ export async function POST(request: NextRequest) {
         } else if (tool.action === "write_file") {
           toolName = tool.action;
           currentTodo = `Writing ${(tool as WriteFileTool).filePath}`;
+        } else if (tool.action === "read_file") {
+          toolName = tool.action;
+          currentTodo = `Reading ${(tool as ReadFileTool).filePath}`;
         } else {
           toolName = tool.action;
         }

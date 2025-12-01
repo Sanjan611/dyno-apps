@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useBuilderStore } from "@/lib/store";
+import AgentThinkingBox, { AgentAction } from "./AgentThinkingBox";
 
 interface ChatPanelProps {
   initialPrompt?: string;
@@ -19,9 +20,11 @@ interface ChatPanelProps {
 
 interface Message {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "thinking";
   content: string;
   timestamp: Date;
+  actions?: AgentAction[];
+  isComplete?: boolean;
 }
 
 interface SSEProgressEvent {
@@ -38,6 +41,67 @@ interface SSEProgressEvent {
   error?: string;
   details?: any;
   files?: Record<string, string>;
+}
+
+// Helper function to map tool names to user-friendly action types
+function getActionTypeFromTool(toolName: string): AgentAction['type'] {
+  if (toolName.includes('list_files')) return 'list_files';
+  if (toolName.includes('read_file')) return 'read_file';
+  if (toolName.includes('write_file')) return 'write_file';
+  if (toolName.includes('todo_write')) return 'todo';
+  if (toolName.includes('parallel_read')) return 'parallel_read';
+  return 'status';
+}
+
+// Helper function to create user-friendly description from tool and event
+function createActionDescription(
+  event: SSEProgressEvent,
+  actionType: AgentAction['type']
+): string {
+  switch (actionType) {
+    case 'status':
+      return event.message || 'Processing...';
+    case 'list_files':
+      return 'Exploring project structure...';
+    case 'read_file':
+      // Extract filename from todo field (route.ts sets it to "Reading ${filePath}")
+      if (event.todo && event.todo.startsWith('Reading')) {
+        return event.todo;
+      }
+      return 'Reading file...';
+    case 'write_file':
+      // Extract filename from todo field (route.ts sets it to "Writing ${filePath}")
+      if (event.todo && event.todo.startsWith('Writing')) {
+        return event.todo;
+      }
+      // Fallback to tool name
+      if (event.tool && event.tool.includes('write_file')) {
+        return 'Writing file...';
+      }
+      return 'Writing file...';
+    case 'parallel_read':
+      // Extract count from tool name like "parallel_read (3 files)"
+      if (event.tool && event.tool.includes('parallel_read')) {
+        const match = event.tool.match(/parallel_read\s*\((\d+)\s*files?\)/);
+        if (match) {
+          return `Reading ${match[1]} files...`;
+        }
+      }
+      return 'Reading multiple files...';
+    case 'todo':
+      if (event.todo) {
+        return `Planning: ${event.todo}`;
+      }
+      if (event.todos && event.todos.length > 0) {
+        const inProgressTodo = event.todos.find(t => t.status === 'in_progress');
+        if (inProgressTodo) {
+          return `Planning: ${inProgressTodo.content}`;
+        }
+      }
+      return 'Updating plan...';
+    default:
+      return event.tool || 'Processing...';
+  }
 }
 
 // Helper function to parse SSE stream
@@ -91,7 +155,7 @@ async function consumeCodeGenerationStream(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   
-  let progressMessageId: string | null = null;
+  let thinkingMessageId: string | null = null;
   let buffer = '';
 
   try {
@@ -126,98 +190,125 @@ async function consumeCodeGenerationStream(
           switch (event.type) {
             case 'status':
               if (event.message) {
-                // Update or create progress message
-                setMessages((prev) => {
-                  if (progressMessageId) {
-                    return prev.map((msg) =>
-                      msg.id === progressMessageId
-                        ? { ...msg, content: event.message! }
-                        : msg
-                    );
-                  } else {
-                    progressMessageId = Date.now().toString();
-                    return [
-                      ...prev,
-                      {
-                        id: progressMessageId,
-                        role: "assistant",
-                        content: event.message,
-                        timestamp: new Date(),
-                      },
-                    ];
-                  }
-                });
+                // Skip backend infrastructure status messages - these are not agent actions
+                // They're just internal backend operations that shouldn't be shown as agent thinking
+                const infrastructureMessages = [
+                  'Initializing sandbox connection...',
+                ];
+                
+                if (infrastructureMessages.includes(event.message)) {
+                  break; // Skip infrastructure messages entirely
+                }
+                
+                // Skip other generic status messages that aren't agent actions
+                // Only show status messages that represent actual agent thinking/planning
+                // For now, we'll skip all generic status messages since they're backend infrastructure
+                // If there are status messages that represent agent thinking, we can add them as exceptions
+                break;
               }
               break;
               
             case 'coding_iteration':
               if (event.todo || event.tool) {
-                const content = event.todo 
-                  ? `Implementing: ${event.todo}`
-                  : `Working... (${event.tool})`;
+                // Skip invalid actions - empty parallel_read or generic read/write without file path
+                if (event.tool?.includes('parallel_read') && event.tool.includes('(0 files)')) {
+                  break; // Skip parallel_read with 0 files
+                }
                 
-                setMessages((prev) => {
-                  if (progressMessageId) {
-                    return prev.map((msg) =>
-                      msg.id === progressMessageId
-                        ? { ...msg, content }
-                        : msg
+                // Create thinking message if it doesn't exist
+                if (!thinkingMessageId) {
+                  thinkingMessageId = Date.now().toString();
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: thinkingMessageId!,
+                      role: "thinking",
+                      content: "",
+                      timestamp: new Date(),
+                      actions: [],
+                      isComplete: false,
+                    },
+                  ]);
+                }
+                
+                const actionType = getActionTypeFromTool(event.tool || '');
+                const description = createActionDescription(event, actionType);
+                
+                // Skip invalid descriptions (like "Reading 0 files" or generic "Reading file..." without path)
+                if (description.includes('0 files')) {
+                  break;
+                }
+                
+                // Skip generic read/write without specific file path
+                if ((description === 'Reading file...' || description === 'Writing file...') && !event.todo) {
+                  break;
+                }
+                
+                setMessages((prev) =>
+                  prev.map((msg) => {
+                    if (msg.id !== thinkingMessageId) return msg;
+                    
+                    const existingActions = msg.actions || [];
+                    
+                    // Check if this exact action already exists and is in progress
+                    const duplicateAction = existingActions.find(
+                      (action) => action.description === description && action.status === 'in_progress'
                     );
-                  } else {
-                    progressMessageId = Date.now().toString();
-                    return [
-                      ...prev,
-                      {
-                        id: progressMessageId,
-                        role: "assistant",
-                        content,
-                        timestamp: new Date(),
-                      },
-                    ];
-                  }
-                });
+                    if (duplicateAction) {
+                      return msg; // Skip adding duplicate
+                    }
+                    
+                    // Mark ALL previous in-progress actions as completed (not just same type)
+                    const updatedActions = existingActions.map((action) =>
+                      action.status === 'in_progress'
+                        ? { ...action, status: 'completed' as const }
+                        : action
+                    );
+                    
+                    // Add new action
+                    const newAction: AgentAction = {
+                      id: `${Date.now()}-${Math.random()}`,
+                      type: actionType,
+                      description,
+                      timestamp: new Date(),
+                      status: 'in_progress',
+                    };
+                    
+                    return {
+                      ...msg,
+                      actions: [...updatedActions, newAction],
+                    };
+                  })
+                );
               }
               break;
               
             case 'todo_update':
-              if (event.todos && event.todos.length > 0) {
-                const inProgressTodo = event.todos.find(t => t.status === "in_progress");
-                if (inProgressTodo) {
-                  setMessages((prev) => {
-                    const content = `Implementing: ${inProgressTodo.content}`;
-                    if (progressMessageId) {
-                      return prev.map((msg) =>
-                        msg.id === progressMessageId
-                          ? { ...msg, content }
-                          : msg
-                      );
-                    } else {
-                      progressMessageId = Date.now().toString();
-                      return [
-                        ...prev,
-                        {
-                          id: progressMessageId,
-                          role: "assistant",
-                          content,
-                          timestamp: new Date(),
-                        },
-                      ];
-                    }
-                  });
-                }
-              }
+              // Skip todo_update events - we handle todos in coding_iteration events
+              // This prevents duplicate todo actions from being added
+              // The coding_iteration event already includes todo information when a todo_write tool is executed
               break;
               
             case 'complete':
-              // Remove progress message and add final message
+              // Mark all actions as completed and mark thinking message as complete
               setMessages((prev) => {
-                const filtered = prev.filter((msg) => 
-                  msg.id !== progressMessageId
-                );
+                const updated = prev.map((msg) => {
+                  if (msg.id === thinkingMessageId) {
+                    return {
+                      ...msg,
+                      actions: msg.actions?.map((action) => ({
+                        ...action,
+                        status: 'completed' as const,
+                      })),
+                      isComplete: true,
+                    };
+                  }
+                  return msg;
+                });
                 
-                // Add completion message
+                // Add final assistant response message
                 return [
-                  ...filtered,
+                  ...updated,
                   {
                     id: (Date.now() + 1).toString(),
                     role: "assistant",
@@ -229,13 +320,24 @@ async function consumeCodeGenerationStream(
               break;
               
             case 'error':
-              // Remove progress message and add error message
+              // Mark thinking message as complete and add error message
               setMessages((prev) => {
-                const filtered = prev.filter((msg) => 
-                  msg.id !== progressMessageId
-                );
+                const updated = prev.map((msg) => {
+                  if (msg.id === thinkingMessageId) {
+                    return {
+                      ...msg,
+                      actions: msg.actions?.map((action) => ({
+                        ...action,
+                        status: 'completed' as const,
+                      })),
+                      isComplete: true,
+                    };
+                  }
+                  return msg;
+                });
+                
                 return [
-                  ...filtered,
+                  ...updated,
                   {
                     id: (Date.now() + 1).toString(),
                     role: "assistant",
@@ -374,6 +476,9 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
 
                 // Call the coding agent to generate/modify App.js using SSE streaming
                 try {
+                  if (!currentSandboxId) {
+                    throw new Error("Sandbox ID is not available");
+                  }
                   await consumeCodeGenerationStream(
                     newMessage.content,
                     currentSandboxId,
@@ -557,27 +662,42 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
             </Button>
           </div>
         )}
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${
-              message.role === "user" ? "justify-end" : "justify-start"
-            }`}
-          >
+        {messages.map((message) => {
+          if (message.role === "thinking") {
+            return (
+              <div key={message.id} className="flex justify-start">
+                <div className="max-w-[80%] w-full">
+                  <AgentThinkingBox
+                    actions={message.actions || []}
+                    isComplete={message.isComplete || false}
+                  />
+                </div>
+              </div>
+            );
+          }
+          
+          return (
             <div
-              className={`max-w-[80%] rounded-lg p-3 ${
-                message.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground"
+              key={message.id}
+              className={`flex ${
+                message.role === "user" ? "justify-end" : "justify-start"
               }`}
             >
-              <p className="text-sm">{message.content}</p>
-              <p className="text-xs opacity-70 mt-1">
-                {message.timestamp.toLocaleTimeString()}
-              </p>
+              <div
+                className={`max-w-[80%] rounded-lg p-3 ${
+                  message.role === "user"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                <p className="text-sm">{message.content}</p>
+                <p className="text-xs opacity-70 mt-1">
+                  {message.timestamp.toLocaleTimeString()}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="p-4 border-t">
