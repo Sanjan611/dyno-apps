@@ -369,7 +369,7 @@ export async function POST(request: NextRequest) {
           message: tool,
         });
         state.push({
-          role: "user",
+          role: "tool",
           message: result,
         });
       }
