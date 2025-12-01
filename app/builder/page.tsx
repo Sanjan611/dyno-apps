@@ -7,7 +7,7 @@ import ChatPanel from "@/components/builder/ChatPanel";
 import PreviewPanel from "@/components/builder/PreviewPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Save, MoreVertical, Home, AlertCircle, FolderOpen } from "lucide-react";
+import { Save, MoreVertical, Home, AlertCircle, FolderOpen, ChevronLeft, Code2 } from "lucide-react";
 import { useBuilderStore } from "@/lib/store";
 import {
   Card,
@@ -249,16 +249,19 @@ export default function BuilderPage() {
   }, [isDragging]);
 
   return (
-    <div className="h-screen flex flex-col bg-background">
-      <header className="border-b px-4 py-2 flex items-center justify-between">
+    <div className="h-screen flex flex-col overflow-hidden">
+      {/* Header */}
+      <header className="h-14 border-b bg-white/80 backdrop-blur-md flex items-center justify-between px-4 z-50">
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" asChild>
+          <Button variant="ghost" size="icon" asChild className="hover:bg-slate-100 text-muted-foreground">
             <Link href="/">
-              <Home className="w-4 h-4" />
+              <Home className="w-5 h-5" />
             </Link>
           </Button>
+          
+          <div className="h-6 w-[1px] bg-slate-200" />
+          
           <div>
-            <h1 className="text-lg font-bold">Dyno Apps Builder</h1>
             <div className="flex items-center gap-2">
               <Input
                 ref={nameInputRef}
@@ -266,79 +269,86 @@ export default function BuilderPage() {
                 onChange={handleNameChange}
                 onBlur={handleNameBlur}
                 onKeyDown={handleNameKeyDown}
-                className="text-sm text-muted-foreground h-7 px-2 border-transparent bg-transparent hover:border-border focus-visible:border-border focus-visible:ring-1 focus-visible:ring-ring max-w-[300px]"
+                className="text-sm font-semibold h-8 px-2 border-transparent bg-transparent hover:bg-slate-100 focus:bg-white focus:border-primary/20 focus:ring-1 focus:ring-primary/20 w-[200px] sm:w-[300px] transition-all rounded-md"
                 placeholder="Untitled Project"
                 disabled={isSavingName}
               />
               {isSavingName && (
-                <span className="text-xs text-muted-foreground">Saving...</span>
+                <span className="text-xs text-muted-foreground animate-pulse">Saving...</span>
               )}
             </div>
           </div>
         </div>
+
         <div className="flex items-center gap-2">
-          <Button variant="outline" asChild>
+          <Button variant="outline" size="sm" asChild className="hidden sm:flex gap-2 bg-white hover:bg-slate-50">
             <Link href="/project-gallery">
-              <FolderOpen className="w-4 h-4 mr-2" />
+              <FolderOpen className="w-4 h-4" />
               My Projects
             </Link>
           </Button>
-          <Button variant="outline">
+          <Button size="sm" className="bg-primary hover:bg-primary/90 text-white shadow-sm">
             <Save className="w-4 h-4 mr-2" />
             Save
           </Button>
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" className="text-muted-foreground">
             <MoreVertical className="w-4 h-4" />
           </Button>
         </div>
       </header>
 
       {sandboxMissing ? (
-        <div className="flex-1 flex items-center justify-center p-8">
-          <Card className="max-w-md w-full">
+        <div className="flex-1 flex items-center justify-center p-8 bg-slate-50/50">
+          <Card className="max-w-md w-full border-destructive/20 shadow-lg animate-in fade-in zoom-in-95">
             <CardHeader>
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-destructive" />
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-destructive/10">
+                  <AlertCircle className="w-6 h-6 text-destructive" />
+                </div>
                 <CardTitle>Sandbox Not Found</CardTitle>
               </div>
-              <CardDescription>
+              <CardDescription className="mt-2">
                 The sandbox for this project no longer exists. You can go back to the gallery or
                 start a new project.
               </CardDescription>
             </CardHeader>
-            <CardFooter className="flex gap-2">
+            <CardFooter className="flex gap-3 justify-end">
               <Button variant="outline" asChild>
                 <Link href="/project-gallery">Back to Gallery</Link>
               </Button>
-              <Button asChild>
+              <Button asChild className="bg-primary">
                 <Link href="/builder">Start New Project</Link>
               </Button>
             </CardFooter>
           </Card>
         </div>
       ) : isValidatingSandbox ? (
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground">Validating sandbox...</p>
+        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+          <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+          <p className="text-muted-foreground font-medium">Setting up your environment...</p>
         </div>
       ) : (
         <div ref={containerRef} className="flex-1 flex overflow-hidden relative">
-          <div className="border-r" style={{ width: `${leftWidth}%` }}>
+          {/* Left Panel (Chat) */}
+          <div className="h-full overflow-hidden bg-white z-10 shadow-xl shadow-slate-200/50" style={{ width: `${leftWidth}%` }}>
             <ChatPanel initialPrompt={initialPrompt} />
           </div>
 
+          {/* Resizer */}
           <div
             onMouseDown={handleMouseDown}
-            className="absolute top-0 bottom-0 w-2 cursor-col-resize group z-10"
+            className="absolute top-0 bottom-0 w-1.5 cursor-col-resize group z-20 hover:bg-primary/20 transition-colors"
             style={{ left: `${leftWidth}%`, transform: "translateX(-50%)" }}
           >
             <div
-              className={`w-0.5 h-full bg-border group-hover:bg-primary transition-colors mx-auto ${
-                isDragging ? "bg-primary" : ""
+              className={`w-px h-full bg-slate-200 group-hover:bg-primary transition-colors mx-auto ${
+                isDragging ? "bg-primary w-0.5" : ""
               }`}
             />
           </div>
 
-          <div style={{ width: `${100 - leftWidth}%` }}>
+          {/* Right Panel (Preview/Code) */}
+          <div className="h-full overflow-hidden bg-slate-100/50 backdrop-blur-sm" style={{ width: `${100 - leftWidth}%` }}>
             <PreviewPanel />
           </div>
         </div>

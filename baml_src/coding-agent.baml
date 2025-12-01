@@ -9,7 +9,7 @@ function CodingAgent(
   // client CustomGPT5Mini
   // client CustomGPT5
   // client OpenRouterGrok
-  client OpenRouterGLM
+  client GLMWithSonnetFallback
   // client ClaudeSonnet
   prompt #"
     {{ _.role("system") }}

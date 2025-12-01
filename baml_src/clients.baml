@@ -70,6 +70,9 @@ client<llm> OpenRouterGLM {
     base_url "https://openrouter.ai/api/v1"
     api_key env.OPENROUTER_API_KEY
     model "z-ai/glm-4.6"
+    http {
+      request_timeout_ms 40000
+    }
   }
 }
 
@@ -148,6 +151,14 @@ client<llm> OpenaiFallback {
   options {
     // This will try the clients in order until one succeeds
     strategy [CustomGPT5Mini, CustomGPT5]
+  }
+}
+
+// GLM client with Sonnet fallback - GLM primary with 40s timeout, falls back to ClaudeSonnet
+client<llm> GLMWithSonnetFallback {
+  provider fallback
+  options {
+    strategy [OpenRouterGLM, ClaudeSonnet]
   }
 }
 

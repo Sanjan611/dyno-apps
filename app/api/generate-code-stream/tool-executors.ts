@@ -271,6 +271,7 @@ async function executeVerifyExpoServer(
   sandbox: any,
   tool: VerifyExpoServerTool
 ): Promise<string> {
+  let result = "";
   try {
     const tailLines = Math.min(tool.tailLines || 50, 200);
 
@@ -283,11 +284,13 @@ async function executeVerifyExpoServer(
     const logOutput = await logProcess.stdout.readText();
     await logProcess.wait();
 
-    return logOutput.trim() || "(No log output)";
+    result = logOutput.trim() || "(No log output)";
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return `Error reading Expo logs: ${errorMessage}`;
+    result = `Error reading Expo logs: ${errorMessage}`;
   }
+  console.log("[generate-code-stream] Expo server logs:", result);
+  return result;
 }
 
 // Execute a single tool (non-array)

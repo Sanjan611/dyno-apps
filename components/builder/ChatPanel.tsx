@@ -1,18 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Send } from "lucide-react";
+import { Send, Sparkles, Terminal, RefreshCw, Check, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
 import { useBuilderStore } from "@/lib/store";
 import AgentThinkingBox, { AgentAction } from "./AgentThinkingBox";
+import { cn } from "@/lib/utils";
 
 interface ChatPanelProps {
   initialPrompt?: string;
@@ -191,28 +190,22 @@ async function consumeCodeGenerationStream(
             case 'status':
               if (event.message) {
                 // Skip backend infrastructure status messages - these are not agent actions
-                // They're just internal backend operations that shouldn't be shown as agent thinking
                 const infrastructureMessages = [
                   'Initializing sandbox connection...',
                 ];
                 
                 if (infrastructureMessages.includes(event.message)) {
-                  break; // Skip infrastructure messages entirely
+                  break; 
                 }
-                
-                // Skip other generic status messages that aren't agent actions
-                // Only show status messages that represent actual agent thinking/planning
-                // For now, we'll skip all generic status messages since they're backend infrastructure
-                // If there are status messages that represent agent thinking, we can add them as exceptions
                 break;
               }
               break;
               
             case 'coding_iteration':
               if (event.todo || event.tool) {
-                // Skip invalid actions - empty parallel_read or generic read/write without file path
+                // Skip invalid actions
                 if (event.tool?.includes('parallel_read') && event.tool.includes('(0 files)')) {
-                  break; // Skip parallel_read with 0 files
+                  break;
                 }
                 
                 // Create thinking message if it doesn't exist
@@ -234,12 +227,10 @@ async function consumeCodeGenerationStream(
                 const actionType = getActionTypeFromTool(event.tool || '');
                 const description = createActionDescription(event, actionType);
                 
-                // Skip invalid descriptions (like "Reading 0 files" or generic "Reading file..." without path)
                 if (description.includes('0 files')) {
                   break;
                 }
                 
-                // Skip generic read/write without specific file path
                 if ((description === 'Reading file...' || description === 'Writing file...') && !event.todo) {
                   break;
                 }
@@ -250,22 +241,19 @@ async function consumeCodeGenerationStream(
                     
                     const existingActions = msg.actions || [];
                     
-                    // Check if this exact action already exists and is in progress
                     const duplicateAction = existingActions.find(
                       (action) => action.description === description && action.status === 'in_progress'
                     );
                     if (duplicateAction) {
-                      return msg; // Skip adding duplicate
+                      return msg;
                     }
                     
-                    // Mark ALL previous in-progress actions as completed (not just same type)
                     const updatedActions = existingActions.map((action) =>
                       action.status === 'in_progress'
                         ? { ...action, status: 'completed' as const }
                         : action
                     );
                     
-                    // Add new action
                     const newAction: AgentAction = {
                       id: `${Date.now()}-${Math.random()}`,
                       type: actionType,
@@ -284,13 +272,9 @@ async function consumeCodeGenerationStream(
               break;
               
             case 'todo_update':
-              // Skip todo_update events - we handle todos in coding_iteration events
-              // This prevents duplicate todo actions from being added
-              // The coding_iteration event already includes todo information when a todo_write tool is executed
               break;
               
             case 'complete':
-              // Mark all actions as completed and mark thinking message as complete
               setMessages((prev) => {
                 const updated = prev.map((msg) => {
                   if (msg.id === thinkingMessageId) {
@@ -306,7 +290,6 @@ async function consumeCodeGenerationStream(
                   return msg;
                 });
                 
-                // Add final assistant response message
                 return [
                   ...updated,
                   {
@@ -320,7 +303,6 @@ async function consumeCodeGenerationStream(
               break;
               
             case 'error':
-              // Mark thinking message as complete and add error message
               setMessages((prev) => {
                 const updated = prev.map((msg) => {
                   if (msg.id === thinkingMessageId) {
@@ -375,6 +357,14 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
   const { setSandboxId, setPreviewUrl, sandboxId, setProjectId, projectId } = useBuilderStore();
   const [hasSentInitialMessage, setHasSentInitialMessage] = useState(false);
   const hasAutoSubmitted = useRef(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto scroll to bottom
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
 
   const sendMessage = useCallback(
     async (rawContent: string) => {
@@ -589,19 +579,19 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
   }, [initialPrompt, sendMessage]);
 
   return (
-    <div className="flex flex-col h-full bg-card">
-      <CardHeader>
+    <div className="flex flex-col h-full bg-white relative">
+      <CardHeader className="px-6 py-4 border-b bg-white/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Chat</CardTitle>
-            <CardDescription>
-              Describe your app in natural language
+            <CardTitle className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary">Dyno</CardTitle>
+            <CardDescription className="text-xs mt-1">
+              Describe your app ideas naturally
             </CardDescription>
           </div>
           {sandboxId && (
             <Button
-              variant="outline"
-              size="sm"
+              variant="ghost"
+              size="icon"
               onClick={async () => {
                 setViewingLogs(true);
                 try {
@@ -617,56 +607,60 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
                 }
               }}
               disabled={viewingLogs}
+              title="View Logs"
+              className="hover:bg-slate-100"
             >
-              {viewingLogs ? "Loading..." : "View Logs"}
+              {viewingLogs ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Terminal className="w-4 h-4" />}
             </Button>
           )}
         </div>
       </CardHeader>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div 
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/30 relative"
+      >
+        <div className="absolute inset-0 bg-grid-pattern opacity-[0.4] pointer-events-none" />
         {logs && logs.success && (
-          <div className="mb-4 p-3 bg-muted rounded-lg text-xs font-mono overflow-auto max-h-60">
-            <div className="font-bold mb-2">Sandbox Logs:</div>
-            {logs.logs.expoLogs && (
-              <div className="mb-2">
-                <div className="font-semibold">Expo Logs:</div>
-                <pre className="whitespace-pre-wrap">{logs.logs.expoLogs}</pre>
+          <div className="mb-6 p-4 bg-black/90 text-green-400 rounded-xl font-mono text-xs overflow-hidden shadow-2xl animate-in fade-in slide-in-from-top-4 relative z-10">
+            <div className="flex items-center justify-between mb-3 border-b border-white/10 pb-2">
+              <div className="font-bold flex items-center gap-2">
+                 <Terminal className="w-3 h-3" /> Sandbox Logs
               </div>
-            )}
-            {logs.logs.processCheck && (
-              <div className="mb-2">
-                <div className="font-semibold">Running Processes:</div>
-                <pre className="whitespace-pre-wrap">{logs.logs.processCheck}</pre>
-              </div>
-            )}
-            {logs.logs.portCheck && (
-              <div className="mb-2">
-                <div className="font-semibold">Port Status:</div>
-                <pre className="whitespace-pre-wrap">{logs.logs.portCheck}</pre>
-              </div>
-            )}
-            {logs.logs.appDirCheck && (
-              <div className="mb-2">
-                <div className="font-semibold">App Directory:</div>
-                <pre className="whitespace-pre-wrap">{logs.logs.appDirCheck}</pre>
-              </div>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setLogs(null)}
-              className="mt-2"
-            >
-              Close
-            </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setLogs(null)}
+                className="h-6 px-2 text-white/50 hover:text-white hover:bg-white/10"
+              >
+                Close
+              </Button>
+            </div>
+            <div className="overflow-auto max-h-60 space-y-4">
+              {logs.logs.expoLogs && (
+                <div>
+                  <div className="font-bold text-white/70 mb-1">Expo Output:</div>
+                  <pre className="whitespace-pre-wrap">{logs.logs.expoLogs}</pre>
+                </div>
+              )}
+              {logs.logs.processCheck && (
+                <div>
+                   <div className="font-bold text-white/70 mb-1">Processes:</div>
+                   <pre className="whitespace-pre-wrap">{logs.logs.processCheck}</pre>
+                </div>
+              )}
+            </div>
           </div>
         )}
+
         {messages.map((message) => {
           if (message.role === "thinking") {
             return (
-              <div key={message.id} className="flex justify-start">
-                <div className="max-w-[80%] w-full">
+              <div key={message.id} className="flex justify-start animate-in fade-in slide-in-from-left-2 relative z-10">
+                 <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center mr-3 flex-shrink-0 shadow-sm">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                 </div>
+                <div className="max-w-[85%] w-full">
                   <AgentThinkingBox
                     actions={message.actions || []}
                     isComplete={message.isComplete || false}
@@ -676,43 +670,74 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
             );
           }
           
+          const isUser = message.role === "user";
+          
           return (
             <div
               key={message.id}
-              className={`flex ${
-                message.role === "user" ? "justify-end" : "justify-start"
-              }`}
+              className={cn(
+                "flex items-end gap-2 animate-in fade-in slide-in-from-bottom-2 relative z-10",
+                isUser ? "justify-end" : "justify-start"
+              )}
             >
+              {!isUser && (
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-xs font-bold shadow-md mb-1">
+                  AI
+                </div>
+              )}
+              
               <div
-                className={`max-w-[80%] rounded-lg p-3 ${
-                  message.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground"
-                }`}
+                className={cn(
+                  "max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm",
+                  isUser
+                    ? "bg-gradient-to-r from-primary to-secondary text-white rounded-br-none"
+                    : "bg-white border border-slate-100 text-slate-700 rounded-bl-none"
+                )}
               >
-                <p className="text-sm">{message.content}</p>
-                <p className="text-xs opacity-70 mt-1">
-                  {message.timestamp.toLocaleTimeString()}
+                <div className="prose prose-sm max-w-none dark:prose-invert break-words whitespace-pre-wrap">
+                  {message.content}
+                </div>
+                <p className={cn(
+                  "text-[10px] mt-1",
+                  isUser ? "text-white/70" : "text-slate-400"
+                )}>
+                  {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
             </div>
           );
         })}
+        
+        {isLoading && !messages.some(m => m.role === "thinking" && !m.isComplete) && (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm pl-12 animate-pulse relative z-10">
+             <Sparkles className="w-3 h-3" />
+             Thinking...
+          </div>
+        )}
       </div>
 
-      <div className="p-4 border-t">
-        <div className="flex gap-2">
+      <div className="p-4 border-t bg-white mt-auto relative z-10">
+        <div className="relative flex items-center">
           <Input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && handleSend()}
             placeholder="Type your message..."
-            className="flex-1"
+            className="pr-12 py-6 rounded-full border-slate-200 bg-slate-50 focus:bg-white focus:border-primary/30 focus:ring-primary/20 shadow-inner"
+            disabled={isLoading}
           />
-          <Button onClick={handleSend} size="icon" disabled={isLoading}>
+          <Button 
+            onClick={handleSend} 
+            size="icon" 
+            disabled={isLoading || !input.trim()}
+            className="absolute right-1.5 h-9 w-9 rounded-full bg-primary hover:bg-primary/90 transition-all shadow-sm"
+          >
             <Send className="w-4 h-4" />
           </Button>
+        </div>
+        <div className="text-xs text-center text-muted-foreground mt-2">
+           AI can make mistakes. Check the code.
         </div>
       </div>
     </div>
