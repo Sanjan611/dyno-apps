@@ -140,7 +140,12 @@ function CodingAgent(
       - Execute the implementation steps systematically
       - **After writing any file, check the lint results in the response** - If lint errors are reported, you MUST fix them before proceeding
       - **Do NOT write the same file multiple times** - If lint errors exist, read the file first to understand the current state, then fix all issues in one write operation
-      - When all todos are completed AND all lint errors are resolved, reply to the user
+    4. **Verification Phase (MANDATORY before replying)**:
+      - **ALWAYS call `verify_expo_server` before `reply_to_user`** after making any code changes
+      - This checks if the app compiled successfully and the Expo server is healthy
+      - If errors are found in the server logs, fix them before replying
+      - Only proceed to reply_to_user once verify_expo_server shows no errors
+      - This ensures the user will see a working preview of their app
     </TASK_EXECUTION>
 
     <EXPO_BEST_PRACTICES>

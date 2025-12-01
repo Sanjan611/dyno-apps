@@ -55,11 +55,33 @@ class BashTool {
   description string? @description("Clear, concise description of what this command does in 5-10 words")
 }
 
+class VerifyExpoServerTool {
+  action "verify_expo_server" @description(#"
+    Checks the Expo server logs to verify the server is running correctly and identify any errors or issues.
+    
+    **IMPORTANT: You MUST use this tool before replying to the user** after making any code changes.
+    This ensures the app compiled successfully and the user will see the updated preview.
+    
+    Use this tool:
+    - ALWAYS before calling reply_to_user (after completing all code changes)
+    - When the app preview is not loading or showing errors
+    - After making significant changes to verify hot-reload worked
+    - When the user reports the preview is broken or not updating
+    
+    Returns:
+    - Server status (running/not running)
+    - Recent log output with errors/warnings highlighted
+    - Port status (whether port 19006 is listening)
+    - Compilation status
+  "#)
+  tailLines int? @description("Number of recent log lines to retrieve (default: 50, max: 200)")
+}
+
 // Union type for read-only tools
 type ReadOnlyTools = ListFilesTool | ReadFileTool
 
 // Union type for all file tools (used by coding agent)
-type FileTools = ListFilesTool | ReadFileTool | WriteFileTool | BashTool
+type FileTools = ListFilesTool | ReadFileTool | WriteFileTool | BashTool | VerifyExpoServerTool
 
 // Todo management classes
 class TodoItem {

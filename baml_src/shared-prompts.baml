@@ -8,6 +8,34 @@ template_string EnvironmentSetup(working_dir: string) #"
   - **Production-Ready Standards**: Follow best practices for scalable, maintainable code
 
   Current working directory: {{ working_dir }}
+
+  <SANDBOX_STATE>
+  **CRITICAL - PRE-CONFIGURED ENVIRONMENT:**
+  The sandbox has been fully initialized at startup. The following are ALREADY DONE:
+  
+  1. **Expo App Created**: The Expo app is already created at `{{ working_dir }}` using `create-expo-app`
+  2. **Expo Server Running**: Expo web server is ALREADY running on port 19006 - **DO NOT restart or start Expo**
+  3. **Dependencies Installed**: All dependencies are pre-installed including:
+     - react-dom and react-native-web (for web support)
+     - ESLint and Prettier with TypeScript support
+     - All required Expo dependencies
+  4. **Linting Configured**: ESLint and Prettier are configured and ready to use
+
+  **NEVER DO THESE:**
+  - Do NOT run `npx create-expo-app` or any project creation commands
+  - Do NOT run `npx expo start` or `npm start` - the server is already running
+  - Do NOT run `npm install` or `yarn install` for base dependencies
+  - Do NOT reinstall ESLint, Prettier, or any dev dependencies that are already present
+  - Do NOT kill, restart, or interfere with the running Expo process
+
+  **WHEN TO USE npm/yarn install:**
+  Only use package installation commands when:
+  - Adding a NEW third-party library the user explicitly requests (e.g., `npx expo install react-navigation`)
+  - The library is not part of the standard Expo/React Native stack
+  
+  **PACKAGE INSTALLATION BEST PRACTICE:**
+  When installing new packages for Expo projects, prefer `npx expo install <package>` over `npm install <package>` as it ensures version compatibility with the current Expo SDK.
+  </SANDBOX_STATE>
   
   **IMPORTANT: All file operations must use absolute paths starting with {{ working_dir }}. Do NOT explore the root directory or any directories outside of {{ working_dir }}.**
 "#
@@ -318,11 +346,40 @@ template_string ToolUsageGuidelines(working_dir: string) #"
   # Bash Tool Usage
   - Use the bash tool for running installation commands (e.g., npm install, yarn install, pip install) and other shell operations
   - **IMPORTANT: Do NOT use bash for reading files or searching - use read_file and list_files instead**
+  - **NEVER restart the Expo server** - It is already running in the background and will hot-reload automatically when you edit files
+  - **NEVER reinstall base dependencies** - The project is pre-configured with all required packages
+  - **Only install NEW packages** when the user requests functionality requiring a third-party library not already present
   - Always quote file paths that contain spaces with double quotes (e.g., cd "path with spaces/file.txt")
   - When issuing multiple commands, use ';' or '&&' to separate them (do not use newlines)
   - Prefer absolute paths and avoid using `cd` unless necessary
   - Commands default to 120000ms (2 minutes) timeout, but you can specify up to 600000ms (10 minutes) for longer operations
   - Provide a clear, concise description (5-10 words) of what the command does
+
+  # Expo Server Verification (CRITICAL - MUST USE BEFORE REPLYING)
+  The `verify_expo_server` tool checks if the Expo development server is running correctly and identifies compilation errors.
+  
+  **MANDATORY: You MUST call `verify_expo_server` before using `reply_to_user`** after making any code changes.
+  This ensures:
+  - The app compiled successfully without errors
+  - The Expo server is healthy and serving the updated app
+  - The user will see the correct preview
+  
+  **When to use:**
+  - **ALWAYS** as your final step before `reply_to_user` (after completing all code changes)
+  - When you suspect there might be a compilation error
+  - If the user reports the preview is not working
+  
+  **What it checks:**
+  - Whether the Expo process is running
+  - Whether port 19006 is listening
+  - Recent log output for errors and warnings
+  - Compilation status
+  
+  **If errors are found:**
+  - DO NOT reply to the user yet
+  - Fix the errors in your code
+  - Run `verify_expo_server` again to confirm the fix
+  - Only reply to the user once the server is healthy
 
   # Communication Rules
   - **NEVER mention technical details** like file paths, code, file names, or implementation details in your reply_to_user messages

@@ -317,6 +317,9 @@ export async function POST(request: NextRequest) {
         } else if (tool.action === "read_file") {
           toolName = tool.action;
           currentTodo = `Reading ${(tool as ReadFileTool).filePath}`;
+        } else if (tool.action === "verify_expo_server") {
+          toolName = tool.action;
+          currentTodo = "Verifying Expo server status";
         } else {
           toolName = tool.action;
         }

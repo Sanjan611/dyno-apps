@@ -4,6 +4,7 @@ import type {
   ReadFileTool,
   WriteFileTool,
   BashTool,
+  VerifyExpoServerTool,
   Message,
   FileTools,
   TodoItem,
@@ -12,7 +13,7 @@ import type {
 } from "@/baml_client/types";
 
 // Type for single (non-array) tools
-export type SingleTool = ListFilesTool | ReadFileTool | WriteFileTool | BashTool | TodoWriteTool;
+export type SingleTool = ListFilesTool | ReadFileTool | WriteFileTool | BashTool | TodoWriteTool | VerifyExpoServerTool;
 
 // Result interface for single tool execution
 export interface SingleToolResult {
@@ -265,6 +266,30 @@ async function executeTodoWrite(
   };
 }
 
+// Verify Expo server status and check logs for errors
+async function executeVerifyExpoServer(
+  sandbox: any,
+  tool: VerifyExpoServerTool
+): Promise<string> {
+  try {
+    const tailLines = Math.min(tool.tailLines || 50, 200);
+
+    // Get raw tail of Expo logs
+    const logProcess = await sandbox.exec([
+      "bash",
+      "-c",
+      `tail -n ${tailLines} /tmp/expo.log 2>&1`
+    ]);
+    const logOutput = await logProcess.stdout.readText();
+    await logProcess.wait();
+
+    return logOutput.trim() || "(No log output)";
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return `Error reading Expo logs: ${errorMessage}`;
+  }
+}
+
 // Execute a single tool (non-array)
 export async function executeSingleTool(
   sandbox: any,
@@ -284,6 +309,8 @@ export async function executeSingleTool(
     case "todo_write":
       const todoResult = await executeTodoWrite(tool, todoList);
       return { result: todoResult.result, updatedTodoList: todoResult.updatedList };
+    case "verify_expo_server":
+      return { result: await executeVerifyExpoServer(sandbox, tool) };
     default:
       return { result: `Unknown tool action: ${(tool as any).action}` };
   }
