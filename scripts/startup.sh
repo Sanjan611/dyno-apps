@@ -24,11 +24,18 @@ cd my-app || { echo "ERROR: Failed to navigate to app directory"; exit 1; }
 echo "Installing web dependencies (react-dom, react-native-web)..."
 npx expo install react-dom react-native-web || { echo "ERROR: Failed to install web dependencies"; exit 1; }
 
-# Start Expo web server on port 19006 in the background using nohup
-# This ensures Expo continues running even after the script exits
-# We start Expo first so the sandbox is ready faster, then install linting tools in parallel
-echo "Starting Expo web server on port 19006..."
-nohup npx expo start --web --port 19006 > /tmp/expo.log 2>&1 &
+# Install @expo/ngrok required for Expo tunnel mode (non-interactive)
+echo "Installing @expo/ngrok for Expo tunnel support..."
+npm install -g @expo/ngrok@^4.1.0 || { echo "ERROR: Failed to install @expo/ngrok"; exit 1; }
+
+# Start Expo with tunnel mode
+# --tunnel: Creates Expo's own ngrok tunnels for both web and Metro bundler
+# --web: Enables web support on port 19006
+# Metro bundler will run on default port 8081
+# Expo will create its own public URLs via ngrok
+# We use Modal tunnel for web preview, but Expo tunnel for Metro bundler (for Expo Go)
+echo "Starting Expo with tunnel mode (web on 19006, Metro bundler on 8081)..."
+nohup npx expo start --tunnel --web --port 19006 > /tmp/expo.log 2>&1 &
 EXPO_PID=$!
 
 echo "Expo process started with PID: $EXPO_PID"

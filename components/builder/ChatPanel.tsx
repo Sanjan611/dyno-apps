@@ -354,7 +354,7 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [viewingLogs, setViewingLogs] = useState(false);
   const [logs, setLogs] = useState<any>(null);
-  const { setSandboxId, setPreviewUrl, sandboxId, setProjectId, projectId } = useBuilderStore();
+  const { setSandboxId, setPreviewUrl, setExpoConnectionUrl, sandboxId, setProjectId, projectId } = useBuilderStore();
   const [hasSentInitialMessage, setHasSentInitialMessage] = useState(false);
   const hasAutoSubmitted = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -456,6 +456,9 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
 
               if (initData.success) {
                 setPreviewUrl(initData.previewUrl);
+                if (initData.expoConnectionUrl) {
+                  setExpoConnectionUrl(initData.expoConnectionUrl);
+                }
                 const expoMessage: Message = {
                   id: (Date.now() + 2).toString(),
                   role: "assistant",

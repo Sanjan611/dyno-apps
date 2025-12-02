@@ -113,9 +113,97 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Expo failed to start" }, { status: 500 });
     }
 
+    // Get Expo connection URL for native/Expo Go from Expo's tunnel (ngrok)
+    // When using --tunnel, Expo creates its own ngrok tunnel and prints the URL to log
+    let expoConnectionUrl: string | null = null;
+    try {
+      // Wait a bit for Expo to establish tunnel and print URL
+      await new Promise(r => setTimeout(r, 10000)); // Wait 10 seconds for tunnel setup
+      
+      // Read from Expo log to extract the tunnel URL
+      try {
+        const logFile = await sandbox.open("/tmp/expo.log", "r");
+        const logContent = await logFile.read();
+        const logText = new TextDecoder().decode(logContent);
+        await logFile.close();
+        
+        // Look for Expo tunnel URL patterns
+        const patterns = [
+          /Run\s+with\s+Expo\s+Go[:\s]+(exp:\/\/[^\s]+)/i,
+          /Metro\s+waiting\s+on\s+(exp:\/\/[^\s]+)/i,
+          /Tunnel\s+ready[\.\s]+(exp:\/\/[^\s]+)/i,
+          /(exp:\/\/[a-zA-Z0-9\-\.]+(?::\d+)?(?:\/[^\s"]*)?)/g,
+        ];
+        
+        for (const pattern of patterns) {
+          const matches = logText.match(pattern);
+          if (matches && matches.length > 0) {
+            let url = Array.isArray(matches) ? (matches[1] || matches[0]) : matches[0];
+            if (url && url.startsWith("exp://")) {
+              const cleanUrl = url.split(/[\s\)\]\}\"',\n\r]/)[0];
+              if (cleanUrl.includes(":") && cleanUrl.split(":").length >= 3) {
+                expoConnectionUrl = cleanUrl;
+                console.log("[init-expo] Found Expo tunnel URL in log:", expoConnectionUrl);
+                break;
+              }
+            }
+          }
+        }
+        
+        // Try ngrok domain pattern
+        if (!expoConnectionUrl) {
+          const ngrokPattern = /exp:\/\/[a-zA-Z0-9\-]+\.(ngrok|ngrok-free|ngrok\.app|eu\.ngrok\.io)[^\s]*/i;
+          const ngrokMatch = logText.match(ngrokPattern);
+          if (ngrokMatch) {
+            expoConnectionUrl = ngrokMatch[0].split(/[\s\)\]\}\"',\n\r]/)[0];
+            console.log("[init-expo] Found Expo ngrok URL in log:", expoConnectionUrl);
+          }
+        }
+      } catch (logError) {
+        console.log("[init-expo] Could not read Expo log:", logError);
+      }
+      
+      // Fallback: Try Expo status endpoint
+      if (!expoConnectionUrl) {
+        try {
+          const statusProcess = await sandbox.exec([
+            "curl",
+            "-s",
+            "--max-time",
+            "3",
+            "http://localhost:19000/status",
+          ]);
+          
+          const statusOutput = await statusProcess.stdout.readText();
+          await statusProcess.wait();
+          
+          if (statusOutput) {
+            try {
+              const statusData = JSON.parse(statusOutput);
+              if (statusData.expoGoConnectionUrl) {
+                expoConnectionUrl = statusData.expoGoConnectionUrl;
+              } else if (statusData.expUrl) {
+                expoConnectionUrl = statusData.expUrl;
+              } else if (statusData.manifestUrl && statusData.manifestUrl.startsWith("exp://")) {
+                expoConnectionUrl = statusData.manifestUrl;
+              }
+            } catch (parseError) {
+              // Not JSON
+            }
+          }
+        } catch (statusError) {
+          // Status endpoint not available
+        }
+      }
+    } catch (error) {
+      console.log("[init-expo] Could not get Expo connection URL:", error);
+      // Continue without connection URL - it can be fetched later
+    }
+
     return NextResponse.json({
       success: true,
       previewUrl,
+      expoConnectionUrl,
     });
   } catch (error) {
     console.error("[init-expo] Error initializing Expo:", error);

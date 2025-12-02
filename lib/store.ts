@@ -14,12 +14,14 @@ interface BuilderState {
   generatedCode: string;
   sandboxId: string | null;
   previewUrl: string | null;
+  expoConnectionUrl: string | null;
   setProjectName: (name: string) => void;
   setProjectId: (id: string | null) => void;
   addMessage: (message: Message) => void;
   setGeneratedCode: (code: string) => void;
   setSandboxId: (id: string | null) => void;
   setPreviewUrl: (url: string | null) => void;
+  setExpoConnectionUrl: (url: string | null) => void;
 }
 
 export const useBuilderStore = create<BuilderState>((set) => ({
@@ -29,6 +31,7 @@ export const useBuilderStore = create<BuilderState>((set) => ({
   generatedCode: "",
   sandboxId: null,
   previewUrl: null,
+  expoConnectionUrl: null,
   setProjectName: (name) => set({ projectName: name }),
   setProjectId: (id) => set({ projectId: id }),
   addMessage: (message) =>
@@ -36,4 +39,5 @@ export const useBuilderStore = create<BuilderState>((set) => ({
   setGeneratedCode: (code) => set({ generatedCode: code }),
   setSandboxId: (id) => set({ sandboxId: id }),
   setPreviewUrl: (url) => set({ previewUrl: url }),
+  setExpoConnectionUrl: (url) => set({ expoConnectionUrl: url }),
 }));

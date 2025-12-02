@@ -43,7 +43,7 @@ export async function createSandbox(modal: ModalClient) {
   const image = getNodeImage(modal);
   
   const sandbox = await modal.sandboxes.create(app, image, {
-    unencryptedPorts: [19006],
+    unencryptedPorts: [19006, 8081], // 19006 for web, 8081 for Metro bundler
   });
 
   return {

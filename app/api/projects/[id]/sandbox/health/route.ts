@@ -76,13 +76,20 @@ export async function GET(
       }
 
       // Get tunnel info if available
+      // We use Modal tunnel for web preview (port 19006)
+      // Expo connection URL uses Expo's own tunnel (ngrok) - fetch via /expo-connection endpoint
       let previewUrl: string | null = null;
+      let expoConnectionUrl: string | null = null;
       try {
         const tunnels = await sandbox.tunnels(5000);
         const tunnel = tunnels[19006];
         if (tunnel) {
           previewUrl = tunnel.url;
         }
+        
+        // Expo connection URL is not available here - it uses Expo's tunnel (ngrok)
+        // Use the /expo-connection endpoint to get the actual Expo tunnel URL
+        expoConnectionUrl = null;
       } catch (error) {
         // Tunnel might not be ready yet
         console.log("[sandbox-health] Could not get tunnel info:", error);
@@ -101,6 +108,7 @@ export async function GET(
           expoRunning,
         },
         previewUrl,
+        expoConnectionUrl,
         message: healthy
           ? "Sandbox is healthy and operational"
           : "Sandbox exists but may not be fully operational",

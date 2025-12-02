@@ -1,15 +1,45 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AppPreview from "./AppPreview";
 import CodeViewer from "./CodeViewer";
+import ExpoQRCode from "./ExpoQRCode";
 import { useBuilderStore } from "@/lib/store";
-import { Smartphone, Code2, ExternalLink, RefreshCw, Battery, Wifi, Signal, QrCode } from "lucide-react";
+import { Smartphone, Code2, ExternalLink, RefreshCw, Battery, Wifi, Signal, QrCode, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function PreviewPanel() {
   const [activeView, setActiveView] = useState<"preview" | "code" | "test">("preview");
-  const { previewUrl } = useBuilderStore();
+  const [isLoadingConnection, setIsLoadingConnection] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const { previewUrl, projectId, expoConnectionUrl, setExpoConnectionUrl } = useBuilderStore();
+
+  // Fetch Expo connection URL when test view is active
+  useEffect(() => {
+    // Only fetch if we're in test view, have a preview URL, have a project ID,
+    // don't already have a connection URL, and aren't currently loading
+    if (activeView === "test" && previewUrl && projectId && !expoConnectionUrl && !isLoadingConnection && !connectionError) {
+      setIsLoadingConnection(true);
+      setConnectionError(null);
+      
+      fetch(`/api/projects/${projectId}/sandbox/expo-connection`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.expoConnectionUrl) {
+            setExpoConnectionUrl(data.expoConnectionUrl);
+          } else {
+            setConnectionError(data.error || "Failed to get Expo connection URL");
+          }
+        })
+        .catch((error) => {
+          console.error("Error fetching Expo connection URL:", error);
+          setConnectionError("Failed to load connection information");
+        })
+        .finally(() => {
+          setIsLoadingConnection(false);
+        });
+    }
+  }, [activeView, previewUrl, projectId, expoConnectionUrl, setExpoConnectionUrl]);
 
   return (
     <div className="flex flex-col h-full bg-slate-100/50">
@@ -100,26 +130,89 @@ export default function PreviewPanel() {
             <CodeViewer />
           </div>
         ) : (
-          <div className="w-full h-full flex items-center justify-center p-8 bg-slate-50/50 backdrop-blur-sm">
+          <div className="w-full h-full flex items-center justify-center p-8 bg-slate-50/50 backdrop-blur-sm overflow-auto">
             <div className="text-center space-y-6 max-w-md w-full mx-auto p-10 bg-white rounded-3xl shadow-xl border border-slate-100 animate-in fade-in zoom-in-95 duration-300">
                <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
                   <QrCode className="w-10 h-10 text-primary" />
                </div>
                <div className="space-y-2">
                  <h3 className="text-2xl font-bold text-slate-900">Test on your device</h3>
-                 <p className="text-slate-500 text-base">Scan the QR code with your phone to view the app in Expo Go.</p>
+                 <p className="text-slate-500 text-base">Scan the QR code with Expo Go to view the app on your device.</p>
                </div>
                
-               <div className="aspect-square w-64 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 mx-auto flex flex-col items-center justify-center gap-3 group hover:border-primary/30 transition-colors">
-                  <div className="w-12 h-12 rounded-lg bg-slate-200/50 flex items-center justify-center">
-                    <QrCode className="w-6 h-6 text-slate-400" />
-                  </div>
-                  <p className="text-sm font-medium text-slate-400">QR Code Coming Soon</p>
-               </div>
+               {!previewUrl ? (
+                 <div className="aspect-square w-64 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 mx-auto flex flex-col items-center justify-center gap-3">
+                   <AlertCircle className="w-12 h-12 text-slate-400" />
+                   <p className="text-sm font-medium text-slate-400">No preview available yet</p>
+                   <p className="text-xs text-slate-400">Start building your app to generate a QR code</p>
+                 </div>
+               ) : isLoadingConnection ? (
+                 <div className="aspect-square w-64 bg-slate-50 rounded-2xl border-2 border-slate-200 mx-auto flex flex-col items-center justify-center gap-3">
+                   <Loader2 className="w-12 h-12 text-primary animate-spin" />
+                   <p className="text-sm font-medium text-slate-600">Loading QR code...</p>
+                 </div>
+               ) : connectionError ? (
+                 <div className="space-y-4">
+                   <div className="aspect-square w-64 bg-red-50 rounded-2xl border-2 border-red-200 mx-auto flex flex-col items-center justify-center gap-3">
+                     <AlertCircle className="w-12 h-12 text-red-400" />
+                     <p className="text-sm font-medium text-red-600">Failed to load QR code</p>
+                     <p className="text-xs text-red-500 px-4">{connectionError}</p>
+                   </div>
+                   <Button
+                     variant="outline"
+                     size="sm"
+                     onClick={() => {
+                       setConnectionError(null);
+                       setIsLoadingConnection(false);
+                       setExpoConnectionUrl(null);
+                     }}
+                   >
+                     Retry
+                   </Button>
+                 </div>
+               ) : expoConnectionUrl ? (
+                 <div className="space-y-4">
+                   <ExpoQRCode expoUrl={expoConnectionUrl} size={256} />
+                   
+                   <div className="space-y-3 pt-2">
+                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
+                       <p className="text-sm font-semibold text-blue-900 mb-2">For iOS users:</p>
+                       <ol className="text-xs text-blue-800 space-y-1 list-decimal list-inside">
+                         <li>Install <strong>Expo Go</strong> from the App Store</li>
+                         <li>Open the Expo Go app</li>
+                         <li>Tap &quot;Scan QR Code&quot; in the app</li>
+                         <li>Scan this QR code</li>
+                       </ol>
+                     </div>
+                     
+                     <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-left">
+                       <p className="text-sm font-semibold text-green-900 mb-2">For Android users:</p>
+                       <ol className="text-xs text-green-800 space-y-1 list-decimal list-inside">
+                         <li>Install <strong>Expo Go</strong> from Google Play Store</li>
+                         <li>Open the Expo Go app</li>
+                         <li>Tap &quot;Scan QR Code&quot; in the app</li>
+                         <li>Scan this QR code</li>
+                       </ol>
+                     </div>
+                     
+                     <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-left">
+                       <p className="text-xs font-medium text-slate-700 mb-1">Connection URL:</p>
+                       <code className="text-xs text-slate-600 break-all">{expoConnectionUrl}</code>
+                     </div>
+                   </div>
+                 </div>
+               ) : (
+                 <div className="aspect-square w-64 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 mx-auto flex flex-col items-center justify-center gap-3">
+                   <QrCode className="w-12 h-12 text-slate-400" />
+                   <p className="text-sm font-medium text-slate-400">Preparing QR code...</p>
+                 </div>
+               )}
 
-               <div className="pt-2">
-                 <p className="text-xs text-slate-400">Requires Expo Go app installed on your device</p>
-               </div>
+               {previewUrl && !expoConnectionUrl && !isLoadingConnection && !connectionError && (
+                 <div className="pt-2">
+                   <p className="text-xs text-slate-400">Requires Expo Go app installed on your device</p>
+                 </div>
+               )}
             </div>
           </div>
         )}
