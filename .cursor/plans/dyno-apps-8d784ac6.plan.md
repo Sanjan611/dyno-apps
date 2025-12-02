@@ -5,22 +5,17 @@
 
 ### 1. God Components with Mixed Concerns
 
-**ChatPanel.tsx (746 lines)** - The worst offender:
+**ChatPanel.tsx** - ✅ Refactored (242 lines, down from 722):
+- SSE streaming logic extracted to `hooks/useCodeGeneration.ts`
+- Project/sandbox initialization extracted to `hooks/useProjectSession.ts`
+- Message rendering extracted to `components/builder/MessageList.tsx`
+- Input handling extracted to `components/builder/ChatInput.tsx`
+- Now a thin orchestrator component
 
-- SSE stream parsing logic mixed with UI rendering
-- Project creation, sandbox initialization, and code generation all in one component
-- The `sendMessage` callback is ~200 lines handling 5+ different responsibilities
-- Message state duplicated from Zustand store
-```343:564:components/builder/ChatPanel.tsx
-export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
-  // ... 200+ lines of mixed concerns
-```
-
-
-**BuilderPage (362 lines)** - Similarly bloated:
-
-- Deep nesting in sandbox validation logic (lines 134-208)
-- Name editing logic inline instead of extracted
+**BuilderPage** - ✅ Refactored (160 lines, down from 383):
+- Project loading extracted to `hooks/useProjectLoader.ts`
+- Header with name editing extracted to `components/builder/ProjectHeader.tsx`
+- Sandbox validation logic simplified in hook
 
 ### 2. Scattered Type Definitions
 
@@ -213,7 +208,7 @@ export function withAuth<T>(
 
 | Phase 2 | Medium | High | ✅ Complete |
 
-| Phase 3 | High | High | Pending |
+| Phase 3 | High | High | ✅ Complete |
 
 | Phase 4 | Medium | Medium | Pending |
 
@@ -247,7 +242,7 @@ export function withAuth<T>(
 
 After refactoring:
 
-1. **ChatPanel**: 746 lines to ~100 lines (orchestrator only)
+1. **ChatPanel**: 722 lines to 242 lines (66% reduction, orchestrator only)
 2. **API routes**: ~50% less boilerplate code
 3. **Type safety**: Single source of truth for all shared types
 4. **AI-friendly**: Smaller, focused files easier for Cursor/Claude to work with
@@ -264,10 +259,16 @@ After refactoring:
 - [x] Extract agent orchestration from generate-code-stream
 - [x] Refactor API routes to use middleware (projects, sandbox routes)
 
-#### Phase 3
+#### Phase 3 ✅ Complete
 
-- [ ] Extract useCodeGeneration and useProjectSession hooks
-- [ ] Split ChatPanel into MessageList, ChatInput, etc.
+- [x] Extract useCodeGeneration hook - SSE streaming logic (312 lines)
+- [x] Extract useProjectSession hook - project/sandbox initialization (131 lines)
+- [x] Extract MessageList component - message rendering (84 lines)
+- [x] Extract ChatInput component - input handling (50 lines)
+- [x] Refactor ChatPanel to use extracted hooks and components (242 lines, 66% reduction)
+- [x] Extract useProjectLoader hook - project loading from URL params (137 lines)
+- [x] Extract ProjectHeader component - header with name editing (152 lines)
+- [x] Refactor BuilderPage to use extracted hook and component (160 lines, 58% reduction)
 
 #### Phase 4
 

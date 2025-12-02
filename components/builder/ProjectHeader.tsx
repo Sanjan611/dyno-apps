@@ -1,0 +1,152 @@
+"use client";
+
+import Link from "next/link";
+import { useState, useRef, useEffect } from "react";
+import { Home, FolderOpen, Save, MoreVertical } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { DEFAULT_PROJECT_NAME, API_ENDPOINTS } from "@/lib/constants";
+
+interface ProjectHeaderProps {
+  projectName: string;
+  projectId: string | null;
+  onProjectNameChange: (name: string) => void;
+}
+
+/**
+ * Component for the builder page header
+ * Handles project name editing and navigation
+ */
+export default function ProjectHeader({
+  projectName,
+  projectId,
+  onProjectNameChange,
+}: ProjectHeaderProps) {
+  const [editingName, setEditingName] = useState("");
+  const [isSavingName, setIsSavingName] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditingName(e.target.value);
+  };
+
+  const handleNameBlur = async () => {
+    const trimmedName = editingName.trim();
+    const previousName = projectName;
+    // If empty, treat as default project name
+    const finalName = trimmedName === "" ? DEFAULT_PROJECT_NAME : trimmedName;
+    
+    if (finalName === previousName) {
+      // Reset to empty if it's the default name, otherwise keep the value
+      setEditingName(previousName === DEFAULT_PROJECT_NAME ? "" : previousName);
+      return;
+    }
+
+    // Update local state immediately
+    onProjectNameChange(finalName);
+
+    // If projectId exists, save to backend
+    if (projectId) {
+      setIsSavingName(true);
+      try {
+        const response = await fetch(API_ENDPOINTS.PROJECTS, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            projectId,
+            title: finalName,
+            name: finalName,
+          }),
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+          console.error("Failed to update project name:", data.error);
+          // Revert to previous name on error
+          onProjectNameChange(previousName);
+          setEditingName(previousName === DEFAULT_PROJECT_NAME ? "" : previousName);
+        } else {
+          // Update editingName to reflect the saved value (empty if DEFAULT_PROJECT_NAME)
+          setEditingName(finalName === DEFAULT_PROJECT_NAME ? "" : finalName);
+        }
+      } catch (error) {
+        console.error("Error updating project name:", error);
+        // Revert to previous name on error
+        onProjectNameChange(previousName);
+        setEditingName(previousName === DEFAULT_PROJECT_NAME ? "" : previousName);
+      } finally {
+        setIsSavingName(false);
+      }
+    } else {
+      // No projectId yet, just update the local editing state
+      setEditingName(finalName === DEFAULT_PROJECT_NAME ? "" : finalName);
+    }
+  };
+
+  const handleNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.currentTarget.blur();
+    } else if (e.key === "Escape") {
+      // Reset to empty if DEFAULT_PROJECT_NAME, otherwise use projectName
+      setEditingName(projectName === DEFAULT_PROJECT_NAME ? "" : projectName);
+      e.currentTarget.blur();
+    }
+  };
+
+  // Initialize editingName when projectName changes
+  useEffect(() => {
+    // If projectName is DEFAULT_PROJECT_NAME, show empty string (placeholder will show)
+    setEditingName(projectName === DEFAULT_PROJECT_NAME ? "" : projectName);
+  }, [projectName]);
+
+  return (
+    <header className="h-14 border-b bg-white/80 backdrop-blur-md flex items-center justify-between px-4 z-50">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" asChild className="hover:bg-slate-100 text-muted-foreground">
+          <Link href="/">
+            <Home className="w-5 h-5" />
+          </Link>
+        </Button>
+        
+        <div className="h-6 w-[1px] bg-slate-200" />
+        
+        <div>
+          <div className="flex items-center gap-2">
+            <Input
+              ref={nameInputRef}
+              value={editingName}
+              onChange={handleNameChange}
+              onBlur={handleNameBlur}
+              onKeyDown={handleNameKeyDown}
+              className="text-sm font-semibold h-8 px-2 border-transparent bg-transparent hover:bg-slate-100 focus:bg-white focus:border-primary/20 focus:ring-1 focus:ring-primary/20 w-[200px] sm:w-[300px] transition-all rounded-md"
+              placeholder={DEFAULT_PROJECT_NAME}
+              disabled={isSavingName}
+            />
+            {isSavingName && (
+              <span className="text-xs text-muted-foreground animate-pulse">Saving...</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" asChild className="hidden sm:flex gap-2 bg-white hover:bg-slate-50">
+          <Link href="/project-gallery">
+            <FolderOpen className="w-4 h-4" />
+            My Projects
+          </Link>
+        </Button>
+        <Button size="sm" className="bg-primary hover:bg-primary/90 text-white shadow-sm">
+          <Save className="w-4 h-4 mr-2" />
+          Save
+        </Button>
+        <Button variant="ghost" size="icon" className="text-muted-foreground">
+          <MoreVertical className="w-4 h-4" />
+        </Button>
+      </div>
+    </header>
+  );
+}
+
