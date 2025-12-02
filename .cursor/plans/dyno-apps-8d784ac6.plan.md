@@ -205,19 +205,13 @@ export function withAuth<T>(
 
 ## Priority Order
 
-| Phase | Effort | Impact | Recommended Order |
-
-|-------|--------|--------|-------------------|
-
-| Phase 1 | Low | High | 1st - Enables all other phases |
-
-| Phase 2 | Medium | High | 2nd - Reduces boilerplate significantly |
-
-| Phase 3 | High | High | 3rd - Biggest code quality improvement |
-
-| Phase 4 | Medium | Medium | 4th - Improves user experience |
-
-| Phase 5 | Medium | Medium | 5th - Enables new features |
+| Phase | Effort | Impact | Status |
+|-------|--------|--------|--------|
+| Phase 1 | Low | High | ✅ Complete |
+| Phase 2 | Medium | High | Pending |
+| Phase 3 | High | High | Pending |
+| Phase 4 | Medium | Medium | Pending |
+| Phase 5 | Medium | Medium | Pending |
 
 ---
 
@@ -253,13 +247,25 @@ After refactoring:
 4. **AI-friendly**: Smaller, focused files easier for Cursor/Claude to work with
 5. **Future-ready**: Clean extension points for git, templates, Expo Go
 
-### To-dos
+#### Phase 1 ✅ Complete (commit 843d67a)
 
-- [ ] Create centralized types in /types directory
-- [ ] Extract magic values to /lib/constants.ts
+- [x] Create centralized types in /types directory
+- [x] Extract magic values to /lib/constants.ts
+
+#### Phase 2
+
 - [ ] Create withAuth middleware and API response helpers
 - [ ] Extract agent orchestration from generate-code-stream
+
+#### Phase 3
+
 - [ ] Extract useCodeGeneration and useProjectSession hooks
 - [ ] Split ChatPanel into MessageList, ChatInput, etc.
+
+#### Phase 4
+
 - [ ] Refactor Zustand stores with persistence
+
+#### Phase 5
+
 - [ ] Create abstract ICodeStorage interface for git readiness
