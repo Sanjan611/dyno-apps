@@ -8,12 +8,24 @@ import {
   createModalClient,
   createErrorResponse,
 } from "@/lib/server/modal";
+import { getAuthenticatedUser } from "@/lib/supabase/server";
 
 // DELETE /api/projects/[id] - Delete project and its sandbox
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getAuthenticatedUser(request);
+  if (!user) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized",
+      },
+      { status: 401 }
+    );
+  }
+
   try {
     const { id: projectId } = await params;
     const project = getProject(projectId);

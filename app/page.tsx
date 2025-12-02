@@ -10,13 +10,19 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { FolderOpen, Sparkles, ArrowRight, Zap } from "lucide-react";
+import { FolderOpen, Sparkles, ArrowRight, Zap, LogOut, User } from "lucide-react";
 import { TypingAnimation } from "@/components/ui/typing-animation";
+import { useAuthStore } from "@/lib/store";
 
 export default function Home() {
   const router = useRouter();
   const [appIdea, setAppIdea] = useState("");
   const [projectCount, setProjectCount] = useState<number | null>(null);
+  const { user, loading, checkAuth, logout } = useAuthStore();
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   useEffect(() => {
     const fetchProjectCount = async () => {
@@ -25,13 +31,20 @@ export default function Home() {
         const data = await response.json();
         if (data.success && data.projects) {
           setProjectCount(data.projects.length);
+        } else {
+          setProjectCount(0);
         }
       } catch (error) {
         console.error("Error fetching projects:", error);
+        setProjectCount(0);
       }
     };
-    fetchProjectCount();
-  }, []);
+    if (user) {
+      fetchProjectCount();
+    } else {
+      setProjectCount(0);
+    }
+  }, [user]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,7 +71,7 @@ export default function Home() {
             </span>
           </Link>
           <nav className="flex items-center gap-4">
-            {projectCount !== null && projectCount > 0 && (
+            {user && projectCount !== null && projectCount > 0 && (
               <Link 
                 href="/project-gallery"
                 className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors hidden sm:block"
@@ -66,9 +79,32 @@ export default function Home() {
                 My Projects ({projectCount})
               </Link>
             )}
-            <Button variant="default" className="bg-black hover:bg-gray-800 text-white shadow-lg hover:shadow-xl transition-all">
-              Login
-            </Button>
+            {loading ? (
+              <div className="w-20 h-9 bg-gray-200 animate-pulse rounded-md" />
+            ) : user ? (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground hidden sm:flex">
+                  <User className="w-4 h-4" />
+                  <span>{user.email}</span>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={logout}
+                  className="shadow-sm hover:shadow-md transition-all"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Logout
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="default"
+                asChild
+                className="bg-black hover:bg-gray-800 text-white shadow-lg hover:shadow-xl transition-all"
+              >
+                <Link href="/login">Login</Link>
+              </Button>
+            )}
           </nav>
         </div>
       </header>

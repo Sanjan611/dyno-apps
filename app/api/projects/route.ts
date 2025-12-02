@@ -8,9 +8,20 @@ import {
   updateProject,
   type Project,
 } from "@/lib/server/projectStore";
+import { getAuthenticatedUser } from "@/lib/supabase/server";
 
 // GET /api/projects - Get all projects or a single project by ID
 export async function GET(request: NextRequest) {
+  const user = await getAuthenticatedUser(request);
+  if (!user) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized",
+      },
+      { status: 401 }
+    );
+  }
   try {
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get("projectId");
@@ -63,6 +74,17 @@ export async function GET(request: NextRequest) {
 
 // POST /api/projects - Create a new project (no sandbox creation)
 export async function POST(request: NextRequest) {
+  const user = await getAuthenticatedUser(request);
+  if (!user) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized",
+      },
+      { status: 401 }
+    );
+  }
+
   try {
     const { name, description, firstMessage } = await request.json();
 
@@ -107,6 +129,17 @@ export async function POST(request: NextRequest) {
 
 // PATCH /api/projects - Update a project
 export async function PATCH(request: NextRequest) {
+  const user = await getAuthenticatedUser(request);
+  if (!user) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized",
+      },
+      { status: 401 }
+    );
+  }
+
   try {
     const { projectId, name } = await request.json();
 

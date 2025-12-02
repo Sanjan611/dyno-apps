@@ -10,12 +10,24 @@ import {
   getProject,
   updateProjectSandboxId,
 } from "@/lib/server/projectStore";
+import { getAuthenticatedUser } from "@/lib/supabase/server";
 
 // POST /api/projects/[id]/sandbox - Create or get existing sandbox
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getAuthenticatedUser(request);
+  if (!user) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized",
+      },
+      { status: 401 }
+    );
+  }
+
   try {
     const { id: projectId } = await params;
     const project = getProject(projectId);
@@ -124,6 +136,17 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getAuthenticatedUser(request);
+  if (!user) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized",
+      },
+      { status: 401 }
+    );
+  }
+
   try {
     const { id: projectId } = await params;
     const project = getProject(projectId);
@@ -200,6 +223,17 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getAuthenticatedUser(request);
+  if (!user) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unauthorized",
+      },
+      { status: 401 }
+    );
+  }
+
   try {
     const { id: projectId } = await params;
     const project = getProject(projectId);

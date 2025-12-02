@@ -124,6 +124,10 @@ cp .env.local.example .env.local
 # - ANTHROPIC_API_KEY (for AI code generation)
 # - OPENROUTER_API_KEY (optional, for using OpenRouter models)
 # - MODAL_TOKEN_ID and MODAL_TOKEN_SECRET (for sandboxes)
+# - NEXT_PUBLIC_SUPABASE_URL (your Supabase project URL)
+# - NEXT_PUBLIC_SUPABASE_ANON_KEY (your Supabase publishable key - sb_publishable_...)
+#   Note: This should be your publishable key from the Supabase dashboard.
+#   It's safe to expose in client-side code. Never use the secret key here!
 ```
 
 4. Generate BAML client:
