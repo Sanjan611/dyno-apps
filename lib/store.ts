@@ -1,75 +1,27 @@
-import { create } from "zustand";
-import type { User } from "@supabase/supabase-js";
-import type { StoreMessage } from "@/types";
-import { DEFAULT_PROJECT_NAME } from "@/lib/constants";
+/**
+ * Store re-exports for backward compatibility
+ * 
+ * This file re-exports stores from their new locations in lib/stores/
+ * to maintain backward compatibility with existing imports.
+ * 
+ * The stores have been refactored into separate files with persistence:
+ * - lib/stores/auth-store.ts - Authentication state with localStorage persistence
+ * - lib/stores/builder-store.ts - Builder state with session persistence
+ */
 
-interface BuilderState {
-  projectName: string;
-  projectId: string | null;
-  messages: StoreMessage[];
-  generatedCode: string;
-  sandboxId: string | null;
-  previewUrl: string | null;
-  setProjectName: (name: string) => void;
-  setProjectId: (id: string | null) => void;
-  addMessage: (message: StoreMessage) => void;
-  setGeneratedCode: (code: string) => void;
-  setSandboxId: (id: string | null) => void;
-  setPreviewUrl: (url: string | null) => void;
-}
+// Re-export auth store
+export { useAuthStore } from "./stores/auth-store";
+export type { AuthState } from "./stores/auth-store";
 
-export const useBuilderStore = create<BuilderState>((set) => ({
-  projectName: DEFAULT_PROJECT_NAME,
-  projectId: null,
-  messages: [],
-  generatedCode: "",
-  sandboxId: null,
-  previewUrl: null,
-  setProjectName: (name) => set({ projectName: name }),
-  setProjectId: (id) => set({ projectId: id }),
-  addMessage: (message) =>
-    set((state) => ({ messages: [...state.messages, message] })),
-  setGeneratedCode: (code) => set({ generatedCode: code }),
-  setSandboxId: (id) => set({ sandboxId: id }),
-  setPreviewUrl: (url) => set({ previewUrl: url }),
-}));
+// Re-export builder store
+export { useBuilderStore } from "./stores/builder-store";
+export type { BuilderState, SandboxHealthStatus, ModifiedFile } from "./stores/builder-store";
 
-interface AuthState {
-  user: User | null;
-  loading: boolean;
-  setUser: (user: User | null) => void;
-  setLoading: (loading: boolean) => void;
-  logout: () => Promise<void>;
-  checkAuth: () => Promise<void>;
-}
-
-export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  loading: true,
-  setUser: (user) => set({ user }),
-  setLoading: (loading) => set({ loading }),
-  logout: async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-      set({ user: null });
-      window.location.href = "/";
-    } catch (error) {
-      console.error("Error logging out:", error);
-    }
-  },
-  checkAuth: async () => {
-    set({ loading: true });
-    try {
-      const response = await fetch("/api/auth/user");
-      const data = await response.json();
-      if (data.success) {
-        set({ user: data.user, loading: false });
-      } else {
-        set({ user: null, loading: false });
-      }
-    } catch (error) {
-      console.error("Error checking auth:", error);
-      set({ user: null, loading: false });
-    }
-  },
-}));
+// Re-export persistence utilities
+export { 
+  STORAGE_KEYS, 
+  localStorageStorage, 
+  sessionStorageStorage,
+  createStorage,
+  clearAllPersistedState,
+} from "./stores/persist";

@@ -6,6 +6,7 @@
 ### 1. God Components with Mixed Concerns
 
 **ChatPanel.tsx** - ✅ Refactored (242 lines, down from 722):
+
 - SSE streaming logic extracted to `hooks/useCodeGeneration.ts`
 - Project/sandbox initialization extracted to `hooks/useProjectSession.ts`
 - Message rendering extracted to `components/builder/MessageList.tsx`
@@ -13,6 +14,7 @@
 - Now a thin orchestrator component
 
 **BuilderPage** - ✅ Refactored (160 lines, down from 383):
+
 - Project loading extracted to `hooks/useProjectLoader.ts`
 - Header with name editing extracted to `components/builder/ProjectHeader.tsx`
 - Sandbox validation logic simplified in hook
@@ -270,9 +272,13 @@ After refactoring:
 - [x] Extract ProjectHeader component - header with name editing (152 lines)
 - [x] Refactor BuilderPage to use extracted hook and component (160 lines, 58% reduction)
 
-#### Phase 4
+#### Phase 4 ✅ Complete
 
-- [ ] Refactor Zustand stores with persistence
+- [x] Split stores into separate files (`lib/stores/auth-store.ts`, `lib/stores/builder-store.ts`)
+- [x] Create persistence layer (`lib/stores/persist.ts`) with localStorage/sessionStorage support
+- [x] Add Date serialization/deserialization for persisted state
+- [x] Add session state tracking (modified files, message history, sandbox health status)
+- [x] Update `lib/store.ts` to re-export stores for backward compatibility
 
 #### Phase 5
 
