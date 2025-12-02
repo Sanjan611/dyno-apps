@@ -10,40 +10,16 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { useBuilderStore } from "@/lib/store";
-import AgentThinkingBox, { AgentAction } from "./AgentThinkingBox";
+import AgentThinkingBox from "./AgentThinkingBox";
 import { cn } from "@/lib/utils";
+import type { Message, AgentAction, AgentActionType, SSEProgressEvent } from "@/types";
 
 interface ChatPanelProps {
   initialPrompt?: string;
 }
 
-interface Message {
-  id: string;
-  role: "user" | "assistant" | "thinking";
-  content: string;
-  timestamp: Date;
-  actions?: AgentAction[];
-  isComplete?: boolean;
-}
-
-interface SSEProgressEvent {
-  type: 'status' | 'coding_iteration' | 'todo_update' | 'complete' | 'error';
-  message?: string;
-  iteration?: number;
-  tool?: string;
-  todo?: string;
-  todos?: Array<{
-    content: string;
-    activeForm: string;
-    status: string;
-  }>;
-  error?: string;
-  details?: any;
-  files?: Record<string, string>;
-}
-
 // Helper function to map tool names to user-friendly action types
-function getActionTypeFromTool(toolName: string): AgentAction['type'] {
+function getActionTypeFromTool(toolName: string): AgentActionType {
   if (toolName.includes('list_files')) return 'list_files';
   if (toolName.includes('read_file')) return 'read_file';
   if (toolName.includes('write_file')) return 'write_file';

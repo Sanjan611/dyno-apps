@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useRef, useEffect } from "react";
+import { Suspense, useState, useRef, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import ChatPanel from "@/components/builder/ChatPanel";
 import PreviewPanel from "@/components/builder/PreviewPanel";
@@ -17,9 +17,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { DEFAULT_PROJECT_NAME, PANEL_CONSTRAINTS } from "@/lib/constants";
 
-export default function BuilderPage() {
-  const [leftWidth, setLeftWidth] = useState(50); // Percentage
+// Loading fallback for Suspense boundary
+function BuilderLoading() {
+  return (
+    <div className="h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
+      <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+      <p className="text-muted-foreground font-medium">Loading builder...</p>
+    </div>
+  );
+}
+
+// Main builder content (uses useSearchParams)
+function BuilderContent() {
+  const [leftWidth, setLeftWidth] = useState(PANEL_CONSTRAINTS.DEFAULT_LEFT_WIDTH);
   const [isDragging, setIsDragging] = useState(false);
   const [sandboxMissing, setSandboxMissing] = useState(false);
   const [isValidatingSandbox, setIsValidatingSandbox] = useState(false);
@@ -42,12 +54,12 @@ export default function BuilderPage() {
   const handleNameBlur = async () => {
     const trimmedName = editingName.trim();
     const previousName = projectName;
-    // If empty, treat as "Untitled Project"
-    const finalName = trimmedName === "" ? "Untitled Project" : trimmedName;
+    // If empty, treat as default project name
+    const finalName = trimmedName === "" ? DEFAULT_PROJECT_NAME : trimmedName;
     
     if (finalName === previousName) {
-      // Reset to empty if it's "Untitled Project", otherwise keep the value
-      setEditingName(previousName === "Untitled Project" ? "" : previousName);
+      // Reset to empty if it's the default name, otherwise keep the value
+      setEditingName(previousName === DEFAULT_PROJECT_NAME ? "" : previousName);
       return;
     }
 
@@ -75,22 +87,22 @@ export default function BuilderPage() {
           console.error("Failed to update project name:", data.error);
           // Revert to previous name on error
           setProjectName(previousName);
-          setEditingName(previousName === "Untitled Project" ? "" : previousName);
+          setEditingName(previousName === DEFAULT_PROJECT_NAME ? "" : previousName);
         } else {
-          // Update editingName to reflect the saved value (empty if "Untitled Project")
-          setEditingName(finalName === "Untitled Project" ? "" : finalName);
+          // Update editingName to reflect the saved value (empty if DEFAULT_PROJECT_NAME)
+          setEditingName(finalName === DEFAULT_PROJECT_NAME ? "" : finalName);
         }
       } catch (error) {
         console.error("Error updating project name:", error);
         // Revert to previous name on error
         setProjectName(previousName);
-        setEditingName(previousName === "Untitled Project" ? "" : previousName);
+        setEditingName(previousName === DEFAULT_PROJECT_NAME ? "" : previousName);
       } finally {
         setIsSavingName(false);
       }
     } else {
       // No projectId yet, just update the local editing state
-      setEditingName(finalName === "Untitled Project" ? "" : finalName);
+      setEditingName(finalName === DEFAULT_PROJECT_NAME ? "" : finalName);
     }
   };
 
@@ -98,16 +110,16 @@ export default function BuilderPage() {
     if (e.key === "Enter") {
       e.currentTarget.blur();
     } else if (e.key === "Escape") {
-      // Reset to empty if "Untitled Project", otherwise use projectName
-      setEditingName(projectName === "Untitled Project" ? "" : projectName);
+      // Reset to empty if DEFAULT_PROJECT_NAME, otherwise use projectName
+      setEditingName(projectName === DEFAULT_PROJECT_NAME ? "" : projectName);
       e.currentTarget.blur();
     }
   };
 
   // Initialize editingName when projectName changes
   useEffect(() => {
-    // If projectName is "Untitled Project", show empty string (placeholder will show)
-    setEditingName(projectName === "Untitled Project" ? "" : projectName);
+    // If projectName is DEFAULT_PROJECT_NAME, show empty string (placeholder will show)
+    setEditingName(projectName === DEFAULT_PROJECT_NAME ? "" : projectName);
   }, [projectName]);
 
   // Load project from query parameters
@@ -124,7 +136,7 @@ export default function BuilderPage() {
 
           if (data.success && data.project) {
             setProjectId(data.project.id);
-            const projectTitle = data.project.title ?? data.project.name ?? "Untitled Project";
+            const projectTitle = data.project.title ?? data.project.name ?? DEFAULT_PROJECT_NAME;
             setProjectName(projectTitle);
             const projectSandboxId =
               data.project.currentSandboxId ?? data.project.sandboxId ?? null;
@@ -228,7 +240,7 @@ export default function BuilderPage() {
       const newLeftWidth =
         ((e.clientX - containerRect.left) / containerRect.width) * 100;
 
-      const constrainedWidth = Math.max(25, Math.min(75, newLeftWidth));
+      const constrainedWidth = Math.max(PANEL_CONSTRAINTS.MIN_WIDTH, Math.min(PANEL_CONSTRAINTS.MAX_WIDTH, newLeftWidth));
       setLeftWidth(constrainedWidth);
     };
 
@@ -273,7 +285,7 @@ export default function BuilderPage() {
                 onBlur={handleNameBlur}
                 onKeyDown={handleNameKeyDown}
                 className="text-sm font-semibold h-8 px-2 border-transparent bg-transparent hover:bg-slate-100 focus:bg-white focus:border-primary/20 focus:ring-1 focus:ring-primary/20 w-[200px] sm:w-[300px] transition-all rounded-md"
-                placeholder="Untitled Project"
+                placeholder={DEFAULT_PROJECT_NAME}
                 disabled={isSavingName}
               />
               {isSavingName && (
@@ -357,5 +369,14 @@ export default function BuilderPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Wrapper component with Suspense boundary for useSearchParams
+export default function BuilderPage() {
+  return (
+    <Suspense fallback={<BuilderLoading />}>
+      <BuilderContent />
+    </Suspense>
   );
 }

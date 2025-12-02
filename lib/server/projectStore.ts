@@ -1,30 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
+import type { Project, ProjectInsert, ProjectUpdate } from "@/types";
 
-export interface Project {
-  id: string;
-  title: string;
-  description: string | null;
-  repositoryUrl: string | null;
-  currentSandboxId: string | null;
-  userId: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-type ProjectInsert = {
-  title: string;
-  description?: string | null;
-  repositoryUrl?: string | null;
-  currentSandboxId?: string | null;
-  userId: string;
-};
-
-type ProjectUpdate = {
-  title?: string;
-  description?: string | null;
-  repositoryUrl?: string | null;
-  currentSandboxId?: string | null;
-};
+// Re-export types for backwards compatibility
+export type { Project, ProjectInsert, ProjectUpdate };
 
 function mapProject(row: any): Project {
   return {

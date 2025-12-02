@@ -25,6 +25,7 @@ import {
   areAllTodosCompleted,
   extractToolParams,
 } from "./tool-executors";
+import { WORKING_DIR } from "@/lib/constants";
 
 // Force dynamic route to enable streaming
 export const dynamic = 'force-dynamic';
@@ -207,7 +208,7 @@ export async function POST(request: NextRequest) {
       const sandbox = await modal.sandboxes.fromId(sandboxId);
       console.log("[generate-code-stream] Sandbox reference obtained:", sandbox.sandboxId);
 
-      const workingDir = "/my-app";
+      const workingDir = WORKING_DIR;
       const maxIterations = 50;
       const modifiedFiles: Record<string, string> = {};
 

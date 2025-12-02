@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createModalClient, checkSandboxExists, createErrorResponse } from "@/lib/server/modal";
 import { getProject } from "@/lib/server/projectStore";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { EXPO_PORT, TIMEOUTS } from "@/lib/constants";
 
 export async function GET(
   request: NextRequest,
@@ -66,11 +67,11 @@ export async function GET(
       let portListening = false;
 
       try {
-        // Check if port 19006 is listening
+        // Check if Expo port is listening
         const netstatProcess = await sandbox.exec(["netstat", "-tlnp"]);
         const netstatOutput = await netstatProcess.stdout.readText();
         await netstatProcess.wait();
-        portListening = netstatOutput.includes(":19006");
+        portListening = netstatOutput.includes(`:${EXPO_PORT}`);
       } catch (error) {
         // If we can't check, assume unknown
         console.log("[sandbox-health] Could not check port status:", error);
@@ -90,8 +91,8 @@ export async function GET(
       // Get tunnel info if available
       let previewUrl: string | null = null;
       try {
-        const tunnels = await sandbox.tunnels(5000);
-        const tunnel = tunnels[19006];
+        const tunnels = await sandbox.tunnels(TIMEOUTS.TUNNEL_CONNECTION);
+        const tunnel = tunnels[EXPO_PORT];
         if (tunnel) {
           previewUrl = tunnel.url;
         }

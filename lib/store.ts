@@ -1,30 +1,25 @@
 import { create } from "zustand";
 import type { User } from "@supabase/supabase-js";
-
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  timestamp: Date;
-}
+import type { StoreMessage } from "@/types";
+import { DEFAULT_PROJECT_NAME } from "@/lib/constants";
 
 interface BuilderState {
   projectName: string;
   projectId: string | null;
-  messages: Message[];
+  messages: StoreMessage[];
   generatedCode: string;
   sandboxId: string | null;
   previewUrl: string | null;
   setProjectName: (name: string) => void;
   setProjectId: (id: string | null) => void;
-  addMessage: (message: Message) => void;
+  addMessage: (message: StoreMessage) => void;
   setGeneratedCode: (code: string) => void;
   setSandboxId: (id: string | null) => void;
   setPreviewUrl: (url: string | null) => void;
 }
 
 export const useBuilderStore = create<BuilderState>((set) => ({
-  projectName: "Untitled Project",
+  projectName: DEFAULT_PROJECT_NAME,
   projectId: null,
   messages: [],
   generatedCode: "",

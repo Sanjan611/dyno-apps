@@ -1,4 +1,5 @@
 import { ModalClient, NotFoundError } from "modal";
+import { EXPO_PORT } from "@/lib/constants";
 
 /**
  * Creates and returns a configured Modal client instance
@@ -43,7 +44,7 @@ export async function createSandbox(modal: ModalClient) {
   const image = getNodeImage(modal);
   
   const sandbox = await modal.sandboxes.create(app, image, {
-    unencryptedPorts: [19006],
+    unencryptedPorts: [EXPO_PORT],
   });
 
   return {

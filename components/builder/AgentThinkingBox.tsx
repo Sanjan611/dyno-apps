@@ -3,14 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { FileText, Search, FileCode, CheckCircle2, ListTodo, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { AgentAction, AgentActionType } from "@/types";
 
-export interface AgentAction {
-  id: string;
-  type: 'status' | 'list_files' | 'read_file' | 'write_file' | 'todo' | 'parallel_read';
-  description: string;
-  timestamp: Date;
-  status: 'in_progress' | 'completed';
-}
+// Re-export for backwards compatibility
+export type { AgentAction, AgentActionType };
 
 interface AgentThinkingBoxProps {
   actions: AgentAction[];

@@ -8,6 +8,7 @@ import {
 import { NotFoundError } from "modal";
 import { getProject, updateProjectSandboxId } from "@/lib/server/projectStore";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { EXPO_PORT, TIMEOUTS } from "@/lib/constants";
 
 // POST /api/projects/[id]/sandbox - Create or get existing sandbox
 export async function POST(
@@ -52,7 +53,7 @@ export async function POST(
           
           // Check if we can access it (basic health check)
           try {
-            await sandbox.tunnels(2000);
+            await sandbox.tunnels(TIMEOUTS.SANDBOX_QUICK_CHECK);
             
             console.log(
               "[sandbox] Reusing existing sandbox:",
@@ -185,8 +186,8 @@ export async function GET(
       // Get tunnel info if available
       let previewUrl: string | null = null;
       try {
-        const tunnels = await sandbox.tunnels(5000);
-        const tunnel = tunnels[19006];
+        const tunnels = await sandbox.tunnels(TIMEOUTS.TUNNEL_CONNECTION);
+        const tunnel = tunnels[EXPO_PORT];
         if (tunnel) {
           previewUrl = tunnel.url;
         }
