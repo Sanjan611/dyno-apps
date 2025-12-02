@@ -206,11 +206,17 @@ export function withAuth<T>(
 ## Priority Order
 
 | Phase | Effort | Impact | Status |
+
 |-------|--------|--------|--------|
+
 | Phase 1 | Low | High | ✅ Complete |
-| Phase 2 | Medium | High | Pending |
+
+| Phase 2 | Medium | High | ✅ Complete |
+
 | Phase 3 | High | High | Pending |
+
 | Phase 4 | Medium | Medium | Pending |
+
 | Phase 5 | Medium | Medium | Pending |
 
 ---
@@ -252,10 +258,11 @@ After refactoring:
 - [x] Create centralized types in /types directory
 - [x] Extract magic values to /lib/constants.ts
 
-#### Phase 2
+#### Phase 2 ✅ Complete (commit 7af3308)
 
-- [ ] Create withAuth middleware and API response helpers
-- [ ] Extract agent orchestration from generate-code-stream
+- [x] Create withAuth middleware and API response helpers
+- [x] Extract agent orchestration from generate-code-stream
+- [x] Refactor API routes to use middleware (projects, sandbox routes)
 
 #### Phase 3
 

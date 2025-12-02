@@ -1,37 +1,26 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { NotFoundError } from "modal";
 import { getProject, deleteProject } from "@/lib/server/projectStore";
 import {
   createModalClient,
-  createErrorResponse,
 } from "@/lib/server/modal";
-import { getAuthenticatedUser } from "@/lib/supabase/server";
+import {
+  withAsyncParams,
+  successResponse,
+  internalErrorResponse,
+} from "@/lib/server/api-utils";
+import type { DeleteProjectResponse } from "@/types/api";
 
 // DELETE /api/projects/[id] - Delete project and its sandbox
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const user = await getAuthenticatedUser(request);
-  if (!user) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Unauthorized",
-      },
-      { status: 401 }
-    );
-  }
-
+export const DELETE = withAsyncParams<DeleteProjectResponse>(async (request, user, params) => {
   try {
-    const { id: projectId } = await params;
+    const { id: projectId } = params;
     const project = await getProject(projectId, user.id);
 
     // Make deletion idempotent: if project doesn't exist, return success
     // This handles stale UI state gracefully
     if (!project) {
-      return NextResponse.json({
-        success: true,
+      return successResponse({
         projectId,
         sandboxTerminated: false,
         sandboxAlreadyMissing: false,
@@ -65,16 +54,7 @@ export async function DELETE(
           );
         } else {
           console.error("[projects] Error terminating sandbox:", error);
-          return NextResponse.json(
-            {
-              success: false,
-              error:
-                error instanceof Error
-                  ? error.message
-                  : "Failed to terminate sandbox",
-            },
-            { status: 500 }
-          );
+          return internalErrorResponse(error);
         }
       }
     }
@@ -84,8 +64,7 @@ export async function DELETE(
 
     console.log("[projects] Deleted project:", projectId);
 
-    return NextResponse.json({
-      success: true,
+    return successResponse({
       projectId,
       sandboxTerminated,
       sandboxAlreadyMissing,
@@ -93,7 +72,7 @@ export async function DELETE(
     });
   } catch (error) {
     console.error("[projects] Error handling delete request:", error);
-    return createErrorResponse(error, 500);
+    return internalErrorResponse(error);
   }
-}
+});
 
