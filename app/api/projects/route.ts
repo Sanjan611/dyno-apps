@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   addProject,
   formatRelativeTime,
-  generateProjectId,
   getAllProjects,
   getProject,
   updateProject,
-  type Project,
 } from "@/lib/server/projectStore";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 
@@ -28,7 +26,7 @@ export async function GET(request: NextRequest) {
 
     // If projectId is provided, return single project
     if (projectId) {
-      const project = getProject(projectId);
+      const project = await getProject(projectId, user.id);
       if (!project) {
         return NextResponse.json(
           {
@@ -43,18 +41,16 @@ export async function GET(request: NextRequest) {
         success: true,
         project: {
           ...project,
-          lastModified: formatRelativeTime(project.lastModified),
+          lastModified: formatRelativeTime(project.updatedAt),
         },
       });
     }
 
     // Otherwise, return all projects
-    const projectsArray = getAllProjects()
-      .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime())
-      .map((project) => ({
-        ...project,
-        lastModified: formatRelativeTime(project.lastModified),
-      }));
+    const projectsArray = (await getAllProjects(user.id)).map((project) => ({
+      ...project,
+      lastModified: formatRelativeTime(project.updatedAt),
+    }));
 
     return NextResponse.json({
       success: true,
@@ -86,33 +82,30 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { name, description, firstMessage } = await request.json();
+    const { name, title, description, firstMessage, repositoryUrl } = await request.json();
 
     // Extract project name from first message or use default
-    const projectName = name || (firstMessage ? firstMessage.substring(0, 50) : "Untitled Project");
+    const projectTitle =
+      title ||
+      name ||
+      (firstMessage ? firstMessage.substring(0, 50) : "Untitled Project");
     const projectDescription = description || firstMessage || "No description";
 
-    const now = new Date().toISOString();
-    const projectId = generateProjectId();
-
-    const project: Project = {
-      id: projectId,
-      sandboxId: null, // Sandbox will be created when project is opened
-      name: projectName,
+    const project = await addProject({
+      title: projectTitle,
       description: projectDescription,
-      createdAt: now,
-      lastModified: now,
-    };
+      repositoryUrl: repositoryUrl ?? null,
+      currentSandboxId: null,
+      userId: user.id,
+    });
 
-    addProject(project);
-
-    console.log("[projects] Created project:", projectId, "(sandbox will be created when opened)");
+    console.log("[projects] Created project:", project.id, "(sandbox will be created when opened)");
 
     return NextResponse.json({
       success: true,
       project: {
         ...project,
-        lastModified: formatRelativeTime(project.lastModified),
+        lastModified: formatRelativeTime(project.updatedAt),
       },
     });
   } catch (error) {
@@ -141,7 +134,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    const { projectId, name } = await request.json();
+    const { projectId, name, title } = await request.json();
 
     if (!projectId) {
       return NextResponse.json(
@@ -153,17 +146,21 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (!name || typeof name !== "string" || name.trim().length === 0) {
+    const nextTitle = title ?? name;
+
+    if (!nextTitle || typeof nextTitle !== "string" || nextTitle.trim().length === 0) {
       return NextResponse.json(
         {
           success: false,
-          error: "name is required and must be a non-empty string",
+          error: "title is required and must be a non-empty string",
         },
         { status: 400 }
       );
     }
 
-    const updatedProject = updateProject(projectId, { name: name.trim() });
+    const updatedProject = await updateProject(projectId, user.id, {
+      title: nextTitle.trim(),
+    });
 
     if (!updatedProject) {
       return NextResponse.json(
@@ -175,13 +172,13 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    console.log("[projects] Updated project:", projectId, "new name:", name.trim());
+    console.log("[projects] Updated project:", projectId, "new title:", nextTitle.trim());
 
     return NextResponse.json({
       success: true,
       project: {
         ...updatedProject,
-        lastModified: formatRelativeTime(updatedProject.lastModified),
+        lastModified: formatRelativeTime(updatedProject.updatedAt),
       },
     });
   } catch (error) {

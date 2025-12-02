@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { NotFoundError } from "modal";
-import {
-  getProject,
-  deleteProject,
-} from "@/lib/server/projectStore";
+import { getProject, deleteProject } from "@/lib/server/projectStore";
 import {
   createModalClient,
   createErrorResponse,
@@ -28,7 +25,7 @@ export async function DELETE(
 
   try {
     const { id: projectId } = await params;
-    const project = getProject(projectId);
+    const project = await getProject(projectId, user.id);
 
     // Make deletion idempotent: if project doesn't exist, return success
     // This handles stale UI state gracefully
@@ -47,15 +44,15 @@ export async function DELETE(
     let sandboxAlreadyMissing = false;
 
     // Terminate sandbox if it exists
-    if (project.sandboxId) {
+    if (project.currentSandboxId) {
       try {
         const modal = createModalClient();
-        const sandbox = await modal.sandboxes.fromId(project.sandboxId);
+        const sandbox = await modal.sandboxes.fromId(project.currentSandboxId);
         await sandbox.terminate();
         sandboxTerminated = true;
         console.log(
           "[projects] Terminated sandbox:",
-          project.sandboxId,
+          project.currentSandboxId,
           "for project:",
           projectId
         );
@@ -64,7 +61,7 @@ export async function DELETE(
           sandboxAlreadyMissing = true;
           console.log(
             "[projects] Sandbox already missing:",
-            project.sandboxId
+            project.currentSandboxId
           );
         } else {
           console.error("[projects] Error terminating sandbox:", error);
@@ -83,7 +80,7 @@ export async function DELETE(
     }
 
     // Delete the project
-    deleteProject(projectId);
+    await deleteProject(projectId, user.id);
 
     console.log("[projects] Deleted project:", projectId);
 

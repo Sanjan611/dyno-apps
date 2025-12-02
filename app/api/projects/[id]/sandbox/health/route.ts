@@ -1,14 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createModalClient, checkSandboxExists, createErrorResponse } from "@/lib/server/modal";
 import { getProject } from "@/lib/server/projectStore";
+import { getAuthenticatedUser } from "@/lib/supabase/server";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Unauthorized",
+        },
+        { status: 401 }
+      );
+    }
+
     const { id: projectId } = await params;
-    const project = getProject(projectId);
+    const project = await getProject(projectId, user.id);
 
     if (!project) {
       return NextResponse.json(
@@ -21,7 +33,7 @@ export async function GET(
     }
 
     // If project has no sandboxId, return not created status
-    if (!project.sandboxId) {
+    if (!project.currentSandboxId) {
       return NextResponse.json({
         success: true,
         healthy: false,
@@ -32,7 +44,7 @@ export async function GET(
     }
 
     const modal = createModalClient();
-    const exists = await checkSandboxExists(modal, project.sandboxId);
+    const exists = await checkSandboxExists(modal, project.currentSandboxId);
 
     if (!exists) {
       return NextResponse.json({
@@ -41,13 +53,13 @@ export async function GET(
         exists: false,
         status: "not_found",
         message: "Sandbox no longer exists",
-        sandboxId: project.sandboxId,
+        sandboxId: project.currentSandboxId,
       });
     }
 
     // Try to get the sandbox to check if it's accessible
     try {
-      const sandbox = await modal.sandboxes.fromId(project.sandboxId);
+      const sandbox = await modal.sandboxes.fromId(project.currentSandboxId);
 
       // Optional: Check if Expo process is running
       let expoRunning = false;
@@ -95,7 +107,7 @@ export async function GET(
         healthy,
         exists: true,
         status: healthy ? "healthy" : "unhealthy",
-        sandboxId: project.sandboxId,
+        sandboxId: project.currentSandboxId,
         checks: {
           portListening,
           expoRunning,
@@ -112,7 +124,7 @@ export async function GET(
         healthy: false,
         exists: true,
         status: "inaccessible",
-        sandboxId: project.sandboxId,
+        sandboxId: project.currentSandboxId,
         message: "Sandbox exists but is not accessible",
         error: error instanceof Error ? error.message : "Unknown error",
       });

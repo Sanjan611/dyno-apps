@@ -52,11 +52,13 @@ dyno-apps/
 │   └── generators.baml  # BAML generators config
 ├── baml_client/         # Auto-generated BAML client
 ├── scripts/             # Deployment scripts
+├── supabase/            # Supabase configuration
+│   └── migrations/      # Database migrations
 ├── lib/                 # Utils and state management
 │   ├── store.ts         # Zustand store
 │   └── server/          # Server-side utilities
 │       ├── modal.ts          # Shared Modal client utilities
-│       └── projectStore.ts   # Project persistence
+│       └── projectStore.ts   # Project persistence (Supabase)
 └── types/               # TypeScript type definitions
 ```
 
@@ -86,15 +88,13 @@ The system uses a single AI agent architecture:
 - **Sandbox Lifecycle Management**: Sandboxes created on-demand when projects are opened
 - **Health Checks**: Comprehensive sandbox health monitoring (process status, port listening)
 - **Smart Sandbox Reuse**: Reuses healthy existing sandboxes instead of creating new ones
-- **Project Persistence**: In-memory store with proper CRUD operations
+- **Project Persistence**: Supabase database with Row Level Security (RLS) for user-scoped projects
 - **AI Code Generation**: Single-agent generation using BAML + Claude Sonnet 4.5
 - **Expo Initialization**: Automated Expo app setup within sandboxes
 
 ### Coming Soon
 
-- Supabase integration for database and auth
 - Export functionality for generated apps
-- Project persistence with database
 - Version history
 
 ## Getting Started
@@ -130,17 +130,23 @@ cp .env.local.example .env.local
 #   It's safe to expose in client-side code. Never use the secret key here!
 ```
 
-4. Generate BAML client:
+4. Set up Supabase database:
+```bash
+# Apply the database migration
+supabase db push
+```
+
+5. Generate BAML client:
 ```bash
 pnpm baml:generate
 ```
 
-5. Run the development server:
+6. Run the development server:
 ```bash
 pnpm dev
 ```
 
-6. Open [http://localhost:3000](http://localhost:3000) in your browser
+7. Open [http://localhost:3000](http://localhost:3000) in your browser
 
 ## Available Scripts
 

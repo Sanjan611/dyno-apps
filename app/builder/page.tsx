@@ -65,6 +65,7 @@ export default function BuilderPage() {
           },
           body: JSON.stringify({
             projectId,
+            title: finalName,
             name: finalName,
           }),
         });
@@ -123,8 +124,10 @@ export default function BuilderPage() {
 
           if (data.success && data.project) {
             setProjectId(data.project.id);
-            setProjectName(data.project.name);
-            const projectSandboxId = data.project.sandboxId;
+            const projectTitle = data.project.title ?? data.project.name ?? "Untitled Project";
+            setProjectName(projectTitle);
+            const projectSandboxId =
+              data.project.currentSandboxId ?? data.project.sandboxId ?? null;
             setSandboxId(projectSandboxId);
 
             // Check sandbox health and create if needed

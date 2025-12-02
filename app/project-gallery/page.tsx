@@ -16,9 +16,10 @@ import { Input } from "@/components/ui/input";
 
 interface Project {
   id: string;
-  sandboxId: string;
-  name: string;
-  description: string;
+  currentSandboxId: string | null;
+  title: string;
+  description: string | null;
+  repositoryUrl: string | null;
   lastModified: string;
 }
 
@@ -63,7 +64,7 @@ export default function ProjectGalleryPage() {
       setFilteredProjects(
         projects.filter(
           (p) =>
-            p.name.toLowerCase().includes(lowerQuery) ||
+            p.title.toLowerCase().includes(lowerQuery) ||
             p.description?.toLowerCase().includes(lowerQuery)
         )
       );
@@ -75,7 +76,7 @@ export default function ProjectGalleryPage() {
     if (!project) return;
 
     const confirmed = window.confirm(
-      `Delete "${project.name}"? This also terminates its sandbox and cannot be undone.`
+      `Delete "${project.title}"? This also terminates its sandbox and cannot be undone.`
     );
     if (!confirmed) {
       setMenuOpenId(null);
@@ -200,7 +201,7 @@ export default function ProjectGalleryPage() {
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start gap-2">
                     <CardTitle className="text-xl font-bold line-clamp-1 group-hover:text-primary transition-colors">
-                      {project.name}
+                      {project.title}
                     </CardTitle>
                     
                     <div className="relative">
@@ -245,7 +246,7 @@ export default function ProjectGalleryPage() {
                 <CardFooter className="pt-0 flex items-center justify-between text-sm text-muted-foreground border-t bg-gray-50/50 p-4">
                   <div className="flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5" />
-                    <span>{new Date(project.lastModified).toLocaleDateString()}</span>
+                    <span>{project.lastModified}</span>
                   </div>
                   
                   <Button variant="secondary" size="sm" className="group-hover:bg-primary group-hover:text-white transition-colors" asChild>
