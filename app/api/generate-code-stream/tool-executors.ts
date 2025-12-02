@@ -11,6 +11,7 @@ import type {
   TodoWriteTool,
   TodoTools,
 } from "@/baml_client/types";
+import { WORKING_DIR, CONTENT_LIMITS, TIMEOUTS } from "@/lib/constants";
 
 // Type for single (non-array) tools
 export type SingleTool = ListFilesTool | ReadFileTool | WriteFileTool | BashTool | TodoWriteTool | VerifyExpoServerTool;
@@ -141,8 +142,8 @@ async function executeLintCheck(
     }
 
     // Truncate if too long (similar to bash command output)
-    if (result.length > 30000) {
-      result = result.substring(0, 30000) + "\n... (lint output truncated)";
+    if (result.length > CONTENT_LIMITS.LINT_OUTPUT) {
+      result = result.substring(0, CONTENT_LIMITS.LINT_OUTPUT) + "\n... (lint output truncated)";
     }
 
     console.log("[generate-code-stream] Lint check completed. Result length:", result.length, "characters");
@@ -173,7 +174,7 @@ async function executeWriteFile(
     let result = `Successfully wrote file ${tool.filePath}`;
     
     // Run lint checks after successful write (only for files in working directory)
-    if (tool.filePath.startsWith(workingDir) || tool.filePath.startsWith("/my-app")) {
+    if (tool.filePath.startsWith(workingDir) || tool.filePath.startsWith(WORKING_DIR)) {
       try {
         console.log("[generate-code-stream] Triggering lint check after writing file:", tool.filePath);
         const lintResults = await executeLintCheck(sandbox, workingDir);
@@ -201,8 +202,8 @@ async function executeBashCommand(
   tool: BashTool
 ): Promise<string> {
   try {
-    const timeout = tool.timeout || 120000; // Default 2 minutes, max 10 minutes
-    const maxTimeout = Math.min(timeout, 600000);
+    const timeout = tool.timeout || TIMEOUTS.BASH_COMMAND_DEFAULT;
+    const maxTimeout = Math.min(timeout, TIMEOUTS.BASH_COMMAND_MAX);
     
     console.log(`[generate-code-stream] Executing bash command: ${tool.command} (timeout: ${maxTimeout}ms)`);
     
@@ -232,9 +233,9 @@ async function executeBashCommand(
       output += `STDERR: ${stderr}`;
     }
     
-    // Truncate if output exceeds 30000 characters
-    if (output.length > 30000) {
-      output = output.substring(0, 30000) + "\n... (output truncated)";
+    // Truncate if output exceeds limit
+    if (output.length > CONTENT_LIMITS.BASH_OUTPUT) {
+      output = output.substring(0, CONTENT_LIMITS.BASH_OUTPUT) + "\n... (output truncated)";
     }
     
     if (exitCode === 0) {

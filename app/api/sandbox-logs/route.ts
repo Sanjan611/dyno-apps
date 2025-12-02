@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ModalClient } from "modal";
+import { SANDBOX_WORKING_DIR } from "@/lib/constants";
 
 export async function GET(request: NextRequest) {
   try {
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
     // Try to check if the app directory exists
     let appDirCheck = "";
     try {
-      const lsProcess = await sandbox.exec(["ls", "-la", "/root/my-app"]);
+      const lsProcess = await sandbox.exec(["ls", "-la", SANDBOX_WORKING_DIR]);
       const lsOutput = await lsProcess.stdout.readText();
       appDirCheck = lsOutput;
     } catch (error) {

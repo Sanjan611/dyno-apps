@@ -1,0 +1,443 @@
+/**
+ * Coding Agent Orchestration
+ * 
+ * Handles the orchestration of the BAML coding agent, including:
+ * - Retry logic for agent calls
+ * - Tool execution loop
+ * - Progress tracking and reporting
+ */
+
+import { ModalClient } from "modal";
+import { b } from "@/baml_client";
+import {
+  BamlValidationError,
+  BamlClientFinishReasonError,
+  BamlAbortError,
+  Collector,
+} from "@boundaryml/baml";
+import type {
+  ListFilesTool,
+  ReadFileTool,
+  WriteFileTool,
+  Message,
+  ReplyToUser,
+  FileTools,
+  TodoItem,
+  TodoWriteTool,
+  TodoTools,
+} from "@/baml_client/types";
+import {
+  executeSingleTool,
+  executeParallelTools,
+  extractFilesFromState,
+  areAllTodosCompleted,
+  extractToolParams,
+} from "@/app/api/generate-code-stream/tool-executors";
+import { WORKING_DIR, LOG_PREFIXES } from "@/lib/constants";
+import type { SSEProgressEvent } from "@/types";
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/**
+ * Progress callback for reporting agent progress
+ */
+export type ProgressCallback = (event: SSEProgressEvent) => Promise<void>;
+
+/**
+ * Configuration for running the coding agent
+ */
+export interface CodingAgentConfig {
+  userPrompt: string;
+  sandboxId: string;
+  workingDir?: string;
+  maxIterations?: number;
+  maxRetries?: number;
+  onProgress?: ProgressCallback;
+}
+
+/**
+ * Result of running the coding agent
+ */
+export interface CodingAgentResult {
+  success: boolean;
+  message?: string;
+  files?: Record<string, string>;
+  error?: string;
+  details?: unknown;
+}
+
+// ============================================================================
+// Retry Logic
+// ============================================================================
+
+/**
+ * Calls the CodingAgent with retry logic for validation errors
+ */
+async function callCodingAgentWithRetry(
+  state: Message[],
+  workingDir: string,
+  todoList: TodoItem[],
+  collector: Collector,
+  maxRetries: number = 3
+): Promise<FileTools | (ListFilesTool | ReadFileTool)[] | TodoTools | ReplyToUser> {
+  let lastError: BamlValidationError | BamlClientFinishReasonError | null = null;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await b.CodingAgent(
+        state,
+        workingDir,
+        todoList,
+        { collector }
+      );
+      
+      // Success - return the response
+      if (attempt > 0) {
+        console.log(`${LOG_PREFIXES.GENERATE_CODE} CodingAgent succeeded on retry attempt ${attempt}`);
+      }
+      return response;
+    } catch (error) {
+      // Only retry on BamlValidationError or BamlClientFinishReasonError
+      if (
+        error instanceof BamlValidationError ||
+        error instanceof BamlClientFinishReasonError
+      ) {
+        lastError = error;
+        
+        if (attempt < maxRetries) {
+          // Calculate exponential backoff delay: 1s, 2s, 4s
+          const delayMs = Math.pow(2, attempt) * 1000;
+          console.log(
+            `${LOG_PREFIXES.GENERATE_CODE} CodingAgent validation error on attempt ${attempt + 1}/${maxRetries + 1}, retrying in ${delayMs}ms...`
+          );
+          console.error(`${LOG_PREFIXES.GENERATE_CODE} Validation error details:`, error.detailed_message || error.message);
+          
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        } else {
+          // All retries exhausted
+          console.error(
+            `${LOG_PREFIXES.GENERATE_CODE} CodingAgent failed after ${maxRetries + 1} attempts with validation error`
+          );
+        }
+      } else {
+        // Non-retryable error (BamlAbortError, network errors, etc.) - throw immediately
+        throw error;
+      }
+    }
+  }
+  
+  // If we get here, all retries were exhausted
+  if (lastError) {
+    throw lastError;
+  }
+  
+  // This should never happen, but TypeScript needs it
+  throw new Error("Unexpected error in retry logic");
+}
+
+// ============================================================================
+// Error Handling
+// ============================================================================
+
+/**
+ * Formats an error for SSE streaming
+ */
+export function formatErrorForStream(
+  error: unknown,
+  context: string = ""
+): SSEProgressEvent {
+  const contextPrefix = context ? `${context} ` : "";
+  let errorMessage = "Unknown error";
+  let errorDetails: unknown = undefined;
+
+  if (error instanceof BamlAbortError) {
+    errorMessage = `${contextPrefix}operation was cancelled`;
+    errorDetails = error.reason || error.message;
+    console.error(`${LOG_PREFIXES.GENERATE_CODE} ${errorMessage}:`, error.message);
+    console.error(`${LOG_PREFIXES.GENERATE_CODE} Cancellation reason:`, error.reason);
+  } else if (error instanceof BamlValidationError || error instanceof BamlClientFinishReasonError) {
+    errorMessage = `${contextPrefix}encountered a BAML error`;
+    errorDetails = error.detailed_message || error.message;
+    console.error(`${LOG_PREFIXES.GENERATE_CODE} ${errorMessage}:`, error.message);
+    console.error(`${LOG_PREFIXES.GENERATE_CODE} BAML error detailed message:`, error.detailed_message);
+    if (error.raw_output) {
+      console.error(`${LOG_PREFIXES.GENERATE_CODE} BAML error raw output:`, error.raw_output);
+    }
+  } else {
+    errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes("BamlError:")) {
+      console.error(`${LOG_PREFIXES.GENERATE_CODE} ${contextPrefix}BAML error:`, errorMessage);
+    } else {
+      console.error(`${LOG_PREFIXES.GENERATE_CODE} ${contextPrefix}Error:`, errorMessage);
+      if (error instanceof Error) {
+        console.error(`${LOG_PREFIXES.GENERATE_CODE} Error stack:`, error.stack);
+        errorDetails = error.stack;
+      }
+    }
+  }
+
+  return {
+    type: 'error',
+    error: errorMessage,
+    details: errorDetails,
+  };
+}
+
+// ============================================================================
+// Main Orchestration
+// ============================================================================
+
+/**
+ * Runs the coding agent orchestration loop
+ * 
+ * This function handles the main loop of:
+ * 1. Calling the coding agent
+ * 2. Executing tools returned by the agent
+ * 3. Updating state and reporting progress
+ * 4. Continuing until the agent replies to the user
+ */
+export async function runCodingAgent(
+  modal: ModalClient,
+  config: CodingAgentConfig
+): Promise<CodingAgentResult> {
+  const {
+    userPrompt,
+    sandboxId,
+    workingDir = WORKING_DIR,
+    maxIterations = 50,
+    maxRetries = 3,
+    onProgress,
+  } = config;
+
+  // Validate input
+  if (!userPrompt || !sandboxId) {
+    const error = 'userPrompt and sandboxId are required';
+    if (onProgress) {
+      await onProgress({
+        type: 'error',
+        error,
+      });
+    }
+    return { success: false, error };
+  }
+
+  // Validate Anthropic API key (required by BAML)
+  if (!process.env.ANTHROPIC_API_KEY) {
+    const error = 'ANTHROPIC_API_KEY environment variable is not configured';
+    if (onProgress) {
+      await onProgress({
+        type: 'error',
+        error,
+      });
+    }
+    return { success: false, error };
+  }
+
+  if (onProgress) {
+    await onProgress({ type: 'status', message: 'Initializing sandbox connection...' });
+  }
+
+  // Get the sandbox reference
+  console.log(`${LOG_PREFIXES.GENERATE_CODE} Getting sandbox reference...`);
+  const sandbox = await modal.sandboxes.fromId(sandboxId);
+  console.log(`${LOG_PREFIXES.GENERATE_CODE} Sandbox reference obtained:`, sandbox.sandboxId);
+
+  const modifiedFiles: Record<string, string> = {};
+
+  // ============================================
+  // CODING AGENT
+  // ============================================
+  console.log(`${LOG_PREFIXES.GENERATE_CODE} Starting code generation...`);
+  if (onProgress) {
+    await onProgress({ type: 'status', message: 'Starting code generation...' });
+  }
+  
+  // Create collector to track token usage and latency
+  const collector = new Collector("code-generation");
+  
+  // Initialize empty todo list - the coding agent will create todos using todo_write
+  let todoList: TodoItem[] = [];
+
+  const state: Message[] = [
+    {
+      role: "user",
+      message: userPrompt,
+    },
+  ];
+
+  let iterations = 0;
+
+  while (iterations < maxIterations) {
+    iterations++;
+    console.log(`${LOG_PREFIXES.GENERATE_CODE} Iteration ${iterations}/${maxIterations}`);
+
+    let response;
+    try {
+      response = await callCodingAgentWithRetry(
+        state,
+        workingDir,
+        todoList,
+        collector,
+        maxRetries
+      );
+      
+      // Log token usage and latency for this iteration
+      if (collector.last) {
+        console.log(`${LOG_PREFIXES.GENERATE_CODE} CodingAgent iteration ${iterations} usage:`, {
+          inputTokens: collector.last.usage?.inputTokens ?? null,
+          outputTokens: collector.last.usage?.outputTokens ?? null,
+          durationMs: collector.last.timing?.durationMs ?? null,
+        });
+      }
+    } catch (error) {
+      const errorEvent = formatErrorForStream(error, "Coding agent");
+      if (onProgress) {
+        await onProgress(errorEvent);
+      }
+      return {
+        success: false,
+        error: errorEvent.error,
+        details: errorEvent.details,
+      };
+    }
+
+    // Check if coding agent is replying (done)
+    if (response && "action" in response && response.action === "reply_to_user") {
+      // Extract all modified files
+      const allFiles =
+        Object.keys(modifiedFiles).length > 0
+          ? modifiedFiles
+          : extractFilesFromState(state);
+
+      const replyMessage = "message" in response ? response.message : "";
+      console.log(`${LOG_PREFIXES.GENERATE_CODE} Coding agent completed with reply:`, replyMessage);
+      
+      // Log cumulative token usage and latency
+      console.log(`${LOG_PREFIXES.GENERATE_CODE} CodingAgent complete - cumulative usage:`, {
+        totalInputTokens: collector.usage?.inputTokens ?? null,
+        totalOutputTokens: collector.usage?.outputTokens ?? null,
+        totalCalls: collector.logs.length,
+      });
+      
+      if (onProgress) {
+        await onProgress({
+          type: 'complete',
+          message: replyMessage,
+          files: allFiles,
+        });
+      }
+      
+      return {
+        success: true,
+        message: replyMessage,
+        files: allFiles,
+      };
+    }
+
+    // Execute the tool (single or parallel)
+    const tool = response as FileTools | (ListFilesTool | ReadFileTool)[] | TodoTools;
+    let toolName: string;
+    let currentTodo: string | undefined = undefined;
+
+    if (Array.isArray(tool)) {
+      toolName = `parallel_read (${tool.length} files)`;
+    } else if (tool.action === "todo_write") {
+      toolName = tool.action;
+      // Get the in-progress todo for progress display
+      const updatedTodos = (tool as TodoWriteTool).todos;
+      const inProgressTodo = updatedTodos.find(t => t.status === "in_progress");
+      if (inProgressTodo) {
+        currentTodo = inProgressTodo.content;
+      }
+    } else if (tool.action === "write_file") {
+      toolName = tool.action;
+      currentTodo = `Writing ${(tool as WriteFileTool).filePath}`;
+    } else if (tool.action === "read_file") {
+      toolName = tool.action;
+      currentTodo = `Reading ${(tool as ReadFileTool).filePath}`;
+    } else if (tool.action === "verify_expo_server") {
+      toolName = tool.action;
+      currentTodo = "Verifying Expo server status";
+    } else {
+      toolName = tool.action;
+    }
+
+    // Log tool parameters (excluding content for WriteFileTool)
+    console.log(`${LOG_PREFIXES.GENERATE_CODE} Tool call parameters:`, extractToolParams(tool));
+
+    if (onProgress) {
+      await onProgress({
+        type: 'coding_iteration',
+        iteration: iterations,
+        tool: toolName,
+        todo: currentTodo,
+      });
+    }
+
+    let result: string;
+    if (Array.isArray(tool)) {
+      if (tool.length === 0) {
+        result = "Error: Cannot execute parallel_read with empty array. Please provide at least one read_file or list_files tool, or use a single tool call instead.";
+        console.error(`${LOG_PREFIXES.GENERATE_CODE} Attempted to execute parallel_read with empty array`);
+      } else {
+        console.log(`${LOG_PREFIXES.GENERATE_CODE} Executing parallel_read with ${tool.length} tools...`);
+        result = await executeParallelTools(sandbox, tool, workingDir, todoList);
+      }
+    } else {
+      console.log(`${LOG_PREFIXES.GENERATE_CODE} Executing ${tool.action} tool...`);
+      const execResult = await executeSingleTool(sandbox, tool, workingDir, todoList);
+      result = execResult.result;
+      
+      // Handle side effects
+      if (tool.action === "write_file" && !result.startsWith("Error")) {
+        modifiedFiles[tool.filePath] = tool.content;
+      } else if (tool.action === "todo_write" && execResult.updatedTodoList) {
+        todoList = execResult.updatedTodoList;
+        console.log(`${LOG_PREFIXES.GENERATE_CODE} Todo write result:`, execResult.result);
+        console.log(`${LOG_PREFIXES.GENERATE_CODE} Todo list updated:`, execResult.updatedTodoList);
+        
+        // Send todo update event
+        if (onProgress) {
+          await onProgress({
+            type: 'todo_update',
+            todos: todoList.map(t => ({
+              content: t.content,
+              activeForm: t.activeForm || "",
+              status: t.status,
+            })),
+          });
+        }
+        
+        // Check if all todos are completed
+        if (areAllTodosCompleted(todoList)) {
+          console.log(`${LOG_PREFIXES.GENERATE_CODE} All todos completed, agent should reply to user`);
+        }
+      }
+    }
+
+    // Add tool execution to state
+    state.push({
+      role: "assistant",
+      message: tool,
+    });
+    state.push({
+      role: "tool",
+      message: result,
+    });
+  }
+
+  // Handle timeout if loop exceeds max iterations
+  console.error(`${LOG_PREFIXES.GENERATE_CODE} Coding agent exceeded maximum iterations`);
+  const error = 'Coding agent exceeded maximum iterations. Please try again with a simpler request.';
+  if (onProgress) {
+    await onProgress({
+      type: 'error',
+      error,
+    });
+  }
+  return { success: false, error };
+}
+

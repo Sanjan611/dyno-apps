@@ -13,19 +13,11 @@ import {
 } from "@/components/ui/card";
 import { MoreVertical, PlusCircle, Search, LayoutGrid, List as ListIcon, Trash2, ExternalLink, Clock, FolderOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
-
-interface Project {
-  id: string;
-  currentSandboxId: string | null;
-  title: string;
-  description: string | null;
-  repositoryUrl: string | null;
-  lastModified: string;
-}
+import type { ProjectWithMeta } from "@/types";
 
 export default function ProjectGalleryPage() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [filteredProjects, setFilteredProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<ProjectWithMeta[]>([]);
+  const [filteredProjects, setFilteredProjects] = useState<ProjectWithMeta[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -266,7 +258,7 @@ export default function ProjectGalleryPage() {
             </div>
             <h3 className="text-2xl font-bold mb-2">No Projects Yet</h3>
             <p className="text-muted-foreground max-w-md mx-auto mb-8">
-              You haven't created any projects yet. Start building your first AI-powered mobile app today!
+              You haven&apos;t created any projects yet. Start building your first AI-powered mobile app today!
             </p>
             <Button size="lg" className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 shadow-lg" asChild>
               <Link href="/builder">

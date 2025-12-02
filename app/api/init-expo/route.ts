@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ModalClient } from "modal";
 import { readFile } from "fs/promises";
 import { join } from "path";
+import { EXPO_PORT, TIMEOUTS } from "@/lib/constants";
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,8 +64,8 @@ export async function POST(request: NextRequest) {
     console.log("[init-expo] Polling for tunnel availability...");
     let tunnel = null;
     let previewUrl = null;
-    const maxAttempts = 30; // 30 attempts
-    const baseDelay = 2000; // Start with 2 seconds
+    const maxAttempts = 30;
+    const baseDelay = TIMEOUTS.EXPO_INIT_BASE_DELAY;
     const startTime = Date.now();
 
     const formatElapsed = (ms: number) => {
@@ -81,8 +82,8 @@ export async function POST(request: NextRequest) {
       console.log(`[init-expo] Attempt ${attempt}/${maxAttempts} (${formatElapsed(elapsed)} elapsed)...`);
       
       try {
-        const tunnels = await sandbox.tunnels(5000); // Short timeout per attempt
-        tunnel = tunnels[19006];
+        const tunnels = await sandbox.tunnels(TIMEOUTS.TUNNEL_CONNECTION);
+        tunnel = tunnels[EXPO_PORT];
         
         if (tunnel) {
           previewUrl = tunnel.url;
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
           // Verify the URL is actually responding
           const response = await fetch(previewUrl, { 
             method: 'GET',
-            signal: AbortSignal.timeout(3000) 
+            signal: AbortSignal.timeout(TIMEOUTS.TUNNEL_FETCH) 
           });
           
           if (response.ok || response.status === 200) {
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
       }
       
       if (attempt < maxAttempts) {
-        const delay = Math.min(baseDelay * (1 + attempt * 0.2), 5000); // Cap at 5s
+        const delay = Math.min(baseDelay * (1 + attempt * 0.2), TIMEOUTS.EXPO_INIT_MAX_DELAY);
         await new Promise(r => setTimeout(r, delay));
       }
     }

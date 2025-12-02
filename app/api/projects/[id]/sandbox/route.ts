@@ -1,42 +1,28 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import {
   createModalClient,
   createSandbox,
   checkSandboxExists,
-  createErrorResponse,
 } from "@/lib/server/modal";
 import { NotFoundError } from "modal";
 import { getProject, updateProjectSandboxId } from "@/lib/server/projectStore";
-import { getAuthenticatedUser } from "@/lib/supabase/server";
+import {
+  withAsyncParams,
+  successResponse,
+  notFoundResponse,
+  internalErrorResponse,
+} from "@/lib/server/api-utils";
+import { EXPO_PORT, TIMEOUTS } from "@/lib/constants";
+import type { CreateSandboxResponse, GetSandboxResponse, TerminateSandboxResponse } from "@/types/api";
 
 // POST /api/projects/[id]/sandbox - Create or get existing sandbox
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const user = await getAuthenticatedUser(request);
-  if (!user) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Unauthorized",
-      },
-      { status: 401 }
-    );
-  }
-
+export const POST = withAsyncParams<CreateSandboxResponse>(async (request, user, params) => {
   try {
-    const { id: projectId } = await params;
+    const { id: projectId } = params;
     const project = await getProject(projectId, user.id);
 
     if (!project) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Project not found",
-        },
-        { status: 404 }
-      );
+      return notFoundResponse("Project not found");
     }
 
     const modal = createModalClient();
@@ -52,14 +38,13 @@ export async function POST(
           
           // Check if we can access it (basic health check)
           try {
-            await sandbox.tunnels(2000);
+            await sandbox.tunnels(TIMEOUTS.SANDBOX_QUICK_CHECK);
             
             console.log(
               "[sandbox] Reusing existing sandbox:",
               project.currentSandboxId
             );
-            return NextResponse.json({
-              success: true,
+            return successResponse({
               sandboxId: project.currentSandboxId,
               status: "reused",
               message: "Using existing sandbox",
@@ -70,8 +55,7 @@ export async function POST(
               "[sandbox] Sandbox exists but tunnel not ready:",
               project.currentSandboxId
             );
-            return NextResponse.json({
-              success: true,
+            return successResponse({
               sandboxId: project.currentSandboxId,
               status: "reused",
               message: "Using existing sandbox (may still be initializing)",
@@ -100,13 +84,7 @@ export async function POST(
 
     if (!updatedProject) {
       // This shouldn't happen, but handle it gracefully
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Failed to update project with sandboxId",
-        },
-        { status: 500 }
-      );
+      return internalErrorResponse(new Error("Failed to update project with sandboxId"));
     }
 
     console.log(
@@ -116,51 +94,29 @@ export async function POST(
       projectId
     );
 
-    return NextResponse.json({
-      success: true,
+    return successResponse({
       sandboxId: sandbox.sandboxId,
       status: "created",
       message: "New sandbox created successfully",
     });
   } catch (error) {
     console.error("[sandbox] Error creating/getting sandbox:", error);
-    return createErrorResponse(error, 500);
+    return internalErrorResponse(error);
   }
-}
+});
 
 // GET /api/projects/[id]/sandbox - Get sandbox info and status
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const user = await getAuthenticatedUser(request);
-  if (!user) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Unauthorized",
-      },
-      { status: 401 }
-    );
-  }
-
+export const GET = withAsyncParams<GetSandboxResponse>(async (request, user, params) => {
   try {
-    const { id: projectId } = await params;
+    const { id: projectId } = params;
     const project = await getProject(projectId, user.id);
 
     if (!project) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Project not found",
-        },
-        { status: 404 }
-      );
+      return notFoundResponse("Project not found");
     }
 
     if (!project.currentSandboxId) {
-      return NextResponse.json({
-        success: true,
+      return successResponse({
         sandboxId: null,
         status: "not_created",
         message: "Sandbox has not been created for this project",
@@ -171,8 +127,7 @@ export async function GET(
     const exists = await checkSandboxExists(modal, project.currentSandboxId);
 
     if (!exists) {
-      return NextResponse.json({
-        success: true,
+      return successResponse({
         sandboxId: project.currentSandboxId,
         status: "not_found",
         message: "Sandbox no longer exists",
@@ -185,8 +140,8 @@ export async function GET(
       // Get tunnel info if available
       let previewUrl: string | null = null;
       try {
-        const tunnels = await sandbox.tunnels(5000);
-        const tunnel = tunnels[19006];
+        const tunnels = await sandbox.tunnels(TIMEOUTS.TUNNEL_CONNECTION);
+        const tunnel = tunnels[EXPO_PORT];
         if (tunnel) {
           previewUrl = tunnel.url;
         }
@@ -194,16 +149,14 @@ export async function GET(
         // Tunnel might not be ready
       }
 
-      return NextResponse.json({
-        success: true,
+      return successResponse({
         sandboxId: project.currentSandboxId,
         status: "active",
         previewUrl,
         message: "Sandbox is active",
       });
     } catch (error) {
-      return NextResponse.json({
-        success: true,
+      return successResponse({
         sandboxId: project.currentSandboxId,
         status: "inaccessible",
         message: "Sandbox exists but is not accessible",
@@ -211,44 +164,23 @@ export async function GET(
     }
   } catch (error) {
     console.error("[sandbox] Error getting sandbox info:", error);
-    return createErrorResponse(error, 500);
+    return internalErrorResponse(error);
   }
-}
+});
 
 // DELETE /api/projects/[id]/sandbox - Terminate sandbox (keep project, clear sandboxId)
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const user = await getAuthenticatedUser(request);
-  if (!user) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Unauthorized",
-      },
-      { status: 401 }
-    );
-  }
-
+export const DELETE = withAsyncParams<TerminateSandboxResponse>(async (request, user, params) => {
   try {
-    const { id: projectId } = await params;
+    const { id: projectId } = params;
     const project = await getProject(projectId, user.id);
 
     if (!project) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Project not found",
-        },
-        { status: 404 }
-      );
+      return notFoundResponse("Project not found");
     }
 
     if (!project.currentSandboxId) {
       // Project has no sandbox, return success (idempotent)
-      return NextResponse.json({
-        success: true,
+      return successResponse({
         projectId,
         sandboxTerminated: false,
         sandboxAlreadyMissing: true,
@@ -274,24 +206,14 @@ export async function DELETE(
         );
       } else {
         console.error("[sandbox] Error terminating sandbox:", error);
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              error instanceof Error
-                ? error.message
-                : "Failed to terminate sandbox",
-          },
-          { status: 500 }
-        );
+        return internalErrorResponse(error);
       }
     }
 
     // Clear sandboxId from project
     await updateProjectSandboxId(projectId, user.id, null);
 
-    return NextResponse.json({
-      success: true,
+    return successResponse({
       projectId,
       sandboxTerminated,
       sandboxAlreadyMissing,
@@ -299,7 +221,7 @@ export async function DELETE(
     });
   } catch (error) {
     console.error("[sandbox] Error handling delete request:", error);
-    return createErrorResponse(error, 500);
+    return internalErrorResponse(error);
   }
-}
+});
 

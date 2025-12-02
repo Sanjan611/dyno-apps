@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import {
   addProject,
   formatRelativeTime,
@@ -6,20 +6,17 @@ import {
   getProject,
   updateProject,
 } from "@/lib/server/projectStore";
-import { getAuthenticatedUser } from "@/lib/supabase/server";
+import {
+  withAuth,
+  successResponse,
+  notFoundResponse,
+  badRequestResponse,
+  internalErrorResponse,
+} from "@/lib/server/api-utils";
+import type { GetProjectsResponse, GetProjectResponse } from "@/types/api";
 
 // GET /api/projects - Get all projects or a single project by ID
-export async function GET(request: NextRequest) {
-  const user = await getAuthenticatedUser(request);
-  if (!user) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Unauthorized",
-      },
-      { status: 401 }
-    );
-  }
+export const GET = withAuth<GetProjectsResponse | GetProjectResponse>(async (request, user) => {
   try {
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get("projectId");
@@ -28,17 +25,10 @@ export async function GET(request: NextRequest) {
     if (projectId) {
       const project = await getProject(projectId, user.id);
       if (!project) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Project not found",
-          },
-          { status: 404 }
-        );
+        return notFoundResponse("Project not found");
       }
 
-      return NextResponse.json({
-        success: true,
+      return successResponse({
         project: {
           ...project,
           lastModified: formatRelativeTime(project.updatedAt),
@@ -52,35 +42,17 @@ export async function GET(request: NextRequest) {
       lastModified: formatRelativeTime(project.updatedAt),
     }));
 
-    return NextResponse.json({
-      success: true,
+    return successResponse({
       projects: projectsArray,
     });
   } catch (error) {
     console.error("[projects] Error fetching projects:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 }
-    );
+    return internalErrorResponse(error);
   }
-}
+});
 
 // POST /api/projects - Create a new project (no sandbox creation)
-export async function POST(request: NextRequest) {
-  const user = await getAuthenticatedUser(request);
-  if (!user) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Unauthorized",
-      },
-      { status: 401 }
-    );
-  }
-
+export const POST = withAuth(async (request, user) => {
   try {
     const { name, title, description, firstMessage, repositoryUrl } = await request.json();
 
@@ -101,8 +73,7 @@ export async function POST(request: NextRequest) {
 
     console.log("[projects] Created project:", project.id, "(sandbox will be created when opened)");
 
-    return NextResponse.json({
-      success: true,
+    return successResponse({
       project: {
         ...project,
         lastModified: formatRelativeTime(project.updatedAt),
@@ -110,52 +81,23 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("[projects] Error creating project:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 }
-    );
+    return internalErrorResponse(error);
   }
-}
+});
 
 // PATCH /api/projects - Update a project
-export async function PATCH(request: NextRequest) {
-  const user = await getAuthenticatedUser(request);
-  if (!user) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Unauthorized",
-      },
-      { status: 401 }
-    );
-  }
-
+export const PATCH = withAuth(async (request, user) => {
   try {
     const { projectId, name, title } = await request.json();
 
     if (!projectId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "projectId is required",
-        },
-        { status: 400 }
-      );
+      return badRequestResponse("projectId is required");
     }
 
     const nextTitle = title ?? name;
 
     if (!nextTitle || typeof nextTitle !== "string" || nextTitle.trim().length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "title is required and must be a non-empty string",
-        },
-        { status: 400 }
-      );
+      return badRequestResponse("title is required and must be a non-empty string");
     }
 
     const updatedProject = await updateProject(projectId, user.id, {
@@ -163,19 +105,12 @@ export async function PATCH(request: NextRequest) {
     });
 
     if (!updatedProject) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Project not found",
-        },
-        { status: 404 }
-      );
+      return notFoundResponse("Project not found");
     }
 
     console.log("[projects] Updated project:", projectId, "new title:", nextTitle.trim());
 
-    return NextResponse.json({
-      success: true,
+    return successResponse({
       project: {
         ...updatedProject,
         lastModified: formatRelativeTime(updatedProject.updatedAt),
@@ -183,13 +118,7 @@ export async function PATCH(request: NextRequest) {
     });
   } catch (error) {
     console.error("[projects] Error updating project:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 }
-    );
+    return internalErrorResponse(error);
   }
-}
+});
 
