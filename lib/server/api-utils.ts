@@ -165,7 +165,7 @@ export function withAuth<T = unknown>(
     }
 
     try {
-      return await handler(request, user as AuthenticatedUser);
+      return await handler(request, user as unknown as AuthenticatedUser);
     } catch (error) {
       console.error("[api-utils] Error in authenticated handler:", error);
       return internalErrorResponse(error);
@@ -196,7 +196,7 @@ export function withAsyncParams<T = unknown>(
 
     try {
       const params = await context.params;
-      return await handler(request, user as AuthenticatedUser, params);
+      return await handler(request, user as unknown as AuthenticatedUser, params);
     } catch (error) {
       console.error("[api-utils] Error in handler with async params:", error);
       return internalErrorResponse(error);
