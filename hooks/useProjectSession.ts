@@ -51,9 +51,17 @@ export function useProjectSession({
         }
       }
 
+      // Ensure we have a project ID at this point
+      if (!currentProjectId) {
+        throw new Error("Project ID is required but was not set");
+      }
+
+      // TypeScript now knows currentProjectId is string after the null check
+      const projectIdString: string = currentProjectId;
+
       // Get or create sandbox for the project
       const sandboxResponse = await fetch(
-        API_ENDPOINTS.PROJECT_SANDBOX(currentProjectId),
+        API_ENDPOINTS.PROJECT_SANDBOX(projectIdString),
         {
           method: "POST",
           headers: {
@@ -69,7 +77,13 @@ export function useProjectSession({
       }
 
       currentSandboxId = sandboxData.sandboxId;
-      setSandboxId(currentSandboxId);
+      
+      if (!currentSandboxId) {
+        throw new Error("Sandbox ID is required but was not returned");
+      }
+
+      const sandboxIdString: string = currentSandboxId;
+      setSandboxId(sandboxIdString);
       
       const sandboxMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -82,7 +96,7 @@ export function useProjectSession({
       };
       setMessages((prev) => [...prev, sandboxMessage]);
 
-      return { projectId: currentProjectId, sandboxId: currentSandboxId };
+      return { projectId: projectIdString, sandboxId: sandboxIdString };
     },
     [projectId, sandboxId, setProjectId, setSandboxId, setMessages]
   );
