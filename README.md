@@ -148,6 +148,66 @@ pnpm dev
 
 7. Open [http://localhost:3000](http://localhost:3000) in your browser
 
+## Deployment
+
+### Vercel Deployment
+
+This application is configured for deployment on Vercel. The build process automatically generates the BAML client before building the Next.js application.
+
+#### Prerequisites
+
+- A Vercel account ([vercel.com](https://vercel.com))
+- Your code pushed to a Git repository (GitHub, GitLab, or Bitbucket)
+
+#### Deployment Steps
+
+1. **Connect Repository to Vercel:**
+   - Go to [vercel.com](https://vercel.com) and sign in
+   - Click "Add New Project"
+   - Import your repository
+
+2. **Configure Build Settings:**
+   - Framework Preset: Next.js (auto-detected)
+   - Build Command: `pnpm build` (or `npm run build` if using npm)
+   - Output Directory: `.next` (auto-detected)
+   - Install Command: `pnpm install` (or `npm install`)
+
+3. **Add Environment Variables:**
+   
+   In the Vercel project settings, go to "Environment Variables" and add the following:
+   
+   **Required Variables:**
+   - `ANTHROPIC_API_KEY` - For AI code generation (Claude Sonnet 4.5)
+   - `MODAL_TOKEN_ID` - Modal sandbox authentication token ID
+   - `MODAL_TOKEN_SECRET` - Modal sandbox authentication token secret
+   - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase publishable key (sb_publishable_...)
+   
+   **Important Notes:**
+   - Variables prefixed with `NEXT_PUBLIC_` are exposed to the browser
+   - Only use the Supabase publishable key (`sb_publishable_...`), never the secret key
+   - Apply variables to all environments (Production, Preview, Development)
+
+4. **Deploy:**
+   - Click "Deploy"
+   - Vercel will automatically build and deploy your application
+   - The deployment URL will be provided (e.g., `your-app.vercel.app`)
+
+#### Post-Deployment Verification
+
+After deployment, verify:
+- Application loads at the Vercel URL
+- Authentication works (Supabase connection)
+- AI code generation works (Anthropic API)
+- Sandbox creation works (Modal API)
+
+#### Notes
+
+- Vercel automatically detects Next.js 15 and uses the correct build settings
+- The build script runs `baml generate` before `next build` to ensure the BAML client is available
+- Preview deployments are created automatically for each pull request
+- Environment variables can be updated in the Vercel dashboard
+
 ## Available Scripts
 
 - `pnpm dev` - Start development server with Turbopack

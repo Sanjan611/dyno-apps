@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "baml generate && next build",
     "start": "next start",
     "lint": "next lint",
     "baml:generate": "baml generate",
