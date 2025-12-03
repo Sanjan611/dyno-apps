@@ -33,6 +33,15 @@ export type AuthenticatedHandler<T = unknown> = (
 ) => Promise<NextResponse<ApiResponse<T>>>;
 
 /**
+ * Handler function for authenticated routes with async params (for dynamic routes)
+ */
+export type AuthenticatedHandlerWithParams<T = unknown> = (
+  request: NextRequest,
+  user: AuthenticatedUser,
+  params: { [key: string]: string }
+) => Promise<NextResponse<ApiResponse<T>>>;
+
+/**
  * Handler function for routes that may or may not require auth
  */
 export type Handler<T = unknown> = (
@@ -147,8 +156,8 @@ export function internalErrorResponse(
  */
 export function withAuth<T = unknown>(
   handler: AuthenticatedHandler<T>
-): Handler<T> {
-  return async (request: NextRequest, params?: { [key: string]: string | Promise<string> }) => {
+): (request: NextRequest) => Promise<NextResponse<ApiResponse<T>>> {
+  return async (request: NextRequest) => {
     const user = await getAuthenticatedUser(request);
     
     if (!user) {
@@ -156,7 +165,7 @@ export function withAuth<T = unknown>(
     }
 
     try {
-      return await handler(request, user as AuthenticatedUser, params);
+      return await handler(request, user as AuthenticatedUser);
     } catch (error) {
       console.error("[api-utils] Error in authenticated handler:", error);
       return internalErrorResponse(error);
@@ -170,13 +179,13 @@ export function withAuth<T = unknown>(
  * @example
  * ```typescript
  * export const DELETE = withAsyncParams(async (request, user, params) => {
- *   const { id } = await params;
+ *   const { id } = params;
  *   // ... handler logic
  * });
  * ```
  */
 export function withAsyncParams<T = unknown>(
-  handler: AuthenticatedHandler<T>
+  handler: AuthenticatedHandlerWithParams<T>
 ): (request: NextRequest, context: { params: Promise<{ [key: string]: string }> }) => Promise<NextResponse<ApiResponse<T>>> {
   return async (request: NextRequest, context: { params: Promise<{ [key: string]: string }> }) => {
     const user = await getAuthenticatedUser(request);
