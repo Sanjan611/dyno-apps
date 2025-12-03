@@ -21,8 +21,10 @@ function SignupContent() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +37,7 @@ function SignupContent() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password, name }),
+        body: JSON.stringify({ email, password, name, inviteCode }),
       });
 
       const data = await response.json();
@@ -46,10 +48,9 @@ function SignupContent() {
         return;
       }
 
-      // Redirect to home page or the redirect URL from query params
-      const redirectTo = searchParams.get("redirect") || "/";
-      router.push(redirectTo);
-      router.refresh();
+      // Show success message about email confirmation
+      setShowSuccess(true);
+      setIsLoading(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
       setIsLoading(false);
@@ -66,13 +67,36 @@ function SignupContent() {
           </CardDescription>
         </CardHeader>
 
-        <form onSubmit={handleSubmit}>
+        {showSuccess ? (
           <CardContent className="space-y-4">
-            {error && (
-              <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
-                {error}
-              </div>
-            )}
+            <div className="p-4 text-sm bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md">
+              <h3 className="font-semibold text-green-900 dark:text-green-100 mb-2">
+                Account created successfully!
+              </h3>
+              <p className="text-green-800 dark:text-green-200">
+                Please check your email for a confirmation link. Click the link to verify your account before signing in.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button
+                onClick={() => {
+                  const redirectTo = searchParams.get("redirect") || "/login";
+                  router.push(redirectTo);
+                }}
+                className="w-full"
+              >
+                Go to Sign In
+              </Button>
+            </div>
+          </CardContent>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <CardContent className="space-y-4">
+              {error && (
+                <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+                  {error}
+                </div>
+              )}
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
               <Input
@@ -110,6 +134,19 @@ function SignupContent() {
                 disabled={isLoading}
               />
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="inviteCode">Invite Code</Label>
+              <Input
+                id="inviteCode"
+                type="text"
+                placeholder="Enter your invite code"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                required
+                disabled={isLoading}
+              />
+            </div>
           </CardContent>
 
           <CardFooter className="flex flex-col gap-4">
@@ -124,6 +161,7 @@ function SignupContent() {
             </p>
           </CardFooter>
         </form>
+        )}
       </Card>
     </div>
   );

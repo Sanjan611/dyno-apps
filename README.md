@@ -128,6 +128,7 @@ cp .env.local.example .env.local
 # - NEXT_PUBLIC_SUPABASE_ANON_KEY (your Supabase publishable key - sb_publishable_...)
 #   Note: This should be your publishable key from the Supabase dashboard.
 #   It's safe to expose in client-side code. Never use the secret key here!
+# - BETA_INVITE_CODES (comma-separated list of invite codes for beta access, e.g., "code1,code2,code3")
 ```
 
 4. Set up Supabase database:
@@ -182,6 +183,7 @@ This application is configured for deployment on Vercel. The build process autom
    - `MODAL_TOKEN_SECRET` - Modal sandbox authentication token secret
    - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase publishable key (sb_publishable_...)
+   - `BETA_INVITE_CODES` - Comma-separated list of invite codes for beta access (e.g., `beta2024,friend1,friend2`)
    
    **Important Notes:**
    - Variables prefixed with `NEXT_PUBLIC_` are exposed to the browser
