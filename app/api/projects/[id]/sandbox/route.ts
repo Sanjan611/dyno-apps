@@ -3,9 +3,11 @@ import {
   createModalClient,
   createSandbox,
   checkSandboxExists,
+  getOrCreateProjectVolume,
 } from "@/lib/server/modal";
 import { NotFoundError } from "modal";
-import { getProject, updateProjectSandboxId } from "@/lib/server/projectStore";
+import { getProject, updateProject, updateProjectSandboxId } from "@/lib/server/projectStore";
+import { createClient } from "@/lib/supabase/server";
 import {
   withAsyncParams,
   successResponse,
@@ -18,11 +20,67 @@ import type { CreateSandboxResponse, GetSandboxResponse, TerminateSandboxRespons
 // POST /api/projects/[id]/sandbox - Create or get existing sandbox
 export const POST = withAsyncParams<CreateSandboxResponse>(async (request, user, params) => {
   try {
-    const { id: projectId } = params;
-    const project = await getProject(projectId, user.id);
+    if (!params || !params.id) {
+      return notFoundResponse("Project ID is required");
+    }
+    const projectId = typeof params.id === 'string' ? params.id : await params.id;
+    console.log("[sandbox] Looking for project:", projectId, "for user:", user.id);
+    
+    let project = await getProject(projectId, user.id);
 
+    // If project doesn't exist, create it (new project scenario)
     if (!project) {
-      return notFoundResponse("Project not found");
+      console.log("[sandbox] Project not found, creating new project:", projectId);
+      try {
+        // Create project with the specified ID
+        const supabase = await createClient();
+        const { data, error } = await supabase
+          .from("projects")
+          .insert({
+            id: projectId, // Use the provided ID
+            title: "Untitled Project",
+            description: null,
+            repository_url: null,
+            current_sandbox_id: null,
+            modal_volume_id: null,
+            user_id: user.id,
+          })
+          .select("*")
+          .single();
+
+        if (error) {
+          console.error("[sandbox] Error creating project:", error);
+          // If ID already exists (e.g., belongs to another user), return error
+          return internalErrorResponse(
+            error instanceof Error ? error : new Error("Failed to create project")
+          );
+        }
+
+        if (!data) {
+          return internalErrorResponse(new Error("Failed to create project: no data returned"));
+        }
+
+        // Map the created project using the same mapping function
+        project = {
+          id: data.id,
+          title: data.title,
+          description: data.description ?? null,
+          repositoryUrl: data.repository_url ?? null,
+          currentSandboxId: data.current_sandbox_id ?? null,
+          modalVolumeId: data.modal_volume_id ?? null,
+          userId: data.user_id,
+          createdAt: data.created_at,
+          updatedAt: data.updated_at,
+        };
+        console.log("[sandbox] Created new project:", project.id);
+      } catch (error) {
+        console.error("[sandbox] Error creating project:", error);
+        return internalErrorResponse(
+          error instanceof Error ? error : new Error("Failed to create project")
+        );
+      }
+    } else {
+      console.log("[sandbox] Found existing project:", project.id, "title:", project.title);
     }
 
     const modal = createModalClient();
@@ -75,23 +133,54 @@ export const POST = withAsyncParams<CreateSandboxResponse>(async (request, user,
       }
     }
 
-    // Create a new sandbox
-    console.log("[sandbox] Creating new sandbox for project:", projectId);
-    const { sandbox } = await createSandbox(modal);
+    // Get or create volume for this project
+    const volumeName = `dyno-project-${projectId}`;
+    let volume = null;
+    let isNewVolume = false;
 
-    // Update project with new sandboxId
-    const updatedProject = await updateProjectSandboxId(projectId, user.id, sandbox.sandboxId);
+    if (project.modalVolumeId) {
+      // Project already has a volume, try to get it by name
+      // (We store volumeId but Modal volumes are accessed by name)
+      console.log("[sandbox] Project has existing volume, using:", project.modalVolumeId);
+      try {
+        volume = await getOrCreateProjectVolume(modal, volumeName);
+        // Volume exists, will skip init
+        isNewVolume = false;
+      } catch (error) {
+        console.log("[sandbox] Could not retrieve existing volume, creating new one");
+        volume = await getOrCreateProjectVolume(modal, volumeName);
+        isNewVolume = true;
+      }
+    } else {
+      // New project, create new volume
+      console.log("[sandbox] Creating new volume for project:", projectId);
+      volume = await getOrCreateProjectVolume(modal, volumeName);
+      isNewVolume = true;
+    }
+
+    // Create a new sandbox with volume attached
+    console.log("[sandbox] Creating new sandbox for project:", projectId);
+    const { sandbox } = await createSandbox(modal, volume);
+
+    // Update project with new sandboxId and volumeId
+    const updatedProject = await updateProject(projectId, user.id, {
+      currentSandboxId: sandbox.sandboxId,
+      modalVolumeId: volume.volumeId,
+    });
 
     if (!updatedProject) {
       // This shouldn't happen, but handle it gracefully
-      return internalErrorResponse(new Error("Failed to update project with sandboxId"));
+      return internalErrorResponse(new Error("Failed to update project with sandboxId and volumeId"));
     }
 
     console.log(
       "[sandbox] Created sandbox:",
       sandbox.sandboxId,
+      "with volume:",
+      volume.volumeId,
       "for project:",
-      projectId
+      projectId,
+      isNewVolume ? "(new volume)" : "(existing volume)"
     );
 
     return successResponse({
@@ -108,7 +197,10 @@ export const POST = withAsyncParams<CreateSandboxResponse>(async (request, user,
 // GET /api/projects/[id]/sandbox - Get sandbox info and status
 export const GET = withAsyncParams<GetSandboxResponse>(async (request, user, params) => {
   try {
-    const { id: projectId } = params;
+    if (!params || !params.id) {
+      return notFoundResponse("Project ID is required");
+    }
+    const projectId = typeof params.id === 'string' ? params.id : await params.id;
     const project = await getProject(projectId, user.id);
 
     if (!project) {
@@ -171,7 +263,10 @@ export const GET = withAsyncParams<GetSandboxResponse>(async (request, user, par
 // DELETE /api/projects/[id]/sandbox - Terminate sandbox (keep project, clear sandboxId)
 export const DELETE = withAsyncParams<TerminateSandboxResponse>(async (request, user, params) => {
   try {
-    const { id: projectId } = params;
+    if (!params || !params.id) {
+      return notFoundResponse("Project ID is required");
+    }
+    const projectId = typeof params.id === 'string' ? params.id : await params.id;
     const project = await getProject(projectId, user.id);
 
     if (!project) {

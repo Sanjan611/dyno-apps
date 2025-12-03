@@ -6,8 +6,8 @@ import { EXPO_PORT, TIMEOUTS } from "@/lib/constants";
 
 export async function POST(request: NextRequest) {
   try {
-    const { sandboxId } = await request.json();
-    console.log("[init-expo] Starting Expo initialization for sandbox:", sandboxId);
+    const { sandboxId, skipInit } = await request.json();
+    console.log("[init-expo] Starting Expo initialization for sandbox:", sandboxId, "skipInit:", skipInit);
 
     if (!sandboxId) {
       console.error("[init-expo] Error: sandboxId is required");
@@ -31,6 +31,20 @@ export async function POST(request: NextRequest) {
     const sandbox = await modal.sandboxes.fromId(sandboxId);
     console.log("[init-expo] Sandbox reference obtained:", sandbox.sandboxId);
 
+    // Determine if we should skip init by checking if package.json exists in volume
+    let shouldSkipInit = skipInit;
+    if (shouldSkipInit === undefined) {
+      try {
+        const packageJsonFile = await sandbox.open("/my-app/package.json", "r");
+        await packageJsonFile.close();
+        shouldSkipInit = true;
+        console.log("[init-expo] Found existing package.json, will skip Expo initialization");
+      } catch (error) {
+        shouldSkipInit = false;
+        console.log("[init-expo] No existing package.json found, will initialize Expo");
+      }
+    }
+
     // Read the startup script from local filesystem
     const scriptPath = join(process.cwd(), "scripts", "startup.sh");
     console.log("[init-expo] Reading startup script from:", scriptPath);
@@ -50,9 +64,10 @@ export async function POST(request: NextRequest) {
     await chmodProcess.wait();
     console.log("[init-expo] Script is now executable");
 
-    // Execute the startup script (don't wait for output, let it run in background)
-    console.log("[init-expo] Executing startup script...");
-    const execProcess = await sandbox.exec(["/bin/bash", "/startup.sh"], {
+    // Execute the startup script with appropriate flag
+    const initFlag = shouldSkipInit ? "--skip-init" : "--init";
+    console.log("[init-expo] Executing startup script with flag:", initFlag);
+    const execProcess = await sandbox.exec(["/bin/bash", "/startup.sh", initFlag], {
       stdout: "pipe",
       stderr: "pipe",
     });

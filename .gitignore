@@ -45,3 +45,6 @@ next-env.d.ts
 
 # BAML generated client
 baml_client/
+
+# Supabase
+supabase/.temp/

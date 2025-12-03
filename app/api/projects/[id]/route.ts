@@ -3,6 +3,7 @@ import { NotFoundError } from "modal";
 import { getProject, deleteProject } from "@/lib/server/projectStore";
 import {
   createModalClient,
+  deleteProjectVolume,
 } from "@/lib/server/modal";
 import {
   withAsyncParams,
@@ -31,11 +32,14 @@ export const DELETE = withAsyncParams<DeleteProjectResponse>(async (request, use
 
     let sandboxTerminated = false;
     let sandboxAlreadyMissing = false;
+    let volumeDeleted = false;
+    let volumeAlreadyMissing = false;
+
+    const modal = createModalClient();
 
     // Terminate sandbox if it exists
     if (project.currentSandboxId) {
       try {
-        const modal = createModalClient();
         const sandbox = await modal.sandboxes.fromId(project.currentSandboxId);
         await sandbox.terminate();
         sandboxTerminated = true;
@@ -59,6 +63,33 @@ export const DELETE = withAsyncParams<DeleteProjectResponse>(async (request, use
       }
     }
 
+    // Delete volume if it exists
+    if (project.modalVolumeId) {
+      const volumeName = `dyno-project-${projectId}`;
+      try {
+        const result = await deleteProjectVolume(modal, volumeName);
+        volumeDeleted = result.deleted;
+        volumeAlreadyMissing = result.alreadyMissing;
+        console.log(
+          "[projects] Volume deletion result:",
+          volumeName,
+          "deleted:",
+          volumeDeleted,
+          "alreadyMissing:",
+          volumeAlreadyMissing
+        );
+      } catch (error) {
+        // Log error but don't fail project deletion (defensive approach)
+        console.error(
+          "[projects] Error deleting volume:",
+          volumeName,
+          "error:",
+          error
+        );
+        // Continue with project deletion even if volume deletion fails
+      }
+    }
+
     // Delete the project
     await deleteProject(projectId, user.id);
 
@@ -68,7 +99,9 @@ export const DELETE = withAsyncParams<DeleteProjectResponse>(async (request, use
       projectId,
       sandboxTerminated,
       sandboxAlreadyMissing,
-      message: "Project and sandbox deleted successfully",
+      volumeDeleted,
+      volumeAlreadyMissing,
+      message: "Project, sandbox, and volume deleted successfully",
     });
   } catch (error) {
     console.error("[projects] Error handling delete request:", error);

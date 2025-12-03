@@ -1,7 +1,16 @@
 #!/bin/bash
 # Don't use set -e here, we want to handle errors gracefully
 
+# Parse command line arguments
+SKIP_INIT=false
+if [ "$1" = "--skip-init" ]; then
+  SKIP_INIT=true
+elif [ "$1" = "--init" ]; then
+  SKIP_INIT=false
+fi
+
 echo "=== Starting Expo initialization ==="
+echo "Skip init mode: $SKIP_INIT"
 
 # Verify Node.js/npm installation
 echo "Checking Node.js and npm..."
@@ -12,13 +21,17 @@ npm --version || { echo "ERROR: npm not found"; exit 1; }
 echo "Installing Expo CLI..."
 npm install -g @expo/cli || { echo "ERROR: Failed to install Expo CLI"; exit 1; }
 
-# Create new Expo app with blank template (non-interactive)
-echo "Creating Expo app..."
-npx create-expo-app@latest my-app --template blank --yes || { echo "ERROR: Failed to create Expo app"; exit 1; }
+# Navigate to app directory (volume mount point)
+echo "Navigating to app directory (/my-app)..."
+cd /my-app || { echo "ERROR: Failed to navigate to /my-app directory"; exit 1; }
 
-# Navigate to app directory
-echo "Navigating to app directory..."
-cd my-app || { echo "ERROR: Failed to navigate to app directory"; exit 1; }
+# Create new Expo app only if not skipping init
+if [ "$SKIP_INIT" = false ]; then
+  echo "Creating Expo app in /my-app..."
+  npx create-expo-app@latest . --template blank --yes || { echo "ERROR: Failed to create Expo app"; exit 1; }
+else
+  echo "Skipping Expo app creation (using existing code in volume)"
+fi
 
 # Install required dependencies for web support
 echo "Installing web dependencies (react-dom, react-native-web)..."

@@ -101,6 +101,8 @@ export interface DeleteProjectResponse {
   projectId?: string;
   sandboxTerminated?: boolean;
   sandboxAlreadyMissing?: boolean;
+  volumeDeleted?: boolean;
+  volumeAlreadyMissing?: boolean;
   error?: string;
 }
 
@@ -171,6 +173,7 @@ export interface GenerateCodeRequest {
  */
 export interface InitExpoRequest {
   sandboxId: string;
+  skipInit?: boolean;
 }
 
 /**
