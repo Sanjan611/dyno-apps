@@ -17,9 +17,9 @@ echo "Checking Node.js and npm..."
 node --version || { echo "ERROR: Node.js not found"; exit 1; }
 npm --version || { echo "ERROR: npm not found"; exit 1; }
 
-# Install Expo CLI globally
-echo "Installing Expo CLI..."
-npm install -g @expo/cli || { echo "ERROR: Failed to install Expo CLI"; exit 1; }
+# Verify Expo CLI is available (pre-installed in image)
+echo "Checking Expo CLI..."
+npx expo --version || { echo "ERROR: Expo CLI not found"; exit 1; }
 
 # Navigate to app directory (volume mount point)
 echo "Navigating to app directory (/my-app)..."

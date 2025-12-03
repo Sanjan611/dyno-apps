@@ -30,10 +30,17 @@ export async function getOrCreateModalApp(modal: ModalClient) {
 }
 
 /**
- * Gets the Node.js image for sandboxes
+ * Gets or creates the Node.js image with Expo CLI pre-installed for sandboxes
+ * This image is cached and reused across all sandboxes
  */
-export function getNodeImage(modal: ModalClient) {
-  return modal.images.fromRegistry("node:20-slim");
+export async function getNodeImage(modal: ModalClient) {
+  const baseImage = modal.images.fromRegistry("node:20-slim");
+  
+  // Extend the base image with Expo CLI installation
+  // This creates a new image layer that will be cached and reused
+  return baseImage.dockerfileCommands([
+    "RUN npm install -g @expo/cli"
+  ]);
 }
 
 /**
@@ -61,7 +68,7 @@ export async function createSandbox(
   volume?: Volume
 ) {
   const app = await getOrCreateModalApp(modal);
-  const image = getNodeImage(modal);
+  const image = await getNodeImage(modal);
   
   const sandboxOptions: {
     unencryptedPorts: number[];
