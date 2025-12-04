@@ -16,11 +16,7 @@ import ChatInput from "./ChatInput";
 import type { Message } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 
-interface ChatPanelProps {
-  initialPrompt?: string;
-}
-
-export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
+export default function ChatPanel() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -36,7 +32,6 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
   const [logs, setLogs] = useState<any>(null);
   const { setSandboxId, setPreviewUrl, sandboxId, setProjectId, projectId } = useBuilderStore();
   const [hasSentInitialMessage, setHasSentInitialMessage] = useState(false);
-  const hasAutoSubmitted = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { generateCode } = useCodeGeneration();
@@ -143,14 +138,6 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
     setInput("");
     await sendMessage(message);
   };
-
-  useEffect(() => {
-    const prompt = initialPrompt?.trim();
-    if (!prompt || hasAutoSubmitted.current) return;
-
-    hasAutoSubmitted.current = true;
-    sendMessage(prompt);
-  }, [initialPrompt, sendMessage]);
 
   return (
     <div className="flex flex-col h-full bg-white relative">

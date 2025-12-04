@@ -44,7 +44,6 @@ function BuilderContent() {
     projectId,
     reset,
   } = useBuilderStore();
-  const initialPrompt = searchParams.get("prompt") ?? "";
 
   const { sandboxMissing, isValidatingSandbox } = useProjectLoader({
     setProjectId,
@@ -109,16 +108,12 @@ function BuilderContent() {
                 <CardTitle>Sandbox Not Found</CardTitle>
               </div>
               <CardDescription className="mt-2">
-                The sandbox for this project no longer exists. You can go back to the gallery or
-                start a new project.
+                The sandbox for this project no longer exists. Please go back to the gallery to create a new project or open an existing one.
               </CardDescription>
             </CardHeader>
             <CardFooter className="flex gap-3 justify-end">
               <Button variant="outline" asChild>
                 <Link href="/project-gallery">Back to Gallery</Link>
-              </Button>
-              <Button asChild className="bg-primary">
-                <Link href="/builder">Start New Project</Link>
               </Button>
             </CardFooter>
           </Card>
@@ -132,7 +127,7 @@ function BuilderContent() {
         <div ref={containerRef} className="flex-1 flex overflow-hidden relative">
           {/* Left Panel (Chat) */}
           <div className="h-full overflow-hidden bg-white z-10 shadow-xl shadow-slate-200/50" style={{ width: `${leftWidth}%` }}>
-            <ChatPanel initialPrompt={initialPrompt} />
+            <ChatPanel />
           </div>
 
           {/* Resizer */}

@@ -75,8 +75,43 @@ export const POST = withAuth(async (request, user) => {
 
     console.log("[projects] Created project:", project.id, "(sandbox will be created when opened)");
 
-    // Create corresponding GitHub repository for this project
-    const githubResult = await createProjectRepo({ projectId: project.id });
+    // Create corresponding GitHub repository for this project (blocking)
+    let githubResult;
+    try {
+      githubResult = await createProjectRepo({ projectId: project.id });
+    } catch (githubError) {
+      // GitHub repo creation failed (network error, timeout, etc.)
+      console.error(
+        "[projects] Error creating GitHub repo for project:",
+        project.id,
+        "error:",
+        githubError instanceof Error ? githubError.message : githubError
+      );
+
+      // Roll back project creation if GitHub repo creation fails
+      try {
+        await deleteProject(project.id, user.id);
+        console.log(
+          "[projects] Rolled back project",
+          project.id,
+          "after GitHub repo creation failure"
+        );
+      } catch (rollbackError) {
+        console.error(
+          "[projects] Failed to roll back project after GitHub error:",
+          project.id,
+          rollbackError
+        );
+      }
+
+      return internalErrorResponse(
+        new Error(
+          githubError instanceof Error
+            ? `Failed to create backing GitHub repository: ${githubError.message}`
+            : "Failed to create backing GitHub repository for project"
+        )
+      );
+    }
 
     if (!githubResult.ok) {
       console.error(
