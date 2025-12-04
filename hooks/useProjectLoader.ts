@@ -6,6 +6,12 @@ interface UseProjectLoaderOptions {
   setProjectId: (id: string | null) => void;
   setProjectName: (name: string) => void;
   setSandboxId: (id: string | null) => void;
+  /**
+   * Optional reset callback for clearing builder state when starting a new project.
+   * This is passed from the builder store so that a fresh project is always created
+   * (and corresponding GitHub repo) when visiting /builder without a projectId.
+   */
+  reset?: () => void;
 }
 
 /**
@@ -16,6 +22,7 @@ export function useProjectLoader({
   setProjectId,
   setProjectName,
   setSandboxId,
+  reset,
 }: UseProjectLoaderOptions) {
   const [sandboxMissing, setSandboxMissing] = useState(false);
   const [isValidatingSandbox, setIsValidatingSandbox] = useState(false);
@@ -126,8 +133,20 @@ export function useProjectLoader({
     } else if (sandboxIdParam) {
       // Direct sandboxId provided
       setSandboxId(sandboxIdParam);
+    } else {
+      // No projectId in URL – treat this as starting a brand new project in the builder.
+      // Clear any persisted builder state so that initializeProject POSTs /api/projects,
+      // which in turn creates the backing GitHub repository.
+      if (reset) {
+        reset();
+      } else {
+        // Fallback: minimally clear project-specific state
+        setProjectId(null);
+        setSandboxId(null);
+        setProjectName(DEFAULT_PROJECT_NAME);
+      }
     }
-  }, [searchParams, setProjectId, setProjectName, setSandboxId]);
+  }, [searchParams, setProjectId, setProjectName, setSandboxId, reset]);
 
   return {
     sandboxMissing,

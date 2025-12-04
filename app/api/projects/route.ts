@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import {
   addProject,
+  deleteProject,
   formatRelativeTime,
   getAllProjects,
   getProject,
@@ -13,6 +14,7 @@ import {
   badRequestResponse,
   internalErrorResponse,
 } from "@/lib/server/api-utils";
+import { createProjectRepo } from "@/lib/server/github";
 import type { GetProjectsResponse, GetProjectResponse } from "@/types/api";
 
 // GET /api/projects - Get all projects or a single project by ID
@@ -73,10 +75,77 @@ export const POST = withAuth(async (request, user) => {
 
     console.log("[projects] Created project:", project.id, "(sandbox will be created when opened)");
 
+    // Create corresponding GitHub repository for this project
+    const githubResult = await createProjectRepo({ projectId: project.id });
+
+    if (!githubResult.ok) {
+      console.error(
+        "[projects] Error creating GitHub repo for project:",
+        project.id,
+        "status:",
+        githubResult.status,
+        "message:",
+        githubResult.message
+      );
+
+      // Roll back project creation if GitHub repo creation fails
+      try {
+        await deleteProject(project.id, user.id);
+        console.log(
+          "[projects] Rolled back project",
+          project.id,
+          "after GitHub repo creation failure"
+        );
+      } catch (rollbackError) {
+        console.error(
+          "[projects] Failed to roll back project after GitHub error:",
+          project.id,
+          rollbackError
+        );
+      }
+
+      return internalErrorResponse(
+        new Error(
+          githubResult.message ||
+            "Failed to create backing GitHub repository for project"
+        )
+      );
+    }
+
+    // GitHub repo created successfully - update project with repository URL
+    console.log("[projects] GitHub repo created successfully:", githubResult.message);
+    
+    if (!githubResult.repositoryUrl) {
+      console.warn("[projects] GitHub repo created but repositoryUrl is missing");
+      // Continue without repository URL - this shouldn't happen but handle gracefully
+      return successResponse({
+        project: {
+          ...project,
+          lastModified: formatRelativeTime(project.updatedAt),
+        },
+      });
+    }
+
+    const updatedProject = await updateProject(project.id, user.id, {
+      repositoryUrl: githubResult.repositoryUrl,
+    });
+    
+    if (!updatedProject) {
+      console.error("[projects] Failed to update project with repository URL");
+      // Return project without URL rather than failing completely
+      return successResponse({
+        project: {
+          ...project,
+          lastModified: formatRelativeTime(project.updatedAt),
+        },
+      });
+    }
+
+    console.log("[projects] Updated project with repository URL:", githubResult.repositoryUrl);
     return successResponse({
       project: {
-        ...project,
-        lastModified: formatRelativeTime(project.updatedAt),
+        ...updatedProject,
+        lastModified: formatRelativeTime(updatedProject.updatedAt),
       },
     });
   } catch (error) {

@@ -41,8 +41,6 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
 
   const { generateCode } = useCodeGeneration();
   const { initializeProject, initializeExpo } = useProjectSession({
-    projectId,
-    sandboxId,
     setProjectId,
     setSandboxId,
     setPreviewUrl,
@@ -83,7 +81,7 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
             await initializeProject(newMessage);
 
           // Initialize Expo
-          await initializeExpo(currentSandboxId);
+          await initializeExpo(currentSandboxId, currentProjectId);
 
           // Generate code
           await generateCode(newMessage.content, currentProjectId, setMessages);
@@ -102,7 +100,9 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
       }
 
       // Subsequent messages: just call the coding agent
-      if (!projectId) {
+      // Read projectId from store at call time to avoid stale closure values
+      const currentProjectId = useBuilderStore.getState().projectId;
+      if (!currentProjectId) {
         const errorMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: "assistant",
@@ -115,7 +115,7 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
 
       setIsLoading(true);
       try {
-        await generateCode(newMessage.content, projectId, setMessages);
+        await generateCode(newMessage.content, currentProjectId, setMessages);
       } catch (error) {
         const errorMessage: Message = {
           id: (Date.now() + 2).toString(),
@@ -130,7 +130,6 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
     },
     [
       hasSentInitialMessage,
-      projectId,
       initializeProject,
       initializeExpo,
       generateCode,

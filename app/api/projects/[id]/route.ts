@@ -5,6 +5,7 @@ import {
   createModalClient,
   deleteProjectVolume,
 } from "@/lib/server/modal";
+import { deleteProjectRepo } from "@/lib/server/github";
 import {
   withAsyncParams,
   successResponse,
@@ -34,6 +35,8 @@ export const DELETE = withAsyncParams<DeleteProjectResponse>(async (request, use
     let sandboxAlreadyMissing = false;
     let volumeDeleted = false;
     let volumeAlreadyMissing = false;
+    let githubRepoDeleted = false;
+    let githubRepoAlreadyMissing = false;
 
     const modal = createModalClient();
 
@@ -90,6 +93,32 @@ export const DELETE = withAsyncParams<DeleteProjectResponse>(async (request, use
       }
     }
 
+    // Delete backing GitHub repository (best-effort, non-fatal)
+    try {
+      const githubResult = await deleteProjectRepo({ projectId });
+      githubRepoDeleted = githubResult.ok && !githubResult.notFound;
+      githubRepoAlreadyMissing = !!githubResult.notFound;
+
+      if (!githubResult.ok) {
+        console.error(
+          "[projects] Error deleting GitHub repo for project:",
+          projectId,
+          "status:",
+          githubResult.status,
+          "message:",
+          githubResult.message
+        );
+      }
+    } catch (error) {
+      // Log error but don't fail project deletion
+      console.error(
+        "[projects] Error deleting GitHub repo for project:",
+        projectId,
+        "error:",
+        error
+      );
+    }
+
     // Delete the project
     await deleteProject(projectId, user.id);
 
@@ -101,7 +130,9 @@ export const DELETE = withAsyncParams<DeleteProjectResponse>(async (request, use
       sandboxAlreadyMissing,
       volumeDeleted,
       volumeAlreadyMissing,
-      message: "Project, sandbox, and volume deleted successfully",
+      githubRepoDeleted,
+      githubRepoAlreadyMissing,
+      message: "Project, sandbox, volume, and GitHub repo deleted (where applicable)",
     });
   } catch (error) {
     console.error("[projects] Error handling delete request:", error);

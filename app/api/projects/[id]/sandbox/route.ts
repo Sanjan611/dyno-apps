@@ -7,7 +7,6 @@ import {
 } from "@/lib/server/modal";
 import { NotFoundError } from "modal";
 import { getProject, updateProject, updateProjectSandboxId } from "@/lib/server/projectStore";
-import { createClient } from "@/lib/supabase/server";
 import {
   withAsyncParams,
   successResponse,
@@ -25,63 +24,15 @@ export const POST = withAsyncParams<CreateSandboxResponse>(async (request, user,
     }
     const projectId = typeof params.id === 'string' ? params.id : await params.id;
     console.log("[sandbox] Looking for project:", projectId, "for user:", user.id);
-    
-    let project = await getProject(projectId, user.id);
 
-    // If project doesn't exist, create it (new project scenario)
+    const project = await getProject(projectId, user.id);
+
     if (!project) {
-      console.log("[sandbox] Project not found, creating new project:", projectId);
-      try {
-        // Create project with the specified ID
-        const supabase = await createClient();
-        const { data, error } = await supabase
-          .from("projects")
-          .insert({
-            id: projectId, // Use the provided ID
-            title: "Untitled Project",
-            description: null,
-            repository_url: null,
-            current_sandbox_id: null,
-            modal_volume_id: null,
-            user_id: user.id,
-          })
-          .select("*")
-          .single();
-
-        if (error) {
-          console.error("[sandbox] Error creating project:", error);
-          // If ID already exists (e.g., belongs to another user), return error
-          return internalErrorResponse(
-            error instanceof Error ? error : new Error("Failed to create project")
-          );
-        }
-
-        if (!data) {
-          return internalErrorResponse(new Error("Failed to create project: no data returned"));
-        }
-
-        // Map the created project using the same mapping function
-        project = {
-          id: data.id,
-          title: data.title,
-          description: data.description ?? null,
-          repositoryUrl: data.repository_url ?? null,
-          currentSandboxId: data.current_sandbox_id ?? null,
-          modalVolumeId: data.modal_volume_id ?? null,
-          userId: data.user_id,
-          createdAt: data.created_at,
-          updatedAt: data.updated_at,
-        };
-        console.log("[sandbox] Created new project:", project.id);
-      } catch (error) {
-        console.error("[sandbox] Error creating project:", error);
-        return internalErrorResponse(
-          error instanceof Error ? error : new Error("Failed to create project")
-        );
-      }
-    } else {
-      console.log("[sandbox] Found existing project:", project.id, "title:", project.title);
+      console.log("[sandbox] Project not found for sandbox creation:", projectId);
+      return notFoundResponse("Project not found");
     }
+
+    console.log("[sandbox] Found existing project:", project.id, "title:", project.title);
 
     const modal = createModalClient();
 

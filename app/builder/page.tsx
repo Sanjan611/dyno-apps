@@ -36,13 +36,21 @@ function BuilderContent() {
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
-  const { projectName, setProjectName, setProjectId, setSandboxId, projectId } = useBuilderStore();
+  const {
+    projectName,
+    setProjectName,
+    setProjectId,
+    setSandboxId,
+    projectId,
+    reset,
+  } = useBuilderStore();
   const initialPrompt = searchParams.get("prompt") ?? "";
 
   const { sandboxMissing, isValidatingSandbox } = useProjectLoader({
     setProjectId,
     setProjectName,
     setSandboxId,
+    reset,
   });
 
   const handleMouseDown = () => {

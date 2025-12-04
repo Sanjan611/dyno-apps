@@ -1,10 +1,9 @@
 import { useCallback } from "react";
 import type { Message } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
+import { useBuilderStore } from "@/lib/store";
 
 interface UseProjectSessionOptions {
-  projectId: string | null;
-  sandboxId: string | null;
   setProjectId: (id: string | null) => void;
   setSandboxId: (id: string | null) => void;
   setPreviewUrl: (url: string | null) => void;
@@ -16,8 +15,6 @@ interface UseProjectSessionOptions {
  * Handles project creation, sandbox setup, and Expo initialization
  */
 export function useProjectSession({
-  projectId,
-  sandboxId,
   setProjectId,
   setSandboxId,
   setPreviewUrl,
@@ -25,8 +22,11 @@ export function useProjectSession({
 }: UseProjectSessionOptions) {
   const initializeProject = useCallback(
     async (firstMessage: Message): Promise<{ projectId: string; sandboxId: string }> => {
-      let currentProjectId = projectId;
-      let currentSandboxId = sandboxId;
+      // Read current values directly from store to avoid stale closure values
+      // This is critical for new projects where the store may have been reset
+      const storeState = useBuilderStore.getState();
+      let currentProjectId = storeState.projectId;
+      let currentSandboxId = storeState.sandboxId;
 
       // If no project exists, create one first
       if (!currentProjectId) {
@@ -98,17 +98,41 @@ export function useProjectSession({
 
       return { projectId: projectIdString, sandboxId: sandboxIdString };
     },
-    [projectId, sandboxId, setProjectId, setSandboxId, setMessages]
+    [setProjectId, setSandboxId, setMessages]
   );
 
   const initializeExpo = useCallback(
-    async (sandboxId: string): Promise<string> => {
+    async (sandboxId: string, projectId?: string): Promise<string> => {
+      // Fetch project to get repositoryUrl if projectId is provided
+      let repositoryUrl: string | null = null;
+      if (projectId) {
+        try {
+          const projectResponse = await fetch(
+            `${API_ENDPOINTS.PROJECTS}?projectId=${projectId}`
+          );
+          
+          if (!projectResponse.ok) {
+            console.warn(
+              `[useProjectSession] Failed to fetch project: ${projectResponse.status} ${projectResponse.statusText}`
+            );
+          } else {
+            const projectData = await projectResponse.json();
+            if (projectData.success && projectData.project?.repositoryUrl) {
+              repositoryUrl = projectData.project.repositoryUrl;
+            }
+          }
+        } catch (error) {
+          console.error("[useProjectSession] Error fetching project:", error);
+          // Continue without repositoryUrl if fetch fails - not critical for initialization
+        }
+      }
+
       const initResponse = await fetch(API_ENDPOINTS.INIT_EXPO, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ sandboxId }),
+        body: JSON.stringify({ sandboxId, repositoryUrl }),
       });
 
       const initData = await initResponse.json();

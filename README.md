@@ -130,6 +130,8 @@ cp .env.local.example .env.local
 #   Note: This should be your publishable key from the Supabase dashboard.
 #   It's safe to expose in client-side code. Never use the secret key here!
 # - BETA_INVITE_CODES (comma-separated list of invite codes for beta access, e.g., "code1,code2,code3")
+# - GITHUB_ORG_NAME (the GitHub organization where project repos will be created)
+# - GITHUB_PAT (a GitHub Personal Access Token with repo permissions for that org; keep this server-side only)
 ```
 
 4. Set up Supabase database:
