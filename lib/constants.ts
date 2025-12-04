@@ -132,11 +132,11 @@ export const API_ENDPOINTS = {
   PROJECT_SANDBOX_HEALTH: (id: string) => `/api/projects/${id}/sandbox/health`,
   PROJECT_SAVE: (id: string) => `/api/projects/${id}/save`,
   PROJECT_LOAD: (id: string) => `/api/projects/${id}/load`,
+  PROJECT_CHAT: (id: string) => `/api/projects/${id}/chat`,
   
   // Code generation
-  GENERATE_CODE_STREAM: "/api/generate-code-stream",
   INIT_EXPO: "/api/init-expo",
-  SANDBOX_LOGS: "/api/sandbox-logs",
+  PROJECT_SANDBOX_LOGS: (id: string) => `/api/projects/${id}/sandbox/logs`,
 } as const;
 
 // ============================================================================
@@ -182,7 +182,7 @@ export const ERROR_MESSAGES = {
 export const LOG_PREFIXES = {
   SANDBOX: "[sandbox]",
   PROJECTS: "[projects]",
-  GENERATE_CODE: "[generate-code-stream]",
+  CHAT: "[chat]",
   INIT_EXPO: "[init-expo]",
   AUTH: "[auth]",
 } as const;

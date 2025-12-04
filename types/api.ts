@@ -161,11 +161,10 @@ export interface TerminateSandboxResponse {
 // ============================================================================
 
 /**
- * POST /api/generate-code-stream - Request body
+ * POST /api/projects/[id]/chat - Request body
  */
-export interface GenerateCodeRequest {
+export interface ChatRequest {
   userPrompt: string;
-  sandboxId: string;
 }
 
 /**
@@ -269,7 +268,7 @@ export interface LoadProjectResponse {
 // ============================================================================
 
 /**
- * GET /api/sandbox-logs - Response
+ * GET /api/projects/[id]/sandbox/logs - Response
  */
 export interface SandboxLogsResponse {
   success: boolean;

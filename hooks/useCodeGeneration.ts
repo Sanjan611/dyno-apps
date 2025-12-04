@@ -98,17 +98,20 @@ export function useCodeGeneration() {
   const generateCode = useCallback(
     async (
       userPrompt: string,
-      sandboxId: string,
+      projectId: string,
       setMessages: React.Dispatch<React.SetStateAction<Message[]>>
     ): Promise<void> => {
-      const response = await fetch(API_ENDPOINTS.GENERATE_CODE_STREAM, {
+      if (!projectId) {
+        throw new Error("Project ID is required");
+      }
+
+      const response = await fetch(API_ENDPOINTS.PROJECT_CHAT(projectId), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           userPrompt,
-          sandboxId,
         }),
       });
 

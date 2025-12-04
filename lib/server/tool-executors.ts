@@ -11,7 +11,7 @@ import type {
   TodoWriteTool,
   TodoTools,
 } from "@/baml_client/types";
-import { WORKING_DIR, CONTENT_LIMITS, TIMEOUTS } from "@/lib/constants";
+import { WORKING_DIR, CONTENT_LIMITS, TIMEOUTS, LOG_PREFIXES } from "@/lib/constants";
 
 // Type for single (non-array) tools
 export type SingleTool = ListFilesTool | ReadFileTool | WriteFileTool | BashTool | TodoWriteTool | VerifyExpoServerTool;
@@ -89,7 +89,7 @@ async function executeLintCheck(
   workingDir: string
 ): Promise<string> {
   try {
-    console.log("[generate-code-stream] Running lint check in", workingDir);
+    console.log(`${LOG_PREFIXES.CHAT} Running lint check in`, workingDir);
 
     let result = "Lint check results:\n\n";
     
@@ -103,9 +103,9 @@ async function executeLintCheck(
     const prettierStderr = await prettierProcess.stderr.readText();
     await prettierProcess.wait();
 
-    console.log("[generate-code-stream] Prettier output:");
-    if (prettierStdout) console.log("[generate-code-stream] Prettier stdout:", prettierStdout);
-    if (prettierStderr) console.log("[generate-code-stream] Prettier stderr:", prettierStderr);
+    console.log(`${LOG_PREFIXES.CHAT} Prettier output:`);
+    if (prettierStdout) console.log(`${LOG_PREFIXES.CHAT} Prettier stdout:`, prettierStdout);
+    if (prettierStderr) console.log(`${LOG_PREFIXES.CHAT} Prettier stderr:`, prettierStderr);
 
     if (prettierStdout || prettierStderr) {
       result += "Prettier output:\n";
@@ -125,11 +125,11 @@ async function executeLintCheck(
       const eslintStderr = await eslintProcess.stderr.readText();
       await eslintProcess.wait();
 
-      console.log("[generate-code-stream] ESLint output:");
-      if (eslintStdout) console.log("[generate-code-stream] ESLint stdout:", eslintStdout);
-      if (eslintStderr) console.log("[generate-code-stream] ESLint stderr:", eslintStderr);
+      console.log(`${LOG_PREFIXES.CHAT} ESLint output:`);
+      if (eslintStdout) console.log(`${LOG_PREFIXES.CHAT} ESLint stdout:`, eslintStdout);
+      if (eslintStderr) console.log(`${LOG_PREFIXES.CHAT} ESLint stderr:`, eslintStderr);
       if (!eslintStdout && !eslintStderr) {
-        console.log("[generate-code-stream] ESLint: No issues found");
+        console.log(`${LOG_PREFIXES.CHAT} ESLint: No issues found`);
       }
       
       if (eslintStdout || eslintStderr) {
@@ -146,7 +146,7 @@ async function executeLintCheck(
       result = result.substring(0, CONTENT_LIMITS.LINT_OUTPUT) + "\n... (lint output truncated)";
     }
 
-    console.log("[generate-code-stream] Lint check completed. Result length:", result.length, "characters");
+    console.log(`${LOG_PREFIXES.CHAT} Lint check completed. Result length:`, result.length, "characters");
     return result;
   } catch (error) {
     const errorMessage =
@@ -176,13 +176,13 @@ async function executeWriteFile(
     // Run lint checks after successful write (only for files in working directory)
     if (tool.filePath.startsWith(workingDir) || tool.filePath.startsWith(WORKING_DIR)) {
       try {
-        console.log("[generate-code-stream] Triggering lint check after writing file:", tool.filePath);
+        console.log(`${LOG_PREFIXES.CHAT} Triggering lint check after writing file:`, tool.filePath);
         const lintResults = await executeLintCheck(sandbox, workingDir);
         result += `\n\n${lintResults}`;
-        console.log("[generate-code-stream] Lint check results:", lintResults);
+        console.log(`${LOG_PREFIXES.CHAT} Lint check results:`, lintResults);
       } catch (lintError) {
         // Don't fail the write operation if lint check fails
-        console.error("[generate-code-stream] Lint check failed:", lintError);
+        console.error(`${LOG_PREFIXES.CHAT} Lint check failed:`, lintError);
         result += `\n\n(Lint check encountered an error, but file was written successfully)`;
       }
     }
@@ -205,7 +205,7 @@ async function executeBashCommand(
     const timeout = tool.timeout || TIMEOUTS.BASH_COMMAND_DEFAULT;
     const maxTimeout = Math.min(timeout, TIMEOUTS.BASH_COMMAND_MAX);
     
-    console.log(`[generate-code-stream] Executing bash command: ${tool.command} (timeout: ${maxTimeout}ms)`);
+    console.log(`${LOG_PREFIXES.CHAT} Executing bash command: ${tool.command} (timeout: ${maxTimeout}ms)`);
     
     // Execute command using bash -c in the sandbox
     const process = await sandbox.exec(["bash", "-c", tool.command]);
@@ -290,7 +290,7 @@ async function executeVerifyExpoServer(
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     result = `Error reading Expo logs: ${errorMessage}`;
   }
-  console.log("[generate-code-stream] Expo server logs:", result);
+  console.log(`${LOG_PREFIXES.CHAT} Expo server logs:`, result);
   return result;
 }
 

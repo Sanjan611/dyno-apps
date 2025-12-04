@@ -1,32 +1,38 @@
-import { NextRequest, NextResponse } from "next/server";
-import { ModalClient } from "modal";
+import { NextRequest } from "next/server";
+import { createModalClient } from "@/lib/server/modal";
+import { getProject } from "@/lib/server/projectStore";
+import {
+  withAsyncParams,
+  successResponse,
+  notFoundResponse,
+  internalErrorResponse,
+} from "@/lib/server/api-utils";
 import { SANDBOX_WORKING_DIR } from "@/lib/constants";
+import type { SandboxLogsResponse } from "@/types/api";
 
-export async function GET(request: NextRequest) {
+// GET /api/projects/[id]/sandbox/logs - Get sandbox logs
+export const GET = withAsyncParams<SandboxLogsResponse>(async (request, user, params) => {
   try {
-    const { searchParams } = new URL(request.url);
-    const sandboxId = searchParams.get("sandboxId");
+    if (!params || !params.id) {
+      return notFoundResponse("Project ID is required");
+    }
+    const projectId = typeof params.id === 'string' ? params.id : await params.id;
+    const project = await getProject(projectId, user.id);
 
-    if (!sandboxId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "sandboxId query parameter is required",
-        },
-        { status: 400 }
-      );
+    if (!project) {
+      return notFoundResponse("Project not found");
     }
 
-    console.log("[sandbox-logs] Fetching logs for sandbox:", sandboxId);
+    if (!project.currentSandboxId) {
+      return notFoundResponse("Project has no associated sandbox");
+    }
 
-    // Modal credentials are read from environment variables
-    const modal = new ModalClient({
-      tokenId: process.env.MODAL_TOKEN_ID,
-      tokenSecret: process.env.MODAL_TOKEN_SECRET,
-    });
+    console.log("[sandbox-logs] Fetching logs for sandbox:", project.currentSandboxId, "project:", projectId);
+
+    const modal = createModalClient();
 
     // Get the sandbox reference
-    const sandbox = await modal.sandboxes.fromId(sandboxId);
+    const sandbox = await modal.sandboxes.fromId(project.currentSandboxId);
 
     // Try to read the Expo log file if it exists
     let expoLogs = "";
@@ -76,8 +82,7 @@ export async function GET(request: NextRequest) {
       console.log("[sandbox-logs] Could not check app directory:", error);
     }
 
-    return NextResponse.json({
-      success: true,
+    return successResponse({
       logs: {
         expoLogs,
         processCheck,
@@ -87,15 +92,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("[sandbox-logs] Error fetching logs:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-        details: error instanceof Error ? error.stack : undefined,
-      },
-      { status: 500 }
-    );
+    return internalErrorResponse(error);
   }
-}
-
+});
 

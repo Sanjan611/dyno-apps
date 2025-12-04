@@ -32,7 +32,7 @@ import {
   extractFilesFromState,
   areAllTodosCompleted,
   extractToolParams,
-} from "@/app/api/generate-code-stream/tool-executors";
+} from "@/lib/server/tool-executors";
 import { WORKING_DIR, LOG_PREFIXES } from "@/lib/constants";
 import type { SSEProgressEvent } from "@/types";
 
@@ -95,7 +95,7 @@ async function callCodingAgentWithRetry(
       
       // Success - return the response
       if (attempt > 0) {
-        console.log(`${LOG_PREFIXES.GENERATE_CODE} CodingAgent succeeded on retry attempt ${attempt}`);
+        console.log(`${LOG_PREFIXES.CHAT} CodingAgent succeeded on retry attempt ${attempt}`);
       }
       return response;
     } catch (error) {
@@ -110,16 +110,16 @@ async function callCodingAgentWithRetry(
           // Calculate exponential backoff delay: 1s, 2s, 4s
           const delayMs = Math.pow(2, attempt) * 1000;
           console.log(
-            `${LOG_PREFIXES.GENERATE_CODE} CodingAgent validation error on attempt ${attempt + 1}/${maxRetries + 1}, retrying in ${delayMs}ms...`
+            `${LOG_PREFIXES.CHAT} CodingAgent validation error on attempt ${attempt + 1}/${maxRetries + 1}, retrying in ${delayMs}ms...`
           );
-          console.error(`${LOG_PREFIXES.GENERATE_CODE} Validation error details:`, error.detailed_message || error.message);
+          console.error(`${LOG_PREFIXES.CHAT} Validation error details:`, error.detailed_message || error.message);
           
           // Wait before retrying
           await new Promise(resolve => setTimeout(resolve, delayMs));
         } else {
           // All retries exhausted
           console.error(
-            `${LOG_PREFIXES.GENERATE_CODE} CodingAgent failed after ${maxRetries + 1} attempts with validation error`
+            `${LOG_PREFIXES.CHAT} CodingAgent failed after ${maxRetries + 1} attempts with validation error`
           );
         }
       } else {
@@ -156,24 +156,24 @@ export function formatErrorForStream(
   if (error instanceof BamlAbortError) {
     errorMessage = `${contextPrefix}operation was cancelled`;
     errorDetails = error.reason || error.message;
-    console.error(`${LOG_PREFIXES.GENERATE_CODE} ${errorMessage}:`, error.message);
-    console.error(`${LOG_PREFIXES.GENERATE_CODE} Cancellation reason:`, error.reason);
+    console.error(`${LOG_PREFIXES.CHAT} ${errorMessage}:`, error.message);
+    console.error(`${LOG_PREFIXES.CHAT} Cancellation reason:`, error.reason);
   } else if (error instanceof BamlValidationError || error instanceof BamlClientFinishReasonError) {
     errorMessage = `${contextPrefix}encountered a BAML error`;
     errorDetails = error.detailed_message || error.message;
-    console.error(`${LOG_PREFIXES.GENERATE_CODE} ${errorMessage}:`, error.message);
-    console.error(`${LOG_PREFIXES.GENERATE_CODE} BAML error detailed message:`, error.detailed_message);
+    console.error(`${LOG_PREFIXES.CHAT} ${errorMessage}:`, error.message);
+    console.error(`${LOG_PREFIXES.CHAT} BAML error detailed message:`, error.detailed_message);
     if (error.raw_output) {
-      console.error(`${LOG_PREFIXES.GENERATE_CODE} BAML error raw output:`, error.raw_output);
+      console.error(`${LOG_PREFIXES.CHAT} BAML error raw output:`, error.raw_output);
     }
   } else {
     errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.includes("BamlError:")) {
-      console.error(`${LOG_PREFIXES.GENERATE_CODE} ${contextPrefix}BAML error:`, errorMessage);
+      console.error(`${LOG_PREFIXES.CHAT} ${contextPrefix}BAML error:`, errorMessage);
     } else {
-      console.error(`${LOG_PREFIXES.GENERATE_CODE} ${contextPrefix}Error:`, errorMessage);
+      console.error(`${LOG_PREFIXES.CHAT} ${contextPrefix}Error:`, errorMessage);
       if (error instanceof Error) {
-        console.error(`${LOG_PREFIXES.GENERATE_CODE} Error stack:`, error.stack);
+        console.error(`${LOG_PREFIXES.CHAT} Error stack:`, error.stack);
         errorDetails = error.stack;
       }
     }
@@ -241,16 +241,16 @@ export async function runCodingAgent(
   }
 
   // Get the sandbox reference
-  console.log(`${LOG_PREFIXES.GENERATE_CODE} Getting sandbox reference...`);
+  console.log(`${LOG_PREFIXES.CHAT} Getting sandbox reference...`);
   const sandbox = await modal.sandboxes.fromId(sandboxId);
-  console.log(`${LOG_PREFIXES.GENERATE_CODE} Sandbox reference obtained:`, sandbox.sandboxId);
+  console.log(`${LOG_PREFIXES.CHAT} Sandbox reference obtained:`, sandbox.sandboxId);
 
   const modifiedFiles: Record<string, string> = {};
 
   // ============================================
   // CODING AGENT
   // ============================================
-  console.log(`${LOG_PREFIXES.GENERATE_CODE} Starting code generation...`);
+  console.log(`${LOG_PREFIXES.CHAT} Starting code generation...`);
   if (onProgress) {
     await onProgress({ type: 'status', message: 'Starting code generation...' });
   }
@@ -272,7 +272,7 @@ export async function runCodingAgent(
 
   while (iterations < maxIterations) {
     iterations++;
-    console.log(`${LOG_PREFIXES.GENERATE_CODE} Iteration ${iterations}/${maxIterations}`);
+    console.log(`${LOG_PREFIXES.CHAT} Iteration ${iterations}/${maxIterations}`);
 
     let response;
     try {
@@ -286,7 +286,7 @@ export async function runCodingAgent(
       
       // Log token usage and latency for this iteration
       if (collector.last) {
-        console.log(`${LOG_PREFIXES.GENERATE_CODE} CodingAgent iteration ${iterations} usage:`, {
+        console.log(`${LOG_PREFIXES.CHAT} CodingAgent iteration ${iterations} usage:`, {
           inputTokens: collector.last.usage?.inputTokens ?? null,
           outputTokens: collector.last.usage?.outputTokens ?? null,
           durationMs: collector.last.timing?.durationMs ?? null,
@@ -313,10 +313,10 @@ export async function runCodingAgent(
           : extractFilesFromState(state);
 
       const replyMessage = "message" in response ? response.message : "";
-      console.log(`${LOG_PREFIXES.GENERATE_CODE} Coding agent completed with reply:`, replyMessage);
+      console.log(`${LOG_PREFIXES.CHAT} Coding agent completed with reply:`, replyMessage);
       
       // Log cumulative token usage and latency
-      console.log(`${LOG_PREFIXES.GENERATE_CODE} CodingAgent complete - cumulative usage:`, {
+      console.log(`${LOG_PREFIXES.CHAT} CodingAgent complete - cumulative usage:`, {
         totalInputTokens: collector.usage?.inputTokens ?? null,
         totalOutputTokens: collector.usage?.outputTokens ?? null,
         totalCalls: collector.logs.length,
@@ -366,7 +366,7 @@ export async function runCodingAgent(
     }
 
     // Log tool parameters (excluding content for WriteFileTool)
-    console.log(`${LOG_PREFIXES.GENERATE_CODE} Tool call parameters:`, extractToolParams(tool));
+    console.log(`${LOG_PREFIXES.CHAT} Tool call parameters:`, extractToolParams(tool));
 
     if (onProgress) {
       await onProgress({
@@ -381,13 +381,13 @@ export async function runCodingAgent(
     if (Array.isArray(tool)) {
       if (tool.length === 0) {
         result = "Error: Cannot execute parallel_read with empty array. Please provide at least one read_file or list_files tool, or use a single tool call instead.";
-        console.error(`${LOG_PREFIXES.GENERATE_CODE} Attempted to execute parallel_read with empty array`);
+        console.error(`${LOG_PREFIXES.CHAT} Attempted to execute parallel_read with empty array`);
       } else {
-        console.log(`${LOG_PREFIXES.GENERATE_CODE} Executing parallel_read with ${tool.length} tools...`);
+        console.log(`${LOG_PREFIXES.CHAT} Executing parallel_read with ${tool.length} tools...`);
         result = await executeParallelTools(sandbox, tool, workingDir, todoList);
       }
     } else {
-      console.log(`${LOG_PREFIXES.GENERATE_CODE} Executing ${tool.action} tool...`);
+      console.log(`${LOG_PREFIXES.CHAT} Executing ${tool.action} tool...`);
       const execResult = await executeSingleTool(sandbox, tool, workingDir, todoList);
       result = execResult.result;
       
@@ -396,8 +396,8 @@ export async function runCodingAgent(
         modifiedFiles[tool.filePath] = tool.content;
       } else if (tool.action === "todo_write" && execResult.updatedTodoList) {
         todoList = execResult.updatedTodoList;
-        console.log(`${LOG_PREFIXES.GENERATE_CODE} Todo write result:`, execResult.result);
-        console.log(`${LOG_PREFIXES.GENERATE_CODE} Todo list updated:`, execResult.updatedTodoList);
+        console.log(`${LOG_PREFIXES.CHAT} Todo write result:`, execResult.result);
+        console.log(`${LOG_PREFIXES.CHAT} Todo list updated:`, execResult.updatedTodoList);
         
         // Send todo update event
         if (onProgress) {
@@ -413,7 +413,7 @@ export async function runCodingAgent(
         
         // Check if all todos are completed
         if (areAllTodosCompleted(todoList)) {
-          console.log(`${LOG_PREFIXES.GENERATE_CODE} All todos completed, agent should reply to user`);
+          console.log(`${LOG_PREFIXES.CHAT} All todos completed, agent should reply to user`);
         }
       }
     }
@@ -430,7 +430,7 @@ export async function runCodingAgent(
   }
 
   // Handle timeout if loop exceeds max iterations
-  console.error(`${LOG_PREFIXES.GENERATE_CODE} Coding agent exceeded maximum iterations`);
+  console.error(`${LOG_PREFIXES.CHAT} Coding agent exceeded maximum iterations`);
   const error = 'Coding agent exceeded maximum iterations. Please try again with a simpler request.';
   if (onProgress) {
     await onProgress({

@@ -30,9 +30,10 @@ dyno-apps/
 │   │   │       ├── route.ts    # DELETE (delete project + sandbox)
 │   │   │       └── sandbox/    # Sandbox management
 │   │   │           ├── route.ts      # POST (create/get), GET (status), DELETE (terminate)
-│   │   │           └── health/       # Health check endpoint
-│   │   │               └── route.ts  # GET (comprehensive health check)
-│   │   └── sandbox-logs/       # Get sandbox logs
+│   │   │           ├── health/       # Health check endpoint
+│   │   │           │   └── route.ts  # GET (comprehensive health check)
+│   │   │           └── logs/         # Get sandbox logs
+│   │   │               └── route.ts  # GET (sandbox logs)
 │   ├── project-gallery/  # Project gallery with CRUD
 │   ├── builder/          # AI-powered builder interface
 │   └── globals.css

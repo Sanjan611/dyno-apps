@@ -86,7 +86,7 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
           await initializeExpo(currentSandboxId);
 
           // Generate code
-          await generateCode(newMessage.content, currentSandboxId, setMessages);
+          await generateCode(newMessage.content, currentProjectId, setMessages);
         } catch (error) {
           const errorMessage: Message = {
             id: (Date.now() + 1).toString(),
@@ -102,11 +102,11 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
       }
 
       // Subsequent messages: just call the coding agent
-      if (!sandboxId) {
+      if (!projectId) {
         const errorMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: "assistant",
-          content: "Error: No sandbox available. Please refresh the page and try again.",
+          content: "Error: No project available. Please refresh the page and try again.",
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, errorMessage]);
@@ -115,7 +115,7 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
 
       setIsLoading(true);
       try {
-        await generateCode(newMessage.content, sandboxId, setMessages);
+        await generateCode(newMessage.content, projectId, setMessages);
       } catch (error) {
         const errorMessage: Message = {
           id: (Date.now() + 2).toString(),
@@ -130,7 +130,7 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
     },
     [
       hasSentInitialMessage,
-      sandboxId,
+      projectId,
       initializeProject,
       initializeExpo,
       generateCode,
@@ -163,7 +163,7 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
               Describe your app ideas naturally
             </CardDescription>
           </div>
-          {sandboxId && (
+          {sandboxId && projectId && (
             <Button
               variant="ghost"
               size="icon"
@@ -171,7 +171,7 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
                 setViewingLogs(true);
                 try {
                   const response = await fetch(
-                    `${API_ENDPOINTS.SANDBOX_LOGS}?sandboxId=${sandboxId}`
+                    API_ENDPOINTS.PROJECT_SANDBOX_LOGS(projectId)
                   );
                   const data = await response.json();
                   setLogs(data);
