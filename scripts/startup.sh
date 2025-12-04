@@ -12,14 +12,15 @@ fi
 echo "=== Starting Expo initialization ==="
 echo "Skip init mode: $SKIP_INIT"
 
-# Verify Node.js/npm installation
-echo "Checking Node.js and npm..."
+# Verify Node.js and Bun installation
+echo "Checking Node.js and Bun..."
 node --version || { echo "ERROR: Node.js not found"; exit 1; }
-npm --version || { echo "ERROR: npm not found"; exit 1; }
+bun --version || { echo "ERROR: Bun not found"; exit 1; }
 
 # Verify Expo CLI is available (pre-installed in image)
+# Use bunx since we're not inside an Expo project yet
 echo "Checking Expo CLI..."
-npx expo --version || { echo "ERROR: Expo CLI not found"; exit 1; }
+bunx expo --version || { echo "ERROR: Expo CLI not found"; exit 1; }
 
 # Navigate to app directory (volume mount point)
 echo "Navigating to app directory (/my-app)..."
@@ -28,27 +29,27 @@ cd /my-app || { echo "ERROR: Failed to navigate to /my-app directory"; exit 1; }
 # Create new Expo app only if not skipping init
 if [ "$SKIP_INIT" = false ]; then
   echo "Creating Expo app in /my-app..."
-  npx create-expo-app@latest . --template blank --yes || { echo "ERROR: Failed to create Expo app"; exit 1; }
+  bun create expo-app@latest . --template blank --yes || { echo "ERROR: Failed to create Expo app"; exit 1; }
 else
   echo "Skipping Expo app creation (using existing code in volume)"
 fi
 
 # Install required dependencies for web support
 echo "Installing web dependencies (react-dom, react-native-web)..."
-npx expo install react-dom react-native-web || { echo "ERROR: Failed to install web dependencies"; exit 1; }
+bunx expo install react-dom react-native-web || { echo "ERROR: Failed to install web dependencies"; exit 1; }
 
 # Start Expo web server on port 19006 in the background using nohup
 # This ensures Expo continues running even after the script exits
 # We start Expo first so the sandbox is ready faster, then install linting tools in parallel
 echo "Starting Expo web server on port 19006..."
-nohup npx expo start --web --port 19006 > /tmp/expo.log 2>&1 &
+nohup bunx expo start --web --port 19006 > /tmp/expo.log 2>&1 &
 EXPO_PID=$!
 
 echo "Expo process started with PID: $EXPO_PID"
 
 # Install ESLint and Prettier for code quality checks (in parallel with Expo startup)
 echo "Installing ESLint and Prettier..."
-npm install --save-dev eslint @eslint/js prettier eslint-config-prettier @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint-plugin-react eslint-plugin-react-hooks eslint-plugin-react-native || { echo "ERROR: Failed to install linting tools"; exit 1; }
+bun install --dev eslint @eslint/js prettier eslint-config-prettier @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint-plugin-react eslint-plugin-react-hooks eslint-plugin-react-native || { echo "ERROR: Failed to install linting tools"; exit 1; }
 
 # Create ESLint configuration (flat config format for ESLint v9+)
 echo "Creating ESLint configuration..."
@@ -124,30 +125,5 @@ build
 *.log
 EOF
 
-# Wait a bit to ensure Expo starts
-echo "Waiting for Expo to initialize..."
-sleep 15
-
-# Verify Expo is still running
-if ps -p $EXPO_PID > /dev/null 2>&1; then
-  echo "✓ Expo server is running (PID: $EXPO_PID)"
-else
-  echo "✗ WARNING: Expo process may have exited"
-  echo "Checking expo.log for errors:"
-  tail -20 /tmp/expo.log || echo "Could not read expo.log"
-fi
-
-# Check if port 19006 is listening
-echo "Checking if port 19006 is listening..."
-if command -v ss > /dev/null; then
-  ss -tlnp | grep 19006 || echo "Port 19006 not found in ss output"
-elif command -v netstat > /dev/null; then
-  netstat -tlnp | grep 19006 || echo "Port 19006 not found in netstat output"
-fi
-
-echo "=== Expo initialization script completed ==="
-echo "Expo should be running in the background. Check /tmp/expo.log for details."
-
-# Exit the script - Expo will continue running in the background
 exit 0
 

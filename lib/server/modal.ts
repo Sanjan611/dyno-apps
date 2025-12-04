@@ -30,17 +30,22 @@ export async function getOrCreateModalApp(modal: ModalClient) {
 }
 
 /**
- * Gets or creates the Node.js image with Expo CLI and git pre-installed for sandboxes
+ * Gets or creates the Node.js image with Bun, Expo CLI, and git pre-installed for sandboxes
  * This image is cached and reused across all sandboxes
+ * 
+ * Note: Node.js is still required alongside Bun because Expo's `bun create expo`
+ * and `bun expo prebuild` commands use `npm pack` internally.
  */
 export async function getNodeImage(modal: ModalClient) {
   const baseImage = modal.images.fromRegistry("node:20-slim");
   
-  // Extend the base image with Expo CLI and git installation
+  // Extend the base image with Bun, Expo CLI, and git installation
   // This creates a new image layer that will be cached and reused
   return baseImage.dockerfileCommands([
-    "RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*",
-    "RUN npm install -g @expo/cli"
+    "RUN apt-get update && apt-get install -y git curl unzip && rm -rf /var/lib/apt/lists/*",
+    "RUN curl -fsSL https://bun.sh/install | bash",
+    "ENV PATH=\"/root/.bun/bin:$PATH\"",
+    "RUN bun install -g @expo/cli"
   ]);
 }
 

@@ -97,7 +97,7 @@ async function executeLintCheck(
     const prettierProcess = await sandbox.exec([
       "bash",
       "-c",
-      `cd ${workingDir} && npx prettier --write "**/*.{js,jsx,ts,tsx}" 2>&1 || echo "Prettier check completed"`,
+      `cd ${workingDir} && bunx prettier --write "**/*.{js,jsx,ts,tsx}" 2>&1 || echo "Prettier check completed"`,
     ]);
     const prettierStdout = await prettierProcess.stdout.readText();
     const prettierStderr = await prettierProcess.stderr.readText();
@@ -119,7 +119,7 @@ async function executeLintCheck(
       const eslintProcess = await sandbox.exec([
         "bash",
         "-c",
-        `cd ${workingDir} && npx eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 999999 --no-error-on-unmatched-pattern 2>&1 || true`,
+        `cd ${workingDir} && bunx eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 999999 --no-error-on-unmatched-pattern 2>&1 || true`,
       ]);
       const eslintStdout = await eslintProcess.stdout.readText();
       const eslintStderr = await eslintProcess.stderr.readText();

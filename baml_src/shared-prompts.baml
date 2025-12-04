@@ -22,19 +22,19 @@ template_string EnvironmentSetup(working_dir: string) #"
   4. **Linting Configured**: ESLint and Prettier are configured and ready to use
 
   **NEVER DO THESE:**
-  - Do NOT run `npx create-expo-app` or any project creation commands
-  - Do NOT run `npx expo start` or `npm start` - the server is already running
-  - Do NOT run `npm install` or `yarn install` for base dependencies
+  - Do NOT run `bun create expo-app` or any project creation commands
+  - Do NOT run `bunx expo start` or `bun start` - the server is already running
+  - Do NOT run `bun install` for base dependencies
   - Do NOT reinstall ESLint, Prettier, or any dev dependencies that are already present
   - Do NOT kill, restart, or interfere with the running Expo process
 
-  **WHEN TO USE npm/yarn install:**
+  **WHEN TO USE bun install:**
   Only use package installation commands when:
-  - Adding a NEW third-party library the user explicitly requests (e.g., `npx expo install react-navigation`)
+  - Adding a NEW third-party library the user explicitly requests (e.g., `bunx expo install react-navigation`)
   - The library is not part of the standard Expo/React Native stack
   
   **PACKAGE INSTALLATION BEST PRACTICE:**
-  When installing new packages for Expo projects, prefer `npx expo install <package>` over `npm install <package>` as it ensures version compatibility with the current Expo SDK.
+  When installing new packages for Expo projects, prefer `bunx expo install <package>` over `bun install <package>` as it ensures version compatibility with the current Expo SDK.
   </SANDBOX_STATE>
   
   **IMPORTANT: All file operations must use absolute paths starting with {{ working_dir }}. Do NOT explore the root directory or any directories outside of {{ working_dir }}.**
@@ -344,7 +344,7 @@ template_string ToolUsageGuidelines(working_dir: string) #"
   Example: "Clients are marked as failed in the `connectToServer` function in src/services/process.ts:712."
 
   # Bash Tool Usage
-  - Use the bash tool for running installation commands (e.g., npm install, yarn install, pip install) and other shell operations
+  - Use the bash tool for running installation commands (e.g., bun install, pip install) and other shell operations
   - **IMPORTANT: Do NOT use bash for reading files or searching - use read_file and list_files instead**
   - **NEVER restart the Expo server** - It is already running in the background and will hot-reload automatically when you edit files
   - **NEVER reinstall base dependencies** - The project is pre-configured with all required packages
