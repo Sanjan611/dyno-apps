@@ -15,65 +15,18 @@ An AI-powered no-code mobile app builder platform. Build mobile applications usi
 - **Sandbox**: Modal
 - **Mobile**: Expo/React Native
 
-## Project Structure
-
-```
-dyno-apps/
-├── app/
-│   ├── (auth)/           # Authentication pages (login/signup)
-│   ├── api/              # API routes
-│   │   ├── generate-code/      # AI code generation
-│   │   ├── init-expo/          # Initialize Expo template
-│   │   ├── projects/           # Project CRUD operations
-│   │   │   ├── route.ts        # GET (list/get), POST (create), PATCH (update)
-│   │   │   └── [id]/           # Project-specific operations
-│   │   │       ├── route.ts    # DELETE (delete project + sandbox)
-│   │   │       └── sandbox/    # Sandbox management
-│   │   │           ├── route.ts      # POST (create/get), GET (status), DELETE (terminate)
-│   │   │           ├── health/       # Health check endpoint
-│   │   │           │   └── route.ts  # GET (comprehensive health check)
-│   │   │           └── logs/         # Get sandbox logs
-│   │   │               └── route.ts  # GET (sandbox logs)
-│   ├── project-gallery/  # Project gallery with CRUD
-│   ├── builder/          # AI-powered builder interface
-│   └── globals.css
-├── components/
-│   ├── ui/              # Shadcn UI components
-│   ├── builder/         # Builder components
-│   │   ├── ChatPanel.tsx      # Chat interface
-│   │   ├── PreviewPanel.tsx   # Mobile preview container
-│   │   ├── AppPreview.tsx     # Live app preview
-│   │   └── CodeViewer.tsx     # Code display
-│   ├── layout/          # Layout components
-│   └── shared/          # Shared components
-├── baml_src/            # BAML AI agent definitions
-│   ├── clients.baml     # LLM client configurations
-│   ├── coding-agent.baml     # Coding agent (explores and implements)
-│   ├── tools.baml       # Shared tool definitions
-│   └── generators.baml  # BAML generators config
-├── baml_client/         # Auto-generated BAML client
-├── scripts/             # Deployment scripts
-├── supabase/            # Supabase configuration
-│   └── migrations/      # Database migrations
-├── lib/                 # Utils and state management
-│   ├── store.ts         # Zustand store
-│   └── server/          # Server-side utilities
-│       ├── modal.ts          # Shared Modal client utilities
-│       └── projectStore.ts   # Project persistence (Supabase)
-└── types/               # TypeScript type definitions
-```
-
 ## Features
 
 ### Current
 
 - **Landing Page**: Enter app ideas directly and start building
-- **Authentication UI**: Login/Signup pages (UI ready)
-- **Project Gallery**: View, open, and delete saved projects
+- **Authentication**: Full login/signup system with Supabase authentication
+- **Project Gallery**: View, open, and delete saved projects with user-scoped access
+- **GitHub Integration**: Automatic GitHub repository creation for each project
 - **AI-powered Builder Interface**:
-  - **Chat Panel**: Natural language input for app creation
+  - **Chat Panel**: Natural language input for app creation with streaming responses
   - **Preview Panel**: Live mobile app preview via Modal sandboxes
-  - **Code Viewer**: View and copy generated code
+  - **Code Viewer**: View and copy generated React Native code
   - Toggle between Preview and Code views
   - Resizable split-panel layout
 
@@ -87,11 +40,17 @@ The system uses a single AI agent architecture:
 
 - **RESTful API Design**: Nested routes following REST conventions (`/api/projects/[id]/sandbox`)
 - **Sandbox Lifecycle Management**: Sandboxes created on-demand when projects are opened
+- **Modal Volume Persistence**: Persistent storage volumes for sandboxes, preserving code between sessions
 - **Health Checks**: Comprehensive sandbox health monitoring (process status, port listening)
 - **Smart Sandbox Reuse**: Reuses healthy existing sandboxes instead of creating new ones
 - **Project Persistence**: Supabase database with Row Level Security (RLS) for user-scoped projects
-- **AI Code Generation**: Single-agent generation using BAML + Claude Sonnet 4.5
-- **Expo Initialization**: Automated Expo app setup within sandboxes
+- **GitHub Repository Integration**: 
+  - Automatic private repository creation for each project
+  - Repository cloning support in sandboxes
+  - Repository URL tracking and management
+- **AI Code Generation**: Streaming code generation via `/api/projects/[id]/chat` using BAML + Claude Sonnet 4.5
+- **Expo Initialization**: Automated Expo app setup within sandboxes with repository cloning support
+- **Streaming Responses**: Server-Sent Events (SSE) for real-time progress updates during code generation
 
 ### Coming Soon
 
@@ -123,7 +82,6 @@ pnpm install
 cp .env.local.example .env.local
 # Add required API keys:
 # - ANTHROPIC_API_KEY (for AI code generation)
-# - OPENROUTER_API_KEY (optional, for using OpenRouter models)
 # - MODAL_TOKEN_ID and MODAL_TOKEN_SECRET (for sandboxes)
 # - NEXT_PUBLIC_SUPABASE_URL (your Supabase project URL)
 # - NEXT_PUBLIC_SUPABASE_ANON_KEY (your Supabase publishable key - sb_publishable_...)
@@ -187,10 +145,13 @@ This application is configured for deployment on Vercel. The build process autom
    - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase publishable key (sb_publishable_...)
    - `BETA_INVITE_CODES` - Comma-separated list of invite codes for beta access (e.g., `beta2024,friend1,friend2`)
+   - `GITHUB_ORG_NAME` - GitHub organization name where project repositories will be created
+   - `GITHUB_PAT` - GitHub Personal Access Token with repo permissions for the organization
    
    **Important Notes:**
    - Variables prefixed with `NEXT_PUBLIC_` are exposed to the browser
    - Only use the Supabase publishable key (`sb_publishable_...`), never the secret key
+   - `GITHUB_PAT` should never be exposed to the browser (server-side only)
    - Apply variables to all environments (Production, Preview, Development)
 
 4. **Deploy:**
@@ -229,10 +190,11 @@ The builder features a split-panel layout:
 
 - **Left Panel**: Chat interface for natural language app creation
   - Enter prompts to describe what you want to build
+  - Real-time streaming responses with progress updates
   - AI explores the codebase, creates a plan (via todos), and implements changes step by step
-  - Progress tracked via structured todo list
+  - Progress tracked via structured todo list with Server-Sent Events (SSE)
 - **Right Panel**: Mobile app preview with code toggle
-  - **Preview Mode**: See your app in a mobile phone frame (live Expo preview)
+  - **Preview Mode**: See your app in a mobile phone frame (live Expo preview via Modal tunnels)
   - **Code Mode**: View and copy the generated React Native code
 
 ## Architecture
@@ -249,12 +211,14 @@ The AI agent is defined using BAML (Boundary ML):
 Each project runs in an isolated Modal sandbox with smart lifecycle management:
 
 - **On-Demand Creation**: Sandboxes are created when a project is opened, not at project creation
+- **Persistent Storage**: Modal volumes preserve project code between sandbox sessions
 - **Health Monitoring**: `/api/projects/[id]/sandbox/health` checks sandbox status, Expo process, and port availability
 - **Smart Reuse**: When opening a project, existing healthy sandboxes are reused instead of creating new ones
 - **Separate Lifecycles**: Projects and sandboxes have independent lifecycles
-  - Delete sandbox only: `DELETE /api/projects/[id]/sandbox` (keeps project)
-  - Delete project: `DELETE /api/projects/[id]` (also terminates sandbox)
+  - Delete sandbox only: `DELETE /api/projects/[id]/sandbox` (keeps project and volume)
+  - Delete project: `DELETE /api/projects/[id]` (also terminates sandbox and GitHub repo)
 - **Live Preview**: Sandboxes provide tunnel URLs for live Expo preview
+- **Repository Support**: Sandboxes can clone and work with GitHub repositories
 
 ## License
 

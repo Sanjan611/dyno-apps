@@ -48,46 +48,69 @@ export async function createProjectRepo(params: {
 
   const repoName = `dyno-apps-${params.projectId}`;
 
-  const response = await fetch(
-    `${GITHUB_API_BASE}/orgs/${GITHUB_ORG_NAME}/repos`,
-    {
-      method: "POST",
-      headers: {
-        ...getAuthHeaders(),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name: repoName,
-        private: true,
-      }),
-    }
-  );
+  // Add timeout to prevent hanging on network issues
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
 
-  if (response.ok) {
-    const repositoryUrl = getRepositoryUrl(params.projectId);
-    return {
-      ok: true,
-      status: response.status,
-      message: `Created GitHub repo ${GITHUB_ORG_NAME}/${repoName}`,
-      repositoryUrl,
-    };
-  }
-
-  let errorMessage = `GitHub repo creation failed with status ${response.status}`;
   try {
-    const body = await response.json();
-    if (body && typeof body.message === "string") {
-      errorMessage = body.message;
-    }
-  } catch {
-    // ignore JSON parse errors
-  }
+    const response = await fetch(
+      `${GITHUB_API_BASE}/orgs/${GITHUB_ORG_NAME}/repos`,
+      {
+        method: "POST",
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: repoName,
+          private: true,
+        }),
+        signal: controller.signal,
+      }
+    );
 
-  return {
-    ok: false,
-    status: response.status,
-    message: errorMessage,
-  };
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      const repositoryUrl = getRepositoryUrl(params.projectId);
+      return {
+        ok: true,
+        status: response.status,
+        message: `Created GitHub repo ${GITHUB_ORG_NAME}/${repoName}`,
+        repositoryUrl,
+      };
+    }
+
+    let errorMessage = `GitHub repo creation failed with status ${response.status}`;
+    try {
+      const body = await response.json();
+      if (body && typeof body.message === "string") {
+        errorMessage = body.message;
+      }
+    } catch {
+      // ignore JSON parse errors
+    }
+
+    return {
+      ok: false,
+      status: response.status,
+      message: errorMessage,
+    };
+  } catch (error) {
+    clearTimeout(timeoutId);
+    
+    // Handle timeout or network errors
+    if (error instanceof Error && error.name === "AbortError") {
+      return {
+        ok: false,
+        status: 0,
+        message: "GitHub API request timed out",
+      };
+    }
+    
+    // Re-throw other errors to be handled by the caller
+    throw error;
+  }
 }
 
 export async function deleteProjectRepo(params: {

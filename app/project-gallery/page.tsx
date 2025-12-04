@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MoreVertical, PlusCircle, Search, LayoutGrid, List as ListIcon, Trash2, ExternalLink, Clock, FolderOpen } from "lucide-react";
+import { MoreVertical, PlusCircle, Search, Trash2, ExternalLink, Clock, FolderOpen, Sparkles, Zap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import type { ProjectWithMeta } from "@/types";
 
@@ -127,25 +127,34 @@ export default function ProjectGalleryPage() {
       </header>
 
       <main className="container mx-auto px-4 py-12">
-        {/* Page Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight mb-2">My Projects</h2>
-            <p className="text-muted-foreground">
-              Manage and edit your mobile applications
-            </p>
+        {/* Welcome Section */}
+        <div className="mb-12 text-center">
+          <div className="inline-flex items-center px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-sm text-primary font-medium mb-4 backdrop-blur-sm">
+            <Sparkles className="w-3.5 h-3.5 mr-2" />
+            Welcome to Your Project Gallery
           </div>
-          
-          <div className="relative max-w-md w-full md:w-auto">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search projects..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 w-full md:w-64 bg-white/50 border-gray-200 focus:bg-white transition-colors"
-            />
-          </div>
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3 bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600">
+            Your Projects
+          </h1>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            Create, manage, and continue building your AI-powered mobile applications
+          </p>
         </div>
+
+        {/* Search Bar */}
+        {projects.length > 0 && (
+          <div className="mb-8 max-w-md mx-auto">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input 
+                placeholder="Search projects..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 w-full bg-white/70 border-gray-200 focus:bg-white transition-colors shadow-sm"
+              />
+            </div>
+          </div>
+        )}
 
         {actionError && (
           <div className="mb-6 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive flex items-center gap-2">
@@ -174,21 +183,27 @@ export default function ProjectGalleryPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Create New Card */}
             <Link href="/builder" className="group">
-              <Card className="h-full border-2 border-dashed border-gray-200 bg-white/40 hover:border-primary/50 hover:bg-white/60 transition-all duration-300 flex flex-col items-center justify-center p-6 cursor-pointer backdrop-blur-sm">
-                <div className="w-16 h-16 rounded-full bg-white shadow-sm border flex items-center justify-center mb-4 group-hover:scale-110 group-hover:shadow-md transition-all duration-300">
-                  <PlusCircle className="w-8 h-8 text-primary/60 group-hover:text-primary" />
+              <Card className="h-full border-2 border-dashed border-primary/30 bg-gradient-to-br from-primary/5 to-secondary/5 hover:border-primary/60 hover:from-primary/10 hover:to-secondary/10 transition-all duration-300 flex flex-col items-center justify-center p-8 cursor-pointer backdrop-blur-sm relative overflow-hidden">
+                {/* Glow effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/0 to-secondary/0 group-hover:from-primary/10 group-hover:to-secondary/10 transition-all duration-300" />
+                <div className="relative z-10">
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary shadow-lg flex items-center justify-center mb-6 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300">
+                    <PlusCircle className="w-10 h-10 text-white" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-800 group-hover:text-primary transition-colors mb-2">
+                    Create New Project
+                  </h3>
+                  <p className="text-sm text-muted-foreground text-center max-w-[220px]">
+                    Start building a new AI-powered mobile app from scratch
+                  </p>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-600 group-hover:text-primary transition-colors">Create New Project</h3>
-                <p className="text-sm text-muted-foreground text-center mt-2 max-w-[200px]">
-                  Start a new app from scratch with AI
-                </p>
               </Card>
             </Link>
 
             {filteredProjects.map((project) => (
-              <Card key={project.id} className="group relative flex flex-col border-0 shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 bg-white/70 backdrop-blur-md overflow-hidden">
+              <Card key={project.id} className="group relative flex flex-col border-0 shadow-lg hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 bg-white/80 backdrop-blur-md overflow-hidden">
                 {/* Gradient Header Line */}
-                <div className="h-1.5 w-full bg-gradient-to-r from-primary via-purple-500 to-secondary opacity-70" />
+                <div className="h-2 w-full bg-gradient-to-r from-primary via-purple-500 to-secondary opacity-80 group-hover:opacity-100 transition-opacity" />
                 
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start gap-2">
@@ -252,20 +267,34 @@ export default function ProjectGalleryPage() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-24 border border-dashed border-gray-300 rounded-3xl bg-white/30 backdrop-blur-sm">
-            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
-              <FolderOpen className="w-10 h-10 text-primary" />
+          <div className="max-w-2xl mx-auto">
+            <div className="text-center py-20 px-8 border-2 border-dashed border-primary/30 rounded-3xl bg-gradient-to-br from-primary/5 via-white to-secondary/5 backdrop-blur-sm relative overflow-hidden">
+              {/* Decorative background elements */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+              <div className="absolute bottom-0 left-0 w-64 h-64 bg-secondary/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+              
+              <div className="relative z-10">
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-secondary shadow-xl flex items-center justify-center mx-auto mb-6 animate-in fade-in zoom-in-95">
+                  <Zap className="w-12 h-12 text-white" />
+                </div>
+                <h3 className="text-3xl font-bold mb-3 bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600">
+                  Ready to Build Your First App?
+                </h3>
+                <p className="text-lg text-muted-foreground max-w-lg mx-auto mb-10 leading-relaxed">
+                  Start creating your first AI-powered mobile application. Describe what you want to build, and our AI will help you bring it to life.
+                </p>
+                <Button 
+                  size="lg" 
+                  className="text-lg px-8 py-6 bg-gradient-to-r from-primary to-secondary hover:opacity-90 shadow-xl hover:shadow-2xl transition-all duration-300 rounded-xl group/btn" 
+                  asChild
+                >
+                  <Link href="/builder">
+                    <PlusCircle className="w-5 h-5 mr-2 group-hover/btn:rotate-90 transition-transform duration-300" />
+                    Create Your First Project
+                  </Link>
+                </Button>
+              </div>
             </div>
-            <h3 className="text-2xl font-bold mb-2">No Projects Yet</h3>
-            <p className="text-muted-foreground max-w-md mx-auto mb-8">
-              You haven&apos;t created any projects yet. Start building your first AI-powered mobile app today!
-            </p>
-            <Button size="lg" className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 shadow-lg" asChild>
-              <Link href="/builder">
-                <PlusCircle className="w-5 h-5 mr-2" />
-                Create Your First App
-              </Link>
-            </Button>
           </div>
         )}
       </main>

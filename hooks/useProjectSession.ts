@@ -42,6 +42,21 @@ export function useProjectSession({
           }),
         });
 
+        if (!saveResponse.ok) {
+          const errorText = await saveResponse.text();
+          let errorMessage = `Failed to create project: ${saveResponse.status} ${saveResponse.statusText}`;
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.error || errorMessage;
+          } catch {
+            // If JSON parsing fails, use the text or default message
+            if (errorText) {
+              errorMessage = errorText;
+            }
+          }
+          throw new Error(errorMessage);
+        }
+
         const saveData = await saveResponse.json();
         if (saveData.success && saveData.project) {
           currentProjectId = saveData.project.id;
@@ -69,6 +84,21 @@ export function useProjectSession({
           },
         }
       );
+
+      if (!sandboxResponse.ok) {
+        const errorText = await sandboxResponse.text();
+        let errorMessage = `Failed to create/get sandbox: ${sandboxResponse.status} ${sandboxResponse.statusText}`;
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If JSON parsing fails, use the text or default message
+          if (errorText) {
+            errorMessage = errorText;
+          }
+        }
+        throw new Error(errorMessage);
+      }
 
       const sandboxData = await sandboxResponse.json();
 
@@ -134,6 +164,25 @@ export function useProjectSession({
         },
         body: JSON.stringify({ sandboxId, repositoryUrl }),
       });
+
+      if (!initResponse.ok) {
+        const errorText = await initResponse.text();
+        let errorMessage = `Failed to initialize Expo: ${initResponse.status} ${initResponse.statusText}`;
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorMessage;
+          const errorDetails = errorData.logs
+            ? `\n\nLogs:\nSTDOUT: ${errorData.logs.stdout?.substring(0, 500)}\nSTDERR: ${errorData.logs.stderr?.substring(0, 500)}`
+            : "";
+          errorMessage += errorDetails;
+        } catch {
+          // If JSON parsing fails, use the text or default message
+          if (errorText) {
+            errorMessage = errorText;
+          }
+        }
+        throw new Error(errorMessage);
+      }
 
       const initData = await initResponse.json();
 
