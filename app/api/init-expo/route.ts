@@ -197,6 +197,14 @@ export async function POST(request: NextRequest) {
       stderr: "pipe",
     });
 
+    // Stream stdout and stderr to console (for debugging)
+    execProcess.stdout.readText().then((stdout) => {
+      if (stdout) console.log("[startup.sh stdout]\n", stdout);
+    });
+    execProcess.stderr.readText().then((stderr) => {
+      if (stderr) console.error("[startup.sh stderr]\n", stderr);
+    });
+
     // Don't block on reading all output - just let it run
     // The script uses nohup so Expo runs in background anyway
 

@@ -30,7 +30,7 @@ export async function getOrCreateModalApp(modal: ModalClient) {
 }
 
 /**
- * Gets or creates the Node.js image with Bun, Expo CLI, and git pre-installed for sandboxes
+ * Gets or creates the Node.js image with Bun, Expo CLI, linting tools, and git pre-installed
  * This image is cached and reused across all sandboxes
  * 
  * Note: Node.js is still required alongside Bun because Expo's `bun create expo`
@@ -39,13 +39,15 @@ export async function getOrCreateModalApp(modal: ModalClient) {
 export async function getNodeImage(modal: ModalClient) {
   const baseImage = modal.images.fromRegistry("node:20-slim");
   
-  // Extend the base image with Bun, Expo CLI, and git installation
+  // Extend the base image with Bun, Expo CLI, linting tools, and git installation
   // This creates a new image layer that will be cached and reused
   return baseImage.dockerfileCommands([
     "RUN apt-get update && apt-get install -y git curl unzip && rm -rf /var/lib/apt/lists/*",
     "RUN curl -fsSL https://bun.sh/install | bash",
     "ENV PATH=\"/root/.bun/bin:$PATH\"",
-    "RUN bun install -g @expo/cli"
+    "RUN bun install -g @expo/cli",
+    // Pre-install linting tools globally to save ~16s per sandbox startup
+    "RUN bun install -g eslint @eslint/js prettier eslint-config-prettier @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint-plugin-react eslint-plugin-react-hooks eslint-plugin-react-native"
   ]);
 }
 
