@@ -16,6 +16,7 @@ fi
 
 log "=== Starting Expo initialization ==="
 log "Skip init mode: $SKIP_INIT"
+log "EXPO_TUNNEL_SUBDOMAIN: ${EXPO_TUNNEL_SUBDOMAIN:-not set}"
 
 # Verify Node.js and Bun installation
 log "Checking Node.js and Bun..."
@@ -35,14 +36,16 @@ else
 fi
 
 # Install required dependencies for web support
+# Note: @expo/ngrok is installed globally in the Docker image via npm
 log "Installing web dependencies (react-dom, react-native-web)..."
 bunx expo install react-dom react-native-web || { log "ERROR: Failed to install web dependencies"; exit 1; }
 
-# Start Expo web server on port 19006 in the background using nohup
+# Start Expo web server on port 19006 with tunnel in the background using nohup
 # This ensures Expo continues running even after the script exits
 # We start Expo first so the sandbox is ready faster, then install linting tools in parallel
-log "Starting Expo web server on port 19006..."
-nohup bunx expo start --web --port 19006 > /tmp/expo.log 2>&1 &
+# Note: EXPO_TUNNEL_SUBDOMAIN is set as a sandbox environment variable at creation time
+log "Starting Expo web server on port 19006 with tunnel..."
+nohup bunx expo start --web --port 19006 --tunnel > /tmp/expo.log 2>&1 &
 EXPO_PID=$!
 
 log "Expo process started with PID: $EXPO_PID"

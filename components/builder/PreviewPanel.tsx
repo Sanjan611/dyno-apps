@@ -1,15 +1,28 @@
 "use client";
 
 import { useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import AppPreview from "./AppPreview";
 import CodeViewer from "./CodeViewer";
 import { useBuilderStore } from "@/lib/store";
-import { Smartphone, Code2, ExternalLink, RefreshCw, Battery, Wifi, Signal, QrCode } from "lucide-react";
+import { Smartphone, Code2, ExternalLink, RefreshCw, Battery, Wifi, Signal, QrCode, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function PreviewPanel() {
   const [activeView, setActiveView] = useState<"preview" | "code" | "test">("preview");
-  const { previewUrl } = useBuilderStore();
+  const [copied, setCopied] = useState(false);
+  const { previewUrl, projectId } = useBuilderStore();
+  
+  // Generate the Expo tunnel URL for QR code
+  const expoTunnelUrl = projectId ? `exp://${projectId}.ngrok.io` : null;
+  
+  const copyToClipboard = async () => {
+    if (expoTunnelUrl) {
+      await navigator.clipboard.writeText(expoTunnelUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-slate-100/50">
@@ -110,12 +123,45 @@ export default function PreviewPanel() {
                  <p className="text-slate-500 text-base">Scan the QR code with your phone to view the app in Expo Go.</p>
                </div>
                
-               <div className="aspect-square w-64 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 mx-auto flex flex-col items-center justify-center gap-3 group hover:border-primary/30 transition-colors">
-                  <div className="w-12 h-12 rounded-lg bg-slate-200/50 flex items-center justify-center">
-                    <QrCode className="w-6 h-6 text-slate-400" />
-                  </div>
-                  <p className="text-sm font-medium text-slate-400">QR Code Coming Soon</p>
-               </div>
+               {expoTunnelUrl ? (
+                 <>
+                   <div className="bg-white p-4 rounded-2xl border border-slate-200 mx-auto inline-block shadow-sm">
+                     <QRCodeSVG 
+                       value={expoTunnelUrl} 
+                       size={200}
+                       level="M"
+                       includeMargin={true}
+                       bgColor="#ffffff"
+                       fgColor="#1e293b"
+                     />
+                   </div>
+                   
+                   <div className="flex items-center justify-center gap-2 bg-slate-50 px-4 py-3 rounded-xl border border-slate-200">
+                     <code className="text-sm text-slate-600 font-mono truncate max-w-[240px]">
+                       {expoTunnelUrl}
+                     </code>
+                     <Button
+                       variant="ghost"
+                       size="sm"
+                       onClick={copyToClipboard}
+                       className="h-8 w-8 p-0 shrink-0"
+                     >
+                       {copied ? (
+                         <Check className="w-4 h-4 text-green-500" />
+                       ) : (
+                         <Copy className="w-4 h-4 text-slate-400" />
+                       )}
+                     </Button>
+                   </div>
+                 </>
+               ) : (
+                 <div className="aspect-square w-64 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 mx-auto flex flex-col items-center justify-center gap-3 group hover:border-primary/30 transition-colors">
+                   <div className="w-12 h-12 rounded-lg bg-slate-200/50 flex items-center justify-center">
+                     <QrCode className="w-6 h-6 text-slate-400" />
+                   </div>
+                   <p className="text-sm font-medium text-slate-400">Start building to generate QR code</p>
+                 </div>
+               )}
 
                <div className="pt-2">
                  <p className="text-xs text-slate-400">Requires Expo Go app installed on your device</p>

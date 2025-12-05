@@ -162,7 +162,7 @@ export function useProjectSession({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ sandboxId, repositoryUrl }),
+        body: JSON.stringify({ sandboxId, repositoryUrl, projectId }),
       });
 
       if (!initResponse.ok) {

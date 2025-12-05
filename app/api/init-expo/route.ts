@@ -70,8 +70,8 @@ async function cloneRepository(
 
 export async function POST(request: NextRequest) {
   try {
-    const { sandboxId, skipInit, repositoryUrl } = await request.json();
-    console.log("[init-expo] Starting Expo initialization for sandbox:", sandboxId, "skipInit:", skipInit, "repositoryUrl:", repositoryUrl);
+    const { sandboxId, skipInit, repositoryUrl, projectId } = await request.json();
+    console.log("[init-expo] Starting Expo initialization for sandbox:", sandboxId, "skipInit:", skipInit, "repositoryUrl:", repositoryUrl, "projectId:", projectId);
 
     if (!sandboxId) {
       console.error("[init-expo] Error: sandboxId is required");
@@ -190,6 +190,7 @@ export async function POST(request: NextRequest) {
     console.log("[init-expo] Script is now executable");
 
     // Execute the startup script with appropriate flag
+    // Note: EXPO_TUNNEL_SUBDOMAIN is set as a sandbox environment variable at creation time
     const initFlag = shouldSkipInit ? "--skip-init" : "--init";
     console.log("[init-expo] Executing startup script with flag:", initFlag);
     const execProcess = await sandbox.exec(["/bin/bash", "/startup.sh", initFlag], {

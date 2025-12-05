@@ -46,6 +46,8 @@ export async function getNodeImage(modal: ModalClient) {
     "RUN curl -fsSL https://bun.sh/install | bash",
     "ENV PATH=\"/root/.bun/bin:$PATH\"",
     "RUN bun install -g @expo/cli",
+    // Use npm for @expo/ngrok since Expo looks in npm's global directory, not bun's
+    "RUN npm install -g @expo/ngrok@^4.1.0",
     // Pre-install linting tools globally to save ~16s per sandbox startup
     "RUN bun install -g eslint @eslint/js prettier eslint-config-prettier @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint-plugin-react eslint-plugin-react-hooks eslint-plugin-react-native"
   ]);
@@ -70,10 +72,12 @@ export async function getOrCreateProjectVolume(
  * Creates a new sandbox with the standard configuration
  * @param modal - Modal client instance
  * @param volume - Optional Volume to mount at WORKING_DIR (/my-app)
+ * @param env - Optional environment variables to set in the sandbox
  */
 export async function createSandbox(
   modal: ModalClient,
-  volume?: Volume
+  volume?: Volume,
+  env?: Record<string, string>
 ) {
   const app = await getOrCreateModalApp(modal);
   const image = await getNodeImage(modal);
@@ -81,6 +85,7 @@ export async function createSandbox(
   const sandboxOptions: {
     unencryptedPorts: number[];
     volumes?: Record<string, Volume>;
+    env?: Record<string, string>;
   } = {
     unencryptedPorts: [EXPO_PORT],
   };
@@ -90,6 +95,11 @@ export async function createSandbox(
     sandboxOptions.volumes = {
       [WORKING_DIR]: volume,
     };
+  }
+
+  // Set environment variables if provided
+  if (env) {
+    sandboxOptions.env = env;
   }
   
   const sandbox = await modal.sandboxes.create(app, image, sandboxOptions);

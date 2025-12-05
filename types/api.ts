@@ -173,6 +173,8 @@ export interface ChatRequest {
 export interface InitExpoRequest {
   sandboxId: string;
   skipInit?: boolean;
+  repositoryUrl?: string | null;
+  projectId?: string;
 }
 
 /**

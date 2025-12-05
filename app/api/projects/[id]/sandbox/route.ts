@@ -109,9 +109,11 @@ export const POST = withAsyncParams<CreateSandboxResponse>(async (request, user,
       isNewVolume = true;
     }
 
-    // Create a new sandbox with volume attached
+    // Create a new sandbox with volume attached and environment variables
     console.log("[sandbox] Creating new sandbox for project:", projectId);
-    const { sandbox } = await createSandbox(modal, volume);
+    const { sandbox } = await createSandbox(modal, volume, {
+      EXPO_TUNNEL_SUBDOMAIN: projectId,
+    });
 
     // Update project with new sandboxId and volumeId
     const updatedProject = await updateProject(projectId, user.id, {
