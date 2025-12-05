@@ -78,7 +78,7 @@ export default function ChatPanel() {
           // Initialize Expo
           await initializeExpo(currentSandboxId, currentProjectId);
 
-          // Generate code
+          // Generate code (state is managed server-side)
           await generateCode(newMessage.content, currentProjectId, setMessages);
         } catch (error) {
           const errorMessage: Message = {
@@ -110,6 +110,7 @@ export default function ChatPanel() {
 
       setIsLoading(true);
       try {
+        // Generate code (state is managed server-side)
         await generateCode(newMessage.content, currentProjectId, setMessages);
       } catch (error) {
         const errorMessage: Message = {

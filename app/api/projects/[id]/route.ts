@@ -6,6 +6,7 @@ import {
   deleteProjectVolume,
 } from "@/lib/server/modal";
 import { deleteProjectRepo } from "@/lib/server/github";
+import { clearAgentState } from "@/lib/server/agent-state-store";
 import {
   withAsyncParams,
   successResponse,
@@ -118,6 +119,10 @@ export const DELETE = withAsyncParams<DeleteProjectResponse>(async (request, use
         error
       );
     }
+
+    // Clear agent state for this project
+    clearAgentState(projectId);
+    console.log("[projects] Cleared agent state for project:", projectId);
 
     // Delete the project
     await deleteProject(projectId, user.id);

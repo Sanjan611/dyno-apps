@@ -93,6 +93,9 @@ function parseSSEEvents(chunk: string): string[] {
 /**
  * Hook for handling code generation via SSE streaming
  * Manages the streaming connection and updates messages with agent actions
+ * 
+ * Note: Conversation state is now managed server-side, so we don't need to
+ * pass conversation history from the frontend.
  */
 export function useCodeGeneration() {
   const generateCode = useCallback(

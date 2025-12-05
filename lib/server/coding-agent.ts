@@ -34,6 +34,7 @@ import {
 } from "@/lib/server/tool-executors";
 import { WORKING_DIR, LOG_PREFIXES } from "@/lib/constants";
 import type { SSEProgressEvent } from "@/types";
+import { getAgentState, setAgentState } from "@/lib/server/agent-state-store";
 
 // ============================================================================
 // Types
@@ -50,6 +51,7 @@ export type ProgressCallback = (event: SSEProgressEvent) => Promise<void>;
 export interface CodingAgentConfig {
   userPrompt: string;
   sandboxId: string;
+  projectId: string;
   workingDir?: string;
   maxIterations?: number;
   maxRetries?: number;
@@ -65,6 +67,7 @@ export interface CodingAgentResult {
   files?: Record<string, string>;
   error?: string;
   details?: unknown;
+  state?: Message[]; // Final agent state after completion
 }
 
 // ============================================================================
@@ -205,6 +208,7 @@ export async function runCodingAgent(
   const {
     userPrompt,
     sandboxId,
+    projectId,
     workingDir = WORKING_DIR,
     maxIterations = 50,
     maxRetries = 3,
@@ -260,12 +264,20 @@ export async function runCodingAgent(
   // Initialize empty todo list - the coding agent will create todos using todo_write
   let todoList: TodoItem[] = [];
 
-  const state: Message[] = [
-    {
-      role: "user",
-      message: userPrompt,
-    },
-  ];
+  // Load previous state from storage, or start fresh
+  let state: Message[] = getAgentState(projectId) || [];
+  
+  // Append the new user message to the state
+  state.push({
+    role: "user",
+    message: userPrompt,
+  });
+  
+  if (state.length > 1) {
+    console.log(`${LOG_PREFIXES.CHAT} Using previous agent state with ${state.length - 1} previous messages`);
+  } else {
+    console.log(`${LOG_PREFIXES.CHAT} Starting fresh conversation`);
+  }
 
   let iterations = 0;
 
@@ -314,6 +326,16 @@ export async function runCodingAgent(
       const replyMessage = "message" in response ? response.message : "";
       console.log(`${LOG_PREFIXES.CHAT} Coding agent completed with reply:`, replyMessage);
       
+      // Add the final reply to state
+      state.push({
+        role: "assistant",
+        message: replyMessage,
+      });
+      
+      // Save the final state to storage
+      setAgentState(projectId, state);
+      console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages`);
+      
       // Log cumulative token usage and latency
       console.log(`${LOG_PREFIXES.CHAT} CodingAgent complete - cumulative usage:`, {
         totalInputTokens: collector.usage?.inputTokens ?? null,
@@ -333,6 +355,7 @@ export async function runCodingAgent(
         success: true,
         message: replyMessage,
         files: allFiles,
+        state: state,
       };
     }
 
@@ -421,12 +444,16 @@ export async function runCodingAgent(
   // Handle timeout if loop exceeds max iterations
   console.error(`${LOG_PREFIXES.CHAT} Coding agent exceeded maximum iterations`);
   const error = 'Coding agent exceeded maximum iterations. Please try again with a simpler request.';
+  
+  // Save current state even on error (so user can continue from where it failed)
+  setAgentState(projectId, state);
+  
   if (onProgress) {
     await onProgress({
       type: 'error',
       error,
     });
   }
-  return { success: false, error };
+  return { success: false, error, state: state };
 }
 

@@ -98,9 +98,11 @@ export async function POST(
 
       try {
         // Run the coding agent orchestration
+        // State is automatically loaded from storage and saved after completion
         const result = await runCodingAgent(modal, {
           userPrompt: userPrompt.trim(),
           sandboxId: project.currentSandboxId,
+          projectId: projectId,
           onProgress: sendProgress,
         });
 
