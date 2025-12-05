@@ -163,7 +163,8 @@ export type SSEEventType =
   | 'coding_iteration' 
   | 'todo_update' 
   | 'complete' 
-  | 'error';
+  | 'error'
+  | 'stopped';
 
 /**
  * Todo item in SSE progress events
@@ -202,7 +203,7 @@ export type FileContentsMap = Record<string, string>;
  * Function to check if a value is a specific SSE event type
  */
 export function isSSEEventType(type: string): type is SSEEventType {
-  return ['status', 'coding_iteration', 'todo_update', 'complete', 'error'].includes(type);
+  return ['status', 'coding_iteration', 'todo_update', 'complete', 'error', 'stopped'].includes(type);
 }
 
 /**

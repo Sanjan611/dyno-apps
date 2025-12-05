@@ -17,22 +17,65 @@ export async function POST(
   const encoder = new TextEncoder();
   const stream = new TransformStream();
   const writer = stream.writable.getWriter();
+  let isStreamClosed = false;
+
+  // Helper function to safely close the writer
+  const closeWriter = async () => {
+    if (isStreamClosed) return;
+    try {
+      isStreamClosed = true;
+      await writer.close();
+    } catch (error) {
+      // Stream may already be closed, ignore the error
+      if (error instanceof Error && error.message.includes('closed')) {
+        // Expected when client aborts
+        return;
+      }
+      console.error(`${LOG_PREFIXES.CHAT} Error closing writer:`, error);
+    }
+  };
 
   // Helper function to send progress updates
   const sendProgress = async (event: SSEProgressEvent) => {
+    // Don't try to write if stream is closed or request is aborted
+    if (isStreamClosed || request.signal.aborted) {
+      return;
+    }
     try {
       await writer.write(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
     } catch (error) {
+      // If stream is closed (e.g., client aborted), mark as closed and ignore
+      if (error instanceof Error && (
+        error.message.includes('closed') || 
+        error.message.includes('aborted') ||
+        error.name === 'ResponseAborted'
+      )) {
+        isStreamClosed = true;
+        return;
+      }
       console.error(`${LOG_PREFIXES.CHAT} Error writing to stream:`, error);
     }
   };
 
   // Helper function to send keepalive comment (resets timeout without being parsed as data)
   const sendKeepalive = async () => {
+    // Don't try to write if stream is closed or request is aborted
+    if (isStreamClosed || request.signal.aborted) {
+      return;
+    }
     try {
       await writer.write(encoder.encode(': keepalive\n\n'));
     } catch (error) {
-      // Ignore errors on keepalive
+      // If stream is closed, mark as closed and ignore
+      if (error instanceof Error && (
+        error.message.includes('closed') || 
+        error.message.includes('aborted') ||
+        error.name === 'ResponseAborted'
+      )) {
+        isStreamClosed = true;
+        return;
+      }
+      // Ignore other errors on keepalive
     }
   };
 
@@ -44,7 +87,7 @@ export async function POST(
       if (!user) {
         const errorEvent = formatErrorForStream(new Error(ERROR_MESSAGES.UNAUTHORIZED));
         await sendProgress(errorEvent);
-        await writer.close();
+        await closeWriter();
         return;
       }
 
@@ -53,7 +96,7 @@ export async function POST(
       if (!params || !params.id) {
         const errorEvent = formatErrorForStream(new Error("Project ID is required"));
         await sendProgress(errorEvent);
-        await writer.close();
+        await closeWriter();
         return;
       }
 
@@ -65,7 +108,7 @@ export async function POST(
       if (!project) {
         const errorEvent = formatErrorForStream(new Error(ERROR_MESSAGES.PROJECT_NOT_FOUND));
         await sendProgress(errorEvent);
-        await writer.close();
+        await closeWriter();
         return;
       }
 
@@ -73,7 +116,7 @@ export async function POST(
       if (!project.currentSandboxId) {
         const errorEvent = formatErrorForStream(new Error("Project does not have an active sandbox. Please initialize the sandbox first."));
         await sendProgress(errorEvent);
-        await writer.close();
+        await closeWriter();
         return;
       }
 
@@ -82,7 +125,7 @@ export async function POST(
       if (!userPrompt || typeof userPrompt !== 'string' || !userPrompt.trim()) {
         const errorEvent = formatErrorForStream(new Error("userPrompt is required and must be a non-empty string"));
         await sendProgress(errorEvent);
-        await writer.close();
+        await closeWriter();
         return;
       }
 
@@ -99,11 +142,13 @@ export async function POST(
       try {
         // Run the coding agent orchestration
         // State is automatically loaded from storage and saved after completion
+        // Pass the request's abort signal to allow cancellation
         const result = await runCodingAgent(modal, {
           userPrompt: userPrompt.trim(),
           sandboxId: project.currentSandboxId,
           projectId: projectId,
           onProgress: sendProgress,
+          signal: request.signal,
         });
 
         // If there was an error, it was already sent via onProgress
@@ -111,15 +156,18 @@ export async function POST(
           // Error already reported via onProgress callback
           console.error(`${LOG_PREFIXES.CHAT} Chat failed:`, result.error);
         }
+        
+        // Note: If request was aborted, runCodingAgent already handled it
+        // by checking signal.aborted and sending a 'stopped' event
       } finally {
         clearInterval(keepaliveInterval);
-        await writer.close();
+        await closeWriter();
       }
     } catch (error) {
       console.error(`${LOG_PREFIXES.CHAT} Error in chat:`, error);
       const errorEvent = formatErrorForStream(error);
       await sendProgress(errorEvent);
-      await writer.close();
+      await closeWriter();
     }
   })();
 

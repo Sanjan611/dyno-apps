@@ -56,6 +56,7 @@ export interface CodingAgentConfig {
   maxIterations?: number;
   maxRetries?: number;
   onProgress?: ProgressCallback;
+  signal?: AbortSignal;
 }
 
 /**
@@ -213,6 +214,7 @@ export async function runCodingAgent(
     maxIterations = 50,
     maxRetries = 3,
     onProgress,
+    signal,
   } = config;
 
   // Validate input
@@ -282,6 +284,28 @@ export async function runCodingAgent(
   let iterations = 0;
 
   while (iterations < maxIterations) {
+    // Check if request was aborted before starting next iteration
+    if (signal?.aborted) {
+      console.log(`${LOG_PREFIXES.CHAT} Coding agent stopped by user request`);
+      
+      // Save current state before stopping
+      setAgentState(projectId, state);
+      console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
+      
+      if (onProgress) {
+        await onProgress({
+          type: 'stopped',
+          message: 'Processing stopped by user',
+        });
+      }
+      
+      return {
+        success: false,
+        error: 'Processing stopped by user',
+        state: state,
+      };
+    }
+    
     iterations++;
     console.log(`${LOG_PREFIXES.CHAT} Iteration ${iterations}/${maxIterations}`);
 
@@ -403,6 +427,28 @@ export async function runCodingAgent(
     console.log(`${LOG_PREFIXES.CHAT} Executing ${tool.action} tool...`);
     const execResult = await executeSingleTool(sandbox, tool, workingDir, todoList);
     const result = execResult.result;
+    
+    // Check if request was aborted after tool execution (before next iteration)
+    if (signal?.aborted) {
+      console.log(`${LOG_PREFIXES.CHAT} Coding agent stopped by user request after tool execution`);
+      
+      // Save current state before stopping
+      setAgentState(projectId, state);
+      console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
+      
+      if (onProgress) {
+        await onProgress({
+          type: 'stopped',
+          message: 'Processing stopped by user',
+        });
+      }
+      
+      return {
+        success: false,
+        error: 'Processing stopped by user',
+        state: state,
+      };
+    }
     
     // Handle side effects
     if (tool.action === "write_file" && !result.startsWith("Error")) {

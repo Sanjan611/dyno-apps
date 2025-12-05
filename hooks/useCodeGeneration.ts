@@ -99,14 +99,21 @@ function parseSSEEvents(chunk: string): string[] {
  */
 export function useCodeGeneration() {
   const generateCode = useCallback(
-    async (
+    (
       userPrompt: string,
       projectId: string,
-      setMessages: React.Dispatch<React.SetStateAction<Message[]>>
-    ): Promise<void> => {
+      setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
+      abortController?: AbortController
+    ): { promise: Promise<void>; abort: () => void } => {
       if (!projectId) {
         throw new Error("Project ID is required");
       }
+
+      // Create new AbortController if one wasn't provided
+      const controller = abortController || new AbortController();
+      const abort = () => controller.abort();
+      
+      const promise = (async () => {
 
       const response = await fetch(API_ENDPOINTS.PROJECT_CHAT(projectId), {
         method: "POST",
@@ -116,6 +123,7 @@ export function useCodeGeneration() {
         body: JSON.stringify({
           userPrompt,
         }),
+        signal: controller.signal,
       });
 
       if (!response.ok || !response.body) {
@@ -133,6 +141,12 @@ export function useCodeGeneration() {
           const { done, value } = await reader.read();
           
           if (done) break;
+          
+          // Check if request was aborted
+          if (controller.signal.aborted) {
+            reader.cancel();
+            break;
+          }
           
           buffer += decoder.decode(value, { stream: true });
           
@@ -300,15 +314,81 @@ export function useCodeGeneration() {
                     ];
                   });
                   break;
+                  
+                case 'stopped':
+                  setMessages((prev) => {
+                    const updated = prev.map((msg) => {
+                      if (msg.id === thinkingMessageId) {
+                        return {
+                          ...msg,
+                          actions: msg.actions?.map((action) => ({
+                            ...action,
+                            status: 'completed' as const,
+                          })),
+                          isComplete: true,
+                        };
+                      }
+                      return msg;
+                    });
+                    
+                    return [
+                      ...updated,
+                      {
+                        id: (Date.now() + 1).toString(),
+                        role: "assistant",
+                        content: "Stopped processing",
+                        timestamp: new Date(),
+                      },
+                    ];
+                  });
+                  break;
               }
             } catch (parseError) {
               console.error("Error parsing SSE event:", parseError, "Event data:", eventData);
             }
           }
         }
+      } catch (error) {
+        // Handle abort errors
+        if (error instanceof Error && error.name === 'AbortError') {
+          // Request was aborted - the backend should have sent a 'stopped' event
+          // If we didn't receive it, handle it here
+          if (thinkingMessageId) {
+            setMessages((prev) => {
+              const updated = prev.map((msg) => {
+                if (msg.id === thinkingMessageId) {
+                  return {
+                    ...msg,
+                    actions: msg.actions?.map((action) => ({
+                      ...action,
+                      status: 'completed' as const,
+                    })),
+                    isComplete: true,
+                  };
+                }
+                return msg;
+              });
+              
+              return [
+                ...updated,
+                {
+                  id: (Date.now() + 1).toString(),
+                  role: "assistant",
+                  content: "Stopped processing",
+                  timestamp: new Date(),
+                },
+              ];
+            });
+          }
+        } else {
+          throw error;
+        }
       } finally {
         reader.releaseLock();
       }
+      })();
+      
+      return { promise, abort };
     },
     []
   );

@@ -33,6 +33,7 @@ export default function ChatPanel() {
   const { setSandboxId, setPreviewUrl, sandboxId, setProjectId, projectId } = useBuilderStore();
   const [hasSentInitialMessage, setHasSentInitialMessage] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<(() => void) | null>(null);
 
   const { generateCode } = useCodeGeneration();
   const { initializeProject, initializeExpo } = useProjectSession({
@@ -79,7 +80,9 @@ export default function ChatPanel() {
           await initializeExpo(currentSandboxId, currentProjectId);
 
           // Generate code (state is managed server-side)
-          await generateCode(newMessage.content, currentProjectId, setMessages);
+          const { promise, abort } = generateCode(newMessage.content, currentProjectId, setMessages);
+          abortRef.current = abort;
+          await promise;
         } catch (error) {
           const errorMessage: Message = {
             id: (Date.now() + 1).toString(),
@@ -111,7 +114,9 @@ export default function ChatPanel() {
       setIsLoading(true);
       try {
         // Generate code (state is managed server-side)
-        await generateCode(newMessage.content, currentProjectId, setMessages);
+        const { promise, abort } = generateCode(newMessage.content, currentProjectId, setMessages);
+        abortRef.current = abort;
+        await promise;
       } catch (error) {
         const errorMessage: Message = {
           id: (Date.now() + 2).toString(),
@@ -122,6 +127,7 @@ export default function ChatPanel() {
         setMessages((prev) => [...prev, errorMessage]);
       } finally {
         setIsLoading(false);
+        abortRef.current = null;
       }
     },
     [
@@ -138,6 +144,14 @@ export default function ChatPanel() {
     const message = input;
     setInput("");
     await sendMessage(message);
+  };
+
+  const handleStop = () => {
+    if (abortRef.current) {
+      abortRef.current();
+      abortRef.current = null;
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -222,6 +236,7 @@ export default function ChatPanel() {
         input={input}
         setInput={setInput}
         onSend={handleSend}
+        onStop={handleStop}
         isLoading={isLoading}
       />
     </div>
