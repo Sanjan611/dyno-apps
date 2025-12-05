@@ -1,7 +1,7 @@
 // Message class for agent state
 class Message {
   role "user" | "assistant" | "tool"
-  message string | ReadOnlyTools | (ListFilesTool | ReadFileTool)[] | FileTools | TodoTools
+  message string | ReadOnlyTools | FileTools | TodoTools
 }
 
 // File operation tools

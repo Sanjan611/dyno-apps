@@ -28,40 +28,53 @@ async function executeListFiles(
   tool: ListFilesTool
 ): Promise<string> {
   try {
-    // Use ls command to list directory contents
-    const lsProcess = await sandbox.exec(["ls", "-la", tool.directoryPath]);
+    const dirPath = tool.directoryPath;
+    
+    // Check if directory exists using test -d
+    const existsProcess = await sandbox.exec(["test", "-e", dirPath]);
+    const existsCode = await existsProcess.wait();
+    if (existsCode !== 0) {
+      return `Directory not found: ${dirPath}`;
+    }
+    
+    // Check if it's actually a directory
+    const isDirProcess = await sandbox.exec(["test", "-d", dirPath]);
+    const isDirCode = await isDirProcess.wait();
+    if (isDirCode !== 0) {
+      return `Not a directory: ${dirPath}`;
+    }
+    
+    // List directory contents with file type indicators
+    // Using ls -1 -p to get one item per line with / suffix for directories
+    const lsProcess = await sandbox.exec(["ls", "-1", "-p", dirPath]);
     const output = await lsProcess.stdout.readText();
     await lsProcess.wait();
     
-    // Parse the output to extract files and directories
     const lines = output.split("\n").filter((line: string) => line.trim());
-    const files: string[] = [];
-    const directories: string[] = [];
     
-    // Skip the first line (total) and parse each line
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i];
-      const parts = line.trim().split(/\s+/);
-      if (parts.length >= 9) {
-        const name = parts.slice(8).join(" ");
-        // Skip . and ..
-        if (name === "." || name === "..") continue;
-        
-        // Check if it's a directory (starts with 'd')
-        if (parts[0].startsWith("d")) {
-          directories.push(name);
-        } else {
-          files.push(name);
-        }
+    if (lines.length === 0) {
+      return "Empty directory";
+    }
+    
+    const items: string[] = [];
+    for (const line of lines) {
+      const name = line.trim();
+      if (!name) continue;
+      
+      // ls -p adds trailing / to directories
+      if (name.endsWith("/")) {
+        items.push(`DIR  ${name.slice(0, -1)}`);
+      } else {
+        items.push(`FILE ${name}`);
       }
     }
     
-    return `Listed directory ${tool.directoryPath}:\nFiles: ${files.join(", ")}\nDirectories: ${directories.join(", ")}`;
+    items.sort();
+    return items.join("\n");
   } catch (error) {
-    // Return error message so agent can handle it
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    return `Error listing directory ${tool.directoryPath}: ${errorMessage}. Please check the path and try again.`;
+    return `Error listing directory: ${errorMessage}`;
   }
 }
 
@@ -320,22 +333,6 @@ export async function executeSingleTool(
   }
 }
 
-// Parallel execution function for read operations
-export async function executeParallelTools(
-  sandbox: any,
-  tools: (ListFilesTool | ReadFileTool)[],
-  workingDir: string,
-  todoList: TodoItem[]
-): Promise<string> {
-  const results = await Promise.all(
-    tools.map(async (tool, index) => {
-      const { result } = await executeSingleTool(sandbox, tool, workingDir, todoList);
-      return `[${index + 1}] ${result}`;
-    })
-  );
-  return `Results for parallel read:\n${results.join("\n")}`;
-}
-
 // Helper function to extract all written files from message state
 export function extractFilesFromState(state: Message[]): Record<string, string> {
   const files: Record<string, string> = {};
@@ -358,15 +355,9 @@ export function areAllTodosCompleted(todoList: TodoItem[]): boolean {
 
 // Helper function to extract tool parameters for display (excluding content for WriteFileTool)
 export function extractToolParams(
-  tool: FileTools | (ListFilesTool | ReadFileTool)[] | TodoTools
+  tool: FileTools | TodoTools
 ): Record<string, any> {
-  if (Array.isArray(tool)) {
-    // For arrays, show the count and tool types
-    return {
-      toolCount: tool.length,
-      toolTypes: tool.map(t => t.action),
-    };
-  } else if (tool.action === "write_file") {
+  if (tool.action === "write_file") {
     // For WriteFileTool, exclude content field
     const { content, ...params } = tool as WriteFileTool;
     return params;

@@ -28,7 +28,6 @@ import type {
 } from "@/baml_client/types";
 import {
   executeSingleTool,
-  executeParallelTools,
   extractFilesFromState,
   areAllTodosCompleted,
   extractToolParams,
@@ -81,7 +80,7 @@ async function callCodingAgentWithRetry(
   todoList: TodoItem[],
   collector: Collector,
   maxRetries: number = 3
-): Promise<FileTools | (ListFilesTool | ReadFileTool)[] | TodoTools | ReplyToUser> {
+): Promise<FileTools | TodoTools | ReplyToUser> {
   let lastError: BamlValidationError | BamlClientFinishReasonError | null = null;
   
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -337,14 +336,12 @@ export async function runCodingAgent(
       };
     }
 
-    // Execute the tool (single or parallel)
-    const tool = response as FileTools | (ListFilesTool | ReadFileTool)[] | TodoTools;
+    // Execute the tool
+    const tool = response as FileTools | TodoTools;
     let toolName: string;
     let currentTodo: string | undefined = undefined;
 
-    if (Array.isArray(tool)) {
-      toolName = `parallel_read (${tool.length} files)`;
-    } else if (tool.action === "todo_write") {
+    if (tool.action === "todo_write") {
       toolName = tool.action;
       // Get the in-progress todo for progress display
       const updatedTodos = (tool as TodoWriteTool).todos;
@@ -358,6 +355,9 @@ export async function runCodingAgent(
     } else if (tool.action === "read_file") {
       toolName = tool.action;
       currentTodo = `Reading ${(tool as ReadFileTool).filePath}`;
+    } else if (tool.action === "list_files") {
+      toolName = tool.action;
+      currentTodo = `Listing ${(tool as ListFilesTool).directoryPath}`;
     } else if (tool.action === "verify_expo_server") {
       toolName = tool.action;
       currentTodo = "Verifying Expo server status";
@@ -377,44 +377,33 @@ export async function runCodingAgent(
       });
     }
 
-    let result: string;
-    if (Array.isArray(tool)) {
-      if (tool.length === 0) {
-        result = "Error: Cannot execute parallel_read with empty array. Please provide at least one read_file or list_files tool, or use a single tool call instead.";
-        console.error(`${LOG_PREFIXES.CHAT} Attempted to execute parallel_read with empty array`);
-      } else {
-        console.log(`${LOG_PREFIXES.CHAT} Executing parallel_read with ${tool.length} tools...`);
-        result = await executeParallelTools(sandbox, tool, workingDir, todoList);
-      }
-    } else {
-      console.log(`${LOG_PREFIXES.CHAT} Executing ${tool.action} tool...`);
-      const execResult = await executeSingleTool(sandbox, tool, workingDir, todoList);
-      result = execResult.result;
+    console.log(`${LOG_PREFIXES.CHAT} Executing ${tool.action} tool...`);
+    const execResult = await executeSingleTool(sandbox, tool, workingDir, todoList);
+    const result = execResult.result;
+    
+    // Handle side effects
+    if (tool.action === "write_file" && !result.startsWith("Error")) {
+      modifiedFiles[tool.filePath] = tool.content;
+    } else if (tool.action === "todo_write" && execResult.updatedTodoList) {
+      todoList = execResult.updatedTodoList;
+      console.log(`${LOG_PREFIXES.CHAT} Todo write result:`, execResult.result);
+      console.log(`${LOG_PREFIXES.CHAT} Todo list updated:`, execResult.updatedTodoList);
       
-      // Handle side effects
-      if (tool.action === "write_file" && !result.startsWith("Error")) {
-        modifiedFiles[tool.filePath] = tool.content;
-      } else if (tool.action === "todo_write" && execResult.updatedTodoList) {
-        todoList = execResult.updatedTodoList;
-        console.log(`${LOG_PREFIXES.CHAT} Todo write result:`, execResult.result);
-        console.log(`${LOG_PREFIXES.CHAT} Todo list updated:`, execResult.updatedTodoList);
-        
-        // Send todo update event
-        if (onProgress) {
-          await onProgress({
-            type: 'todo_update',
-            todos: todoList.map(t => ({
-              content: t.content,
-              activeForm: t.activeForm || "",
-              status: t.status,
-            })),
-          });
-        }
-        
-        // Check if all todos are completed
-        if (areAllTodosCompleted(todoList)) {
-          console.log(`${LOG_PREFIXES.CHAT} All todos completed, agent should reply to user`);
-        }
+      // Send todo update event
+      if (onProgress) {
+        await onProgress({
+          type: 'todo_update',
+          todos: todoList.map(t => ({
+            content: t.content,
+            activeForm: t.activeForm || "",
+            status: t.status,
+          })),
+        });
+      }
+      
+      // Check if all todos are completed
+      if (areAllTodosCompleted(todoList)) {
+        console.log(`${LOG_PREFIXES.CHAT} All todos completed, agent should reply to user`);
       }
     }
 

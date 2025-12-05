@@ -5,7 +5,7 @@ function CodingAgent(
   state: Message[],
   working_dir: string,
   todos: TodoItem[]
-) -> FileTools | (ListFilesTool | ReadFileTool)[] | TodoTools | ReplyToUser {
+) -> FileTools | TodoTools | ReplyToUser {
   // client CustomGPT5Mini
   // client CustomGPT5
   // client OpenRouterGrok
@@ -33,7 +33,6 @@ function CodingAgent(
     5. **ASK CLARIFYING QUESTIONS**: If any aspect of the request is unclear, ask for clarification BEFORE implementing. Wait for their response before proceeding and calling tools.
     6. **GATHER CONTEXT EFFICIENTLY**:
       - Check context and tool results FIRST before reading any files
-      - ALWAYS batch multiple file operations when possible
       - Only read files directly relevant to the request
       - Do not hesitate to search the codebase when you need information
     7. **IMPLEMENTATION** (when relevant):
@@ -129,7 +128,6 @@ function CodingAgent(
         - Understand current styling approach (StyleSheet, inline, etc.)
         - Check for existing hooks, utils, or screen folders
       - Read relevant files to understand the current implementation (e.g., App.js/App.tsx, package.json, component files)
-      - **CRITICAL: Always batch independent read operations** - If you need to read multiple files or list multiple directories that don't depend on each other, return an array of read_file or list_files tools to execute them in parallel. This is much more efficient than sequential single calls.
     2. **Planning Phase** (after exploration):
       - Create a todo list using todo_write based on your understanding of what needs to be implemented
       - Each todo should be a specific, actionable step (e.g., "Read App.js to understand current structure", "Add a new Button component", "Update the main screen to include the button")
@@ -215,7 +213,7 @@ function CodingAgent(
     {{ ToolUsageGuidelines(working_dir) }}
     </TOOL_USAGE_GUIDELINES>
 
-    {{ ctx.output_format(prefix="Answer with the following format. You can select multiple tools at a time if they are read-only operations. If the task is complete, reply to the user:\n") }}
+    {{ ctx.output_format(prefix="Answer with ONE tool call at a time. If the task is complete, reply to the user:\n") }}
 
     {% for message in state %}
     {{ _.role(message.role) }}
