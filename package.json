@@ -7,9 +7,11 @@
     "build": "baml generate && next build",
     "start": "next start",
     "lint": "next lint",
+    "type-check": "tsc --noEmit",
     "baml:generate": "baml generate",
     "baml:check": "baml check",
-    "baml:test": "baml test --dotenv --dotenv-path .env.local"
+    "baml:test": "baml test --dotenv --dotenv-path .env.local",
+    "prepare": "husky"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.0",
@@ -38,6 +40,7 @@
     "baml-cli": "^0.0.0",
     "eslint": "^8",
     "eslint-config-next": "15.5.7",
+    "husky": "^9.1.7",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",

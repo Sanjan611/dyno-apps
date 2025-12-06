@@ -85,7 +85,7 @@ async function callCodingAgentWithRetry(
   todoList: TodoItem[],
   collector: Collector,
   maxRetries: number = 3
-): Promise<AgentTools> {
+): Promise<AgentTools | ReplyToUser> {
   let lastError: BamlValidationError | BamlClientFinishReasonError | null = null;
   
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
