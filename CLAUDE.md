@@ -113,7 +113,7 @@ All routes follow RESTful conventions with nested resources:
   - Event types: `status`, `coding_iteration`, `todo_update`, `complete`, `error`
 
 **Expo Initialization:**
-- `POST /api/init-expo` - Initialize Expo app in sandbox (runs `npx create-expo-app`)
+- `POST /api/init-expo` - Initialize Expo app in sandbox (runs `bun create expo-app`)
 
 ### Database Schema (Supabase)
 

@@ -25,6 +25,7 @@ import type {
   TodoItem,
   TodoWriteTool,
   TodoTools,
+  AgentTools,
 } from "@/baml_client/types";
 import {
   executeSingleTool,
@@ -84,7 +85,7 @@ async function callCodingAgentWithRetry(
   todoList: TodoItem[],
   collector: Collector,
   maxRetries: number = 3
-): Promise<FileTools | TodoTools | ReplyToUser> {
+): Promise<AgentTools> {
   let lastError: BamlValidationError | BamlClientFinishReasonError | null = null;
   
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -350,10 +351,10 @@ export async function runCodingAgent(
       const replyMessage = "message" in response ? response.message : "";
       console.log(`${LOG_PREFIXES.CHAT} Coding agent completed with reply:`, replyMessage);
       
-      // Add the final reply to state
+      // Add the final reply to state (store full ReplyToUser object)
       state.push({
         role: "assistant",
-        message: replyMessage,
+        message: response,
       });
       
       // Save the final state to storage
