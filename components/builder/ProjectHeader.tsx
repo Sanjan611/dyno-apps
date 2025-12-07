@@ -24,6 +24,7 @@ export default function ProjectHeader({
 }: ProjectHeaderProps) {
   const [editingName, setEditingName] = useState("");
   const [isSavingName, setIsSavingName] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -101,6 +102,44 @@ export default function ProjectHeader({
     setEditingName(projectName === DEFAULT_PROJECT_NAME ? "" : projectName);
   }, [projectName]);
 
+  const handleSave = async () => {
+    if (!projectId) {
+      console.error("Cannot save: No project ID available");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch(API_ENDPOINTS.PROJECT_SAVE(projectId), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        console.error("Failed to save changes:", data.error);
+        // Could add toast notification here in the future
+        alert(`Failed to save changes: ${data.error}`);
+      } else {
+        console.log("Changes saved successfully:", data.message);
+        // Could add toast notification here in the future
+        if (data.committed && data.pushed) {
+          // Success - could show a brief success message
+        } else if (!data.committed) {
+          // No changes to commit - this is fine, just inform user
+          console.log("No changes to commit");
+        }
+      }
+    } catch (error) {
+      console.error("Error saving changes:", error);
+      alert(`Error saving changes: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <header className="h-14 border-b bg-white/80 backdrop-blur-md flex items-center justify-between px-4 z-50">
       <div className="flex items-center gap-4">
@@ -138,9 +177,14 @@ export default function ProjectHeader({
             My Projects
           </Link>
         </Button>
-        <Button size="sm" className="bg-primary hover:bg-primary/90 text-white shadow-sm">
+        <Button 
+          size="sm" 
+          className="bg-primary hover:bg-primary/90 text-white shadow-sm"
+          onClick={handleSave}
+          disabled={isSaving || !projectId}
+        >
           <Save className="w-4 h-4 mr-2" />
-          Save
+          {isSaving ? "Saving..." : "Save"}
         </Button>
         <Button variant="ghost" size="icon" className="text-muted-foreground">
           <MoreVertical className="w-4 h-4" />
