@@ -162,6 +162,15 @@ client<llm> GLMWithSonnetFallback {
   }
 }
 
+// Round-robin client alternating between Claude Sonnet 4.5, GPT-5, and GLM
+client<llm> MultiModelRoundRobin {
+  provider round-robin
+  options {
+    // This will alternate between the three clients
+    strategy [ClaudeSonnet, CustomGPT5, OpenRouterGLM]
+  }
+}
+
 // https://docs.boundaryml.com/docs/snippets/clients/retry
 retry_policy Constant {
   max_retries 3

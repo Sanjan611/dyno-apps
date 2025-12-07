@@ -23,16 +23,28 @@ log "Checking Node.js and Bun..."
 node --version || { log "ERROR: Node.js not found"; exit 1; }
 bun --version || { log "ERROR: Bun not found"; exit 1; }
 
-# Navigate to app directory (volume mount point)
-log "Navigating to app directory (/my-app)..."
-cd /my-app || { log "ERROR: Failed to navigate to /my-app directory"; exit 1; }
+# Create repo directory if it doesn't exist
+log "Creating /repo directory if it doesn't exist..."
+mkdir -p /repo || { log "ERROR: Failed to create /repo directory"; exit 1; }
 
-# Create new Expo app only if not skipping init
-if [ "$SKIP_INIT" = false ]; then
-  log "Creating Expo app in /my-app..."
-  bun create expo-app@latest . --template blank --yes || { log "ERROR: Failed to create Expo app"; exit 1; }
+# Navigate to repo directory (GitHub repo clone location)
+log "Navigating to repo directory (/repo)..."
+cd /repo || { log "ERROR: Failed to navigate to /repo directory"; exit 1; }
+
+# Check if package.json exists (repo already has content from GitHub)
+if [ -f "package.json" ]; then
+  log "Found existing package.json in /repo (GitHub repo already cloned)"
+  log "Installing dependencies..."
+  bun install || { log "ERROR: Failed to install dependencies"; exit 1; }
+  SKIP_INIT=true
 else
-  log "Skipping Expo app creation (using existing code in volume)"
+  # Create new Expo app only if not skipping init
+  if [ "$SKIP_INIT" = false ]; then
+    log "Creating Expo app in /repo..."
+    bun create expo-app@latest . --template blank --yes || { log "ERROR: Failed to create Expo app"; exit 1; }
+  else
+    log "Skipping Expo app creation (using existing code)"
+  fi
 fi
 
 # Install required dependencies for web support

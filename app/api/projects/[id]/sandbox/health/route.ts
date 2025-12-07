@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createModalClient, checkSandboxExists, createErrorResponse } from "@/lib/server/modal";
 import { getProject } from "@/lib/server/projectStore";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
-import { EXPO_PORT, TIMEOUTS } from "@/lib/constants";
+import { EXPO_PORT, TIMEOUTS, REPO_DIR } from "@/lib/constants";
 
 export async function GET(
   request: NextRequest,
@@ -68,7 +68,7 @@ export async function GET(
 
       try {
         // Check if Expo port is listening
-        const netstatProcess = await sandbox.exec(["netstat", "-tlnp"]);
+        const netstatProcess = await sandbox.exec(["netstat", "-tlnp"], { workdir: REPO_DIR });
         const netstatOutput = await netstatProcess.stdout.readText();
         await netstatProcess.wait();
         portListening = netstatOutput.includes(`:${EXPO_PORT}`);
@@ -79,7 +79,7 @@ export async function GET(
 
       try {
         // Check if Expo process is running
-        const psProcess = await sandbox.exec(["ps", "aux"]);
+        const psProcess = await sandbox.exec(["ps", "aux"], { workdir: REPO_DIR });
         const psOutput = await psProcess.stdout.readText();
         await psProcess.wait();
         expoRunning = psOutput.includes("expo") || psOutput.includes("node");

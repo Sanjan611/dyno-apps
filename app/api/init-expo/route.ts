@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ModalClient } from "modal";
 import { readFile } from "fs/promises";
 import { join } from "path";
-import { EXPO_PORT, TIMEOUTS } from "@/lib/constants";
+import { EXPO_PORT, TIMEOUTS, REPO_DIR } from "@/lib/constants";
 
 /**
  * Builds an authenticated git clone URL by embedding the PAT
@@ -30,11 +30,17 @@ async function cloneRepository(
   destination: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Create /repo directory first if it doesn't exist
+    // This is needed because workdir requires the directory to exist
+    const mkdirProcess = await sandbox.exec(["mkdir", "-p", REPO_DIR]);
+    await mkdirProcess.wait();
+    
     const cloneProcess = await sandbox.exec(
       ["git", "clone", authenticatedUrl, destination],
       {
         stdout: "pipe",
         stderr: "pipe",
+        workdir: REPO_DIR,
       }
     );
 
@@ -95,21 +101,21 @@ export async function POST(request: NextRequest) {
     const sandbox = await modal.sandboxes.fromId(sandboxId);
     console.log("[init-expo] Sandbox reference obtained:", sandbox.sandboxId);
 
-    // Check if volume is new by checking if /my-app directory exists or has content
-    let isNewVolume = false;
+    // Check if repository has already been cloned by checking if /repo/package.json exists
+    let repoExists = false;
     try {
-      const testFile = await sandbox.open("/my-app/package.json", "r");
-      await testFile.close();
-      isNewVolume = false;
-      console.log("[init-expo] Volume appears to have existing content");
+      const packageJsonFile = await sandbox.open(`${REPO_DIR}/package.json`, "r");
+      await packageJsonFile.close();
+      repoExists = true;
+      console.log("[init-expo] Repository already cloned at", REPO_DIR);
     } catch (error) {
-      isNewVolume = true;
-      console.log("[init-expo] Volume appears to be new (no existing content)");
+      repoExists = false;
+      console.log("[init-expo] Repository not found at", REPO_DIR, "will clone if repositoryUrl is provided");
     }
 
-    // If repositoryUrl is provided and volume is new, clone the repo
-    if (repositoryUrl && isNewVolume) {
-      console.log("[init-expo] Cloning repository:", repositoryUrl);
+    // If repositoryUrl is provided and repo doesn't exist, clone it
+    if (repositoryUrl && !repoExists) {
+      console.log("[init-expo] Cloning repository:", repositoryUrl, "to", REPO_DIR);
       
       const GITHUB_PAT = process.env.GITHUB_PAT;
       if (!GITHUB_PAT) {
@@ -127,11 +133,9 @@ export async function POST(request: NextRequest) {
       const authenticatedUrl = buildAuthenticatedCloneUrl(repositoryUrl, GITHUB_PAT);
 
       try {
-        // Clone the repository to a test directory (for testing purposes)
-        const testCloneDir = `/tmp/repo-test-${Date.now()}`;
-        console.log("[init-expo] Executing git clone to test directory:", testCloneDir);
+        console.log("[init-expo] Executing git clone to", REPO_DIR);
         
-        const cloneResult = await cloneRepository(sandbox, authenticatedUrl, testCloneDir);
+        const cloneResult = await cloneRepository(sandbox, authenticatedUrl, REPO_DIR);
         
         if (!cloneResult.success) {
           return NextResponse.json(
@@ -143,7 +147,7 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        console.log("[init-expo] Repository cloned successfully to:", testCloneDir);
+        console.log("[init-expo] Repository cloned successfully to", REPO_DIR);
       } catch (error) {
         console.error("[init-expo] Error during git clone:", error);
         return NextResponse.json(
@@ -156,17 +160,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Determine if we should skip init by checking if package.json exists in volume
+    // Determine if we should skip init by checking if package.json exists in repo
     let shouldSkipInit = skipInit;
     if (shouldSkipInit === undefined) {
       try {
-        const packageJsonFile = await sandbox.open("/my-app/package.json", "r");
+        const packageJsonFile = await sandbox.open(`${REPO_DIR}/package.json`, "r");
         await packageJsonFile.close();
         shouldSkipInit = true;
-        console.log("[init-expo] Found existing package.json, will skip Expo initialization");
+        console.log("[init-expo] Found existing package.json at", REPO_DIR, ", will skip Expo initialization");
       } catch (error) {
         shouldSkipInit = false;
-        console.log("[init-expo] No existing package.json found, will initialize Expo");
+        console.log("[init-expo] No existing package.json found at", REPO_DIR, ", will initialize Expo");
       }
     }
 
@@ -184,18 +188,21 @@ export async function POST(request: NextRequest) {
     console.log("[init-expo] Startup script written to sandbox");
 
     // Make the script executable
+    // Note: Using absolute path /startup.sh, but setting workdir for consistency
     console.log("[init-expo] Making script executable...");
-    const chmodProcess = await sandbox.exec(["chmod", "+x", "/startup.sh"]);
+    const chmodProcess = await sandbox.exec(["chmod", "+x", "/startup.sh"], { workdir: REPO_DIR });
     await chmodProcess.wait();
     console.log("[init-expo] Script is now executable");
 
     // Execute the startup script with appropriate flag
     // Note: EXPO_TUNNEL_SUBDOMAIN is set as a sandbox environment variable at creation time
+    // Note: Using absolute path /startup.sh, but setting workdir for consistency
     const initFlag = shouldSkipInit ? "--skip-init" : "--init";
     console.log("[init-expo] Executing startup script with flag:", initFlag);
     const execProcess = await sandbox.exec(["/bin/bash", "/startup.sh", initFlag], {
       stdout: "pipe",
       stderr: "pipe",
+      workdir: REPO_DIR,
     });
 
     // Stream stdout and stderr to console (for debugging)

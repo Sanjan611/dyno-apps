@@ -33,7 +33,7 @@ import {
   areAllTodosCompleted,
   extractToolParams,
 } from "@/lib/server/tool-executors";
-import { WORKING_DIR, LOG_PREFIXES } from "@/lib/constants";
+import { REPO_DIR, LOG_PREFIXES } from "@/lib/constants";
 import type { SSEProgressEvent } from "@/types";
 import { getAgentState, setAgentState } from "@/lib/server/agent-state-store";
 
@@ -117,6 +117,14 @@ async function callCodingAgentWithRetry(
             `${LOG_PREFIXES.CHAT} CodingAgent validation error on attempt ${attempt + 1}/${maxRetries + 1}, retrying in ${delayMs}ms...`
           );
           console.error(`${LOG_PREFIXES.CHAT} Validation error details:`, error.detailed_message || error.message);
+          if (error.raw_output) {
+            console.error(`${LOG_PREFIXES.CHAT} Validation error raw output:`, error.raw_output);
+          }
+          // Log state info for debugging
+          console.error(`${LOG_PREFIXES.CHAT} State length at error:`, state.length);
+          if (state.length > 0) {
+            console.error(`${LOG_PREFIXES.CHAT} Last message in state:`, JSON.stringify(state[state.length - 1], null, 2));
+          }
           
           // Wait before retrying
           await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -125,6 +133,12 @@ async function callCodingAgentWithRetry(
           console.error(
             `${LOG_PREFIXES.CHAT} CodingAgent failed after ${maxRetries + 1} attempts with validation error`
           );
+          console.error(`${LOG_PREFIXES.CHAT} Final validation error details:`, error.detailed_message || error.message);
+          if (error.raw_output) {
+            console.error(`${LOG_PREFIXES.CHAT} Final validation error raw output:`, error.raw_output);
+          }
+          // Log the state that caused the error (for debugging)
+          console.error(`${LOG_PREFIXES.CHAT} State at error (last 3 messages):`, JSON.stringify(state.slice(-3), null, 2));
         }
       } else {
         // Non-retryable error (BamlAbortError, network errors, etc.) - throw immediately
@@ -211,7 +225,7 @@ export async function runCodingAgent(
     userPrompt,
     sandboxId,
     projectId,
-    workingDir = WORKING_DIR,
+    workingDir = REPO_DIR,
     maxIterations = 50,
     maxRetries = 3,
     onProgress,

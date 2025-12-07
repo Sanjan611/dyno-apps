@@ -11,7 +11,7 @@ import type {
   TodoWriteTool,
   TodoTools,
 } from "@/baml_client/types";
-import { WORKING_DIR, CONTENT_LIMITS, TIMEOUTS, LOG_PREFIXES } from "@/lib/constants";
+import { CONTENT_LIMITS, TIMEOUTS, LOG_PREFIXES, REPO_DIR } from "@/lib/constants";
 
 // Type for single (non-array) tools
 export type SingleTool = ListFilesTool | ReadFileTool | WriteFileTool | BashTool | TodoWriteTool | VerifyExpoServerTool;
@@ -31,14 +31,14 @@ async function executeListFiles(
     const dirPath = tool.directoryPath;
     
     // Check if directory exists using test -d
-    const existsProcess = await sandbox.exec(["test", "-e", dirPath]);
+    const existsProcess = await sandbox.exec(["test", "-e", dirPath], { workdir: REPO_DIR });
     const existsCode = await existsProcess.wait();
     if (existsCode !== 0) {
       return `Directory not found: ${dirPath}`;
     }
     
     // Check if it's actually a directory
-    const isDirProcess = await sandbox.exec(["test", "-d", dirPath]);
+    const isDirProcess = await sandbox.exec(["test", "-d", dirPath], { workdir: REPO_DIR });
     const isDirCode = await isDirProcess.wait();
     if (isDirCode !== 0) {
       return `Not a directory: ${dirPath}`;
@@ -46,7 +46,7 @@ async function executeListFiles(
     
     // List directory contents with file type indicators
     // Using ls -1 -p to get one item per line with / suffix for directories
-    const lsProcess = await sandbox.exec(["ls", "-1", "-p", dirPath]);
+    const lsProcess = await sandbox.exec(["ls", "-1", "-p", dirPath], { workdir: REPO_DIR });
     const output = await lsProcess.stdout.readText();
     await lsProcess.wait();
     
@@ -110,8 +110,8 @@ async function executeLintCheck(
     const prettierProcess = await sandbox.exec([
       "bash",
       "-c",
-      `cd ${workingDir} && bunx prettier --write "**/*.{js,jsx,ts,tsx}" 2>&1 || echo "Prettier check completed"`,
-    ]);
+      `bunx prettier --write "**/*.{js,jsx,ts,tsx}" 2>&1 || echo "Prettier check completed"`,
+    ], { workdir: REPO_DIR });
     const prettierStdout = await prettierProcess.stdout.readText();
     const prettierStderr = await prettierProcess.stderr.readText();
     await prettierProcess.wait();
@@ -132,8 +132,8 @@ async function executeLintCheck(
       const eslintProcess = await sandbox.exec([
         "bash",
         "-c",
-        `cd ${workingDir} && bunx eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 999999 --no-error-on-unmatched-pattern 2>&1 || true`,
-      ]);
+        `bunx eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 999999 --no-error-on-unmatched-pattern 2>&1 || true`,
+      ], { workdir: REPO_DIR });
       const eslintStdout = await eslintProcess.stdout.readText();
       const eslintStderr = await eslintProcess.stderr.readText();
       await eslintProcess.wait();
@@ -176,7 +176,7 @@ async function executeWriteFile(
   try {
     const dirPath = dirname(tool.filePath);
     if (dirPath && dirPath !== "/" && dirPath !== ".") {
-      const mkdirProcess = await sandbox.exec(["mkdir", "-p", dirPath]);
+      const mkdirProcess = await sandbox.exec(["mkdir", "-p", dirPath], { workdir: REPO_DIR });
       await mkdirProcess.wait();
     }
 
@@ -187,7 +187,7 @@ async function executeWriteFile(
     let result = `Successfully wrote file ${tool.filePath}`;
     
     // Run lint checks after successful write (only for files in working directory)
-    if (tool.filePath.startsWith(workingDir) || tool.filePath.startsWith(WORKING_DIR)) {
+    if (tool.filePath.startsWith(workingDir)) {
       try {
         console.log(`${LOG_PREFIXES.CHAT} Triggering lint check after writing file:`, tool.filePath);
         const lintResults = await executeLintCheck(sandbox, workingDir);
@@ -221,7 +221,7 @@ async function executeBashCommand(
     console.log(`${LOG_PREFIXES.CHAT} Executing bash command: ${tool.command} (timeout: ${maxTimeout}ms)`);
     
     // Execute command using bash -c in the sandbox
-    const process = await sandbox.exec(["bash", "-c", tool.command]);
+    const process = await sandbox.exec(["bash", "-c", tool.command], { workdir: REPO_DIR });
     
     // Read stdout and stderr
     const stdoutPromise = process.stdout.readText();
@@ -290,11 +290,12 @@ async function executeVerifyExpoServer(
     const tailLines = Math.min(tool.tailLines || 50, 200);
 
     // Get raw tail of Expo logs
+    // Note: Using absolute path /tmp/expo.log, but still setting workdir for consistency
     const logProcess = await sandbox.exec([
       "bash",
       "-c",
       `tail -n ${tailLines} /tmp/expo.log 2>&1`
-    ]);
+    ], { workdir: REPO_DIR });
     const logOutput = await logProcess.stdout.readText();
     await logProcess.wait();
 

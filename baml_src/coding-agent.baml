@@ -9,7 +9,8 @@ function CodingAgent(
   // client CustomGPT5Mini
   // client CustomGPT5
   // client OpenRouterGrok
-  client OpenRouterGLM
+  client MultiModelRoundRobin
+  // client OpenRouterGLM
   // client ClaudeSonnet
   prompt #"
     {{ _.role("system") }}
@@ -74,7 +75,7 @@ test TestCodingAgentSimpleRequest {
         message "Add a welcome message to the app"
       }
     ]
-    working_dir "/my-app"
+    working_dir "/repo"
     todos [
       {
         content "Read App.js to understand current structure"
@@ -104,7 +105,7 @@ test TestCodingAgentWithButton {
         message "Add a button that says 'Click Me' to the app"
       }
     ]
-    working_dir "/my-app"
+    working_dir "/repo"
     todos [
       {
         content "Read App.js to understand current structure"
@@ -137,7 +138,7 @@ test TestCodingAgentMediumComplexityRequest {
         role "assistant"
         message {
           action "list_files"
-          directoryPath "/my-app"
+          directoryPath "/repo"
         }
       }
       {
@@ -182,7 +183,7 @@ test TestCodingAgentMediumComplexityRequest {
         message "Also add a search feature so users can search by restaurant name"
       }
     ]
-    working_dir "/my-app"
+    working_dir "/repo"
     todos [
       {
         content "Read App.js to understand current structure"

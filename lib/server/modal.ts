@@ -86,8 +86,10 @@ export async function createSandbox(
     unencryptedPorts: number[];
     volumes?: Record<string, Volume>;
     env?: Record<string, string>;
+    timeoutMs?: number;
   } = {
     unencryptedPorts: [EXPO_PORT],
+    timeoutMs: 20 * 60 * 1000,
   };
 
   // Mount volume at /my-app if provided

@@ -16,6 +16,12 @@
 export const WORKING_DIR = "/my-app";
 
 /**
+ * Repository directory inside the Modal sandbox
+ * This is where the GitHub repo is cloned and the agent works
+ */
+export const REPO_DIR = "/repo";
+
+/**
  * Root user directory in sandbox
  */
 export const SANDBOX_ROOT = "/root";

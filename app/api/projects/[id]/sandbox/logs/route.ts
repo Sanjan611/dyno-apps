@@ -7,7 +7,7 @@ import {
   notFoundResponse,
   internalErrorResponse,
 } from "@/lib/server/api-utils";
-import { SANDBOX_WORKING_DIR } from "@/lib/constants";
+import { SANDBOX_WORKING_DIR, REPO_DIR } from "@/lib/constants";
 import type { SandboxLogsResponse } from "@/types/api";
 
 // GET /api/projects/[id]/sandbox/logs - Get sandbox logs
@@ -48,7 +48,7 @@ export const GET = withAsyncParams<SandboxLogsResponse>(async (request, user, pa
     // Try to check if Expo process is running
     let processCheck = "";
     try {
-      const psProcess = await sandbox.exec(["ps", "aux"]);
+      const psProcess = await sandbox.exec(["ps", "aux"], { workdir: REPO_DIR });
       const psOutput = await psProcess.stdout.readText();
       processCheck = psOutput;
     } catch (error) {
@@ -58,13 +58,13 @@ export const GET = withAsyncParams<SandboxLogsResponse>(async (request, user, pa
     // Try to check if port 19006 is listening
     let portCheck = "";
     try {
-      const netstatProcess = await sandbox.exec(["netstat", "-tlnp"]);
+      const netstatProcess = await sandbox.exec(["netstat", "-tlnp"], { workdir: REPO_DIR });
       const netstatOutput = await netstatProcess.stdout.readText();
       portCheck = netstatOutput;
     } catch (error) {
       // netstat might not be available, try ss instead
       try {
-        const ssProcess = await sandbox.exec(["ss", "-tlnp"]);
+        const ssProcess = await sandbox.exec(["ss", "-tlnp"], { workdir: REPO_DIR });
         const ssOutput = await ssProcess.stdout.readText();
         portCheck = ssOutput;
       } catch (err) {
@@ -75,7 +75,7 @@ export const GET = withAsyncParams<SandboxLogsResponse>(async (request, user, pa
     // Try to check if the app directory exists
     let appDirCheck = "";
     try {
-      const lsProcess = await sandbox.exec(["ls", "-la", SANDBOX_WORKING_DIR]);
+      const lsProcess = await sandbox.exec(["ls", "-la", SANDBOX_WORKING_DIR], { workdir: REPO_DIR });
       const lsOutput = await lsProcess.stdout.readText();
       appDirCheck = lsOutput;
     } catch (error) {

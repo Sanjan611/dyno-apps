@@ -6,6 +6,7 @@ template_string EnvironmentSetup(working_dir: string) #"
   - **Expo**: A framework and platform for React Native that simplifies development with built-in tools and services
   - **TypeScript**: For type-safe code (when applicable)
   - **Production-Ready Standards**: Follow best practices for scalable, maintainable code
+  - **GitHub Repository**: The working directory is a cloned GitHub repository. Your changes will be made directly to the repository code.
 
   Current working directory: {{ working_dir }}
   
@@ -330,7 +331,6 @@ template_string RequiredWorkflow #"
 
   7. IMPLEMENTATION (when relevant):
     - Focus on the changes explicitly requested
-    - Prefer using the search-replace tool rather than the write tool
     - Create small, focused components instead of large files
     - Avoid fallbacks, edge cases, or features not explicitly requested
 
