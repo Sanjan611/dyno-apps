@@ -40,7 +40,7 @@ The system uses a single AI agent architecture:
 
 - **RESTful API Design**: Nested routes following REST conventions (`/api/projects/[id]/sandbox`)
 - **Sandbox Lifecycle Management**: Sandboxes created on-demand when projects are opened
-- **Modal Volume Persistence**: Persistent storage volumes for sandboxes, preserving code between sessions
+- **In-Memory Storage**: Sandboxes use fast in-memory file storage for code execution
 - **Health Checks**: Comprehensive sandbox health monitoring (process status, port listening)
 - **Smart Sandbox Reuse**: Reuses healthy existing sandboxes instead of creating new ones
 - **Project Persistence**: Supabase database with Row Level Security (RLS) for user-scoped projects
@@ -211,11 +211,11 @@ The AI agent is defined using BAML (Boundary ML):
 Each project runs in an isolated Modal sandbox with smart lifecycle management:
 
 - **On-Demand Creation**: Sandboxes are created when a project is opened, not at project creation
-- **Persistent Storage**: Modal volumes preserve project code between sandbox sessions
+- **In-Memory Storage**: Sandboxes use fast in-memory file storage for code execution
 - **Health Monitoring**: `/api/projects/[id]/sandbox/health` checks sandbox status, Expo process, and port availability
 - **Smart Reuse**: When opening a project, existing healthy sandboxes are reused instead of creating new ones
 - **Separate Lifecycles**: Projects and sandboxes have independent lifecycles
-  - Delete sandbox only: `DELETE /api/projects/[id]/sandbox` (keeps project and volume)
+  - Delete sandbox only: `DELETE /api/projects/[id]/sandbox` (keeps project)
   - Delete project: `DELETE /api/projects/[id]` (also terminates sandbox and GitHub repo)
 - **Live Preview**: Sandboxes provide tunnel URLs for live Expo preview
 - **Repository Support**: Sandboxes can clone and work with GitHub repositories

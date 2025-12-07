@@ -1,10 +1,7 @@
 import { NextRequest } from "next/server";
 import { NotFoundError } from "modal";
 import { getProject, deleteProject } from "@/lib/server/projectStore";
-import {
-  createModalClient,
-  deleteProjectVolume,
-} from "@/lib/server/modal";
+import { createModalClient } from "@/lib/server/modal";
 import { deleteProjectRepo } from "@/lib/server/github";
 import { clearAgentState } from "@/lib/server/agent-state-store";
 import {
@@ -34,8 +31,6 @@ export const DELETE = withAsyncParams<DeleteProjectResponse>(async (request, use
 
     let sandboxTerminated = false;
     let sandboxAlreadyMissing = false;
-    let volumeDeleted = false;
-    let volumeAlreadyMissing = false;
     let githubRepoDeleted = false;
     let githubRepoAlreadyMissing = false;
 
@@ -64,33 +59,6 @@ export const DELETE = withAsyncParams<DeleteProjectResponse>(async (request, use
           console.error("[projects] Error terminating sandbox:", error);
           return internalErrorResponse(error);
         }
-      }
-    }
-
-    // Delete volume if it exists
-    if (project.modalVolumeId) {
-      const volumeName = `dyno-project-${projectId}`;
-      try {
-        const result = await deleteProjectVolume(modal, volumeName);
-        volumeDeleted = result.deleted;
-        volumeAlreadyMissing = result.alreadyMissing;
-        console.log(
-          "[projects] Volume deletion result:",
-          volumeName,
-          "deleted:",
-          volumeDeleted,
-          "alreadyMissing:",
-          volumeAlreadyMissing
-        );
-      } catch (error) {
-        // Log error but don't fail project deletion (defensive approach)
-        console.error(
-          "[projects] Error deleting volume:",
-          volumeName,
-          "error:",
-          error
-        );
-        // Continue with project deletion even if volume deletion fails
       }
     }
 
@@ -133,11 +101,9 @@ export const DELETE = withAsyncParams<DeleteProjectResponse>(async (request, use
       projectId,
       sandboxTerminated,
       sandboxAlreadyMissing,
-      volumeDeleted,
-      volumeAlreadyMissing,
       githubRepoDeleted,
       githubRepoAlreadyMissing,
-      message: "Project, sandbox, volume, and GitHub repo deleted (where applicable)",
+      message: "Project, sandbox, and GitHub repo deleted (where applicable)",
     });
   } catch (error) {
     console.error("[projects] Error handling delete request:", error);

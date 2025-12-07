@@ -65,7 +65,7 @@ The core of the application is a single autonomous coding agent defined in BAML:
 Each project runs in an isolated Modal sandbox with smart lifecycle management:
 
 1. **On-Demand Creation:** Sandboxes are created when projects are opened, not at project creation
-2. **Persistent Storage:** Modal volumes (`/my-app`) preserve code between sessions
+2. **In-Memory Storage:** Sandboxes use in-memory file storage for fast code execution
 3. **Smart Reuse:** Existing healthy sandboxes are reused instead of creating new ones
 4. **Node Image Caching:** Pre-built Node 20 image with Expo CLI and git installed
 5. **Port Exposure:** Port 19006 exposed for Expo web preview via tunnel URLs
@@ -76,10 +76,10 @@ Each project runs in an isolated Modal sandbox with smart lifecycle management:
 - Timeout configurations for tunnel, Expo init, bash commands, etc.
 
 **Lifecycle:**
-- Create: `POST /api/projects/[id]/sandbox` (creates or reuses sandbox + volume)
+- Create: `POST /api/projects/[id]/sandbox` (creates or reuses sandbox)
 - Health: `GET /api/projects/[id]/sandbox/health` (checks process, port, tunnel)
 - Logs: `GET /api/projects/[id]/sandbox/logs` (Expo and system logs)
-- Delete: `DELETE /api/projects/[id]/sandbox` (terminates sandbox, keeps volume)
+- Delete: `DELETE /api/projects/[id]/sandbox` (terminates sandbox)
 
 ### GitHub Integration
 
@@ -89,7 +89,7 @@ Each project runs in an isolated Modal sandbox with smart lifecycle management:
 - **Repository Naming:** `dyno-apps-{projectId}`
 - **Rollback Mechanism:** If GitHub repo creation fails during project creation, the project is deleted
 - **Non-Blocking Deletion:** When deleting projects, GitHub repo deletion errors are logged but don't fail the operation
-- **Cloning in Sandboxes:** Repositories are cloned into sandbox volumes during Expo initialization
+- **Cloning in Sandboxes:** Repositories are cloned into sandboxes during Expo initialization
 
 ### API Route Structure
 
@@ -99,7 +99,7 @@ All routes follow RESTful conventions with nested resources:
 - `GET /api/projects` - List all user projects (RLS-filtered)
 - `POST /api/projects` - Create project + GitHub repo (with rollback)
 - `PATCH /api/projects` - Update project title
-- `DELETE /api/projects/[id]` - Delete project, sandbox, volume, and GitHub repo
+- `DELETE /api/projects/[id]` - Delete project, sandbox, and GitHub repo
 
 **Sandboxes (nested under projects):**
 - `POST /api/projects/[id]/sandbox` - Create/reuse sandbox
@@ -125,7 +125,6 @@ title               TEXT NOT NULL
 description         TEXT
 repository_url      TEXT              -- GitHub repository URL
 current_sandbox_id  TEXT              -- Modal sandbox ID
-modal_volume_id     TEXT              -- Modal volume ID for persistence
 user_id             UUID REFERENCES auth.users(id) ON DELETE CASCADE
 created_at          TIMESTAMPTZ
 updated_at          TIMESTAMPTZ       -- Auto-updated via trigger
@@ -225,7 +224,7 @@ When interacting with sandboxes:
 3. **Batch file reads** in parallel when possible (see `executeToolRequest()`)
 4. **Respect timeouts** - bash commands have 2-minute default, 10-minute max
 5. **Working directory is `/my-app`** - all Expo project files live here
-6. **Volume persistence** - code survives sandbox termination
+6. **In-memory storage** - sandboxes use ephemeral in-memory file storage
 
 ### Project Initialization Flow
 
@@ -233,7 +232,7 @@ The correct sequence for new projects:
 
 1. User sends first message
 2. `initializeProject(message)` creates project in Supabase + GitHub repo
-3. `POST /api/projects/[id]/sandbox` creates sandbox + volume
+3. `POST /api/projects/[id]/sandbox` creates sandbox
 4. `POST /api/init-expo` initializes Expo (clones repo, runs create-expo-app)
 5. `POST /api/projects/[id]/chat` streams code generation
 

@@ -3,7 +3,6 @@ import {
   createModalClient,
   createSandbox,
   checkSandboxExists,
-  getOrCreateProjectVolume,
 } from "@/lib/server/modal";
 import { NotFoundError } from "modal";
 import { getProject, updateProject, updateProjectSandboxId } from "@/lib/server/projectStore";
@@ -84,56 +83,27 @@ export const POST = withAsyncParams<CreateSandboxResponse>(async (request, user,
       }
     }
 
-    // Get or create volume for this project
-    const volumeName = `dyno-project-${projectId}`;
-    let volume = null;
-    let isNewVolume = false;
-
-    if (project.modalVolumeId) {
-      // Project already has a volume, try to get it by name
-      // (We store volumeId but Modal volumes are accessed by name)
-      console.log("[sandbox] Project has existing volume, using:", project.modalVolumeId);
-      try {
-        volume = await getOrCreateProjectVolume(modal, volumeName);
-        // Volume exists, will skip init
-        isNewVolume = false;
-      } catch (error) {
-        console.log("[sandbox] Could not retrieve existing volume, creating new one");
-        volume = await getOrCreateProjectVolume(modal, volumeName);
-        isNewVolume = true;
-      }
-    } else {
-      // New project, create new volume
-      console.log("[sandbox] Creating new volume for project:", projectId);
-      volume = await getOrCreateProjectVolume(modal, volumeName);
-      isNewVolume = true;
-    }
-
-    // Create a new sandbox with volume attached and environment variables
+    // Create a new sandbox with environment variables
     console.log("[sandbox] Creating new sandbox for project:", projectId);
-    const { sandbox } = await createSandbox(modal, volume, {
+    const { sandbox } = await createSandbox(modal, {
       EXPO_TUNNEL_SUBDOMAIN: projectId,
     });
 
-    // Update project with new sandboxId and volumeId
+    // Update project with new sandboxId
     const updatedProject = await updateProject(projectId, user.id, {
       currentSandboxId: sandbox.sandboxId,
-      modalVolumeId: volume.volumeId,
     });
 
     if (!updatedProject) {
       // This shouldn't happen, but handle it gracefully
-      return internalErrorResponse(new Error("Failed to update project with sandboxId and volumeId"));
+      return internalErrorResponse(new Error("Failed to update project with sandboxId"));
     }
 
     console.log(
       "[sandbox] Created sandbox:",
       sandbox.sandboxId,
-      "with volume:",
-      volume.volumeId,
       "for project:",
-      projectId,
-      isNewVolume ? "(new volume)" : "(existing volume)"
+      projectId
     );
 
     return successResponse({

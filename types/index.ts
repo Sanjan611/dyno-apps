@@ -89,7 +89,6 @@ export interface Project {
   description: string | null;
   repositoryUrl: string | null;
   currentSandboxId: string | null;
-  modalVolumeId: string | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -103,7 +102,6 @@ export interface ProjectInsert {
   description?: string | null;
   repositoryUrl?: string | null;
   currentSandboxId?: string | null;
-  modalVolumeId?: string | null;
   userId: string;
 }
 
@@ -115,7 +113,6 @@ export interface ProjectUpdate {
   description?: string | null;
   repositoryUrl?: string | null;
   currentSandboxId?: string | null;
-  modalVolumeId?: string | null;
 }
 
 /**

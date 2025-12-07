@@ -101,8 +101,8 @@ export interface DeleteProjectResponse {
   projectId?: string;
   sandboxTerminated?: boolean;
   sandboxAlreadyMissing?: boolean;
-  volumeDeleted?: boolean;
-  volumeAlreadyMissing?: boolean;
+  githubRepoDeleted?: boolean;
+  githubRepoAlreadyMissing?: boolean;
   error?: string;
 }
 

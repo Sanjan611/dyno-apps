@@ -11,7 +11,6 @@ function mapProject(row: any): Project {
     description: row.description ?? null,
     repositoryUrl: row.repository_url ?? null,
     currentSandboxId: row.current_sandbox_id ?? null,
-    modalVolumeId: row.modal_volume_id ?? null,
     userId: row.user_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -27,7 +26,6 @@ export async function addProject(project: ProjectInsert): Promise<Project> {
       description: project.description,
       repository_url: project.repositoryUrl,
       current_sandbox_id: project.currentSandboxId,
-      modal_volume_id: project.modalVolumeId,
       user_id: project.userId,
     })
     .select("*")
@@ -42,9 +40,7 @@ export async function addProject(project: ProjectInsert): Promise<Project> {
 
 export async function getProject(projectId: string, userId: string, retries: number = 3): Promise<Project | null> {
   const supabase = await createClient();
-  
-  // Use select("*") - if modal_volume_id column doesn't exist yet (migration not applied),
-  // it will just be undefined and mapProject will handle it with ?? null
+
   const { data, error } = await supabase
     .from("projects")
     .select("*")
@@ -123,9 +119,6 @@ export async function updateProject(
   }
   if (updates.currentSandboxId !== undefined) {
     updatePayload.current_sandbox_id = updates.currentSandboxId;
-  }
-  if (updates.modalVolumeId !== undefined) {
-    updatePayload.modal_volume_id = updates.modalVolumeId;
   }
 
   if (Object.keys(updatePayload).length === 0) {

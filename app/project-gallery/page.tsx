@@ -68,7 +68,7 @@ export default function ProjectGalleryPage() {
     if (!project) return;
 
     const confirmed = window.confirm(
-      `Delete "${project.title}"? This will also terminate its sandbox, delete its volume, and cannot be undone.`
+      `Delete "${project.title}"? This cannot be undone.`
     );
     if (!confirmed) {
       setMenuOpenId(null);
