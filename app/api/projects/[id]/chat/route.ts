@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
 import { createModalClient } from "@/lib/server/modal";
-import { runCodingAgent, formatErrorForStream } from "@/lib/server/coding-agent";
+import { runCodingAgent, runAskAgent, formatErrorForStream } from "@/lib/server/coding-agent";
 import { getProject } from "@/lib/server/projectStore";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { LOG_PREFIXES, ERROR_MESSAGES } from "@/lib/constants";
-import type { SSEProgressEvent } from "@/types";
+import type { SSEProgressEvent, MessageMode } from "@/types";
 
 // Force dynamic route to enable streaming
 export const dynamic = 'force-dynamic';
@@ -120,8 +120,10 @@ export async function POST(
         return;
       }
 
-      const { userPrompt } = await request.json();
-      
+      const body = await request.json();
+      const { userPrompt, mode } = body;
+      const messageMode: MessageMode = mode || 'build'; // Default to build for backward compatibility
+
       if (!userPrompt || typeof userPrompt !== 'string' || !userPrompt.trim()) {
         const errorEvent = formatErrorForStream(new Error("userPrompt is required and must be a non-empty string"));
         await sendProgress(errorEvent);
@@ -129,7 +131,7 @@ export async function POST(
         return;
       }
 
-      console.log(`${LOG_PREFIXES.CHAT} Starting chat for project: ${projectId}, sandbox: ${project.currentSandboxId}`);
+      console.log(`${LOG_PREFIXES.CHAT} Starting chat for project: ${projectId}, sandbox: ${project.currentSandboxId}, mode: ${messageMode}`);
 
       // Initialize Modal client
       const modal = createModalClient();
@@ -140,16 +142,24 @@ export async function POST(
       }, 15000); // Send keepalive every 15 seconds
 
       try {
-        // Run the coding agent orchestration
+        // Choose agent based on mode
         // State is automatically loaded from storage and saved after completion
         // Pass the request's abort signal to allow cancellation
-        const result = await runCodingAgent(modal, {
-          userPrompt: userPrompt.trim(),
-          sandboxId: project.currentSandboxId,
-          projectId: projectId,
-          onProgress: sendProgress,
-          signal: request.signal,
-        });
+        const result = messageMode === 'ask'
+          ? await runAskAgent(modal, {
+              userPrompt: userPrompt.trim(),
+              sandboxId: project.currentSandboxId,
+              projectId: projectId,
+              onProgress: sendProgress,
+              signal: request.signal,
+            })
+          : await runCodingAgent(modal, {
+              userPrompt: userPrompt.trim(),
+              sandboxId: project.currentSandboxId,
+              projectId: projectId,
+              onProgress: sendProgress,
+              signal: request.signal,
+            });
 
         // If there was an error, it was already sent via onProgress
         if (!result.success && result.error) {

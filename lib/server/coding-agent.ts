@@ -518,3 +518,314 @@ export async function runCodingAgent(
   return { success: false, error, state: state };
 }
 
+/**
+ * Calls the AskAgent with retry logic for validation errors
+ */
+async function callAskAgentWithRetry(
+  state: Message[],
+  workingDir: string,
+  collector: Collector,
+  maxRetries: number = 3
+): Promise<ReadFileTool | ListFilesTool | ReplyToUser> {
+  let lastError: BamlValidationError | BamlClientFinishReasonError | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await b.AskAgent(
+        state,
+        workingDir,
+        { collector }
+      );
+
+      // Success - return the response
+      if (attempt > 0) {
+        console.log(`${LOG_PREFIXES.CHAT} AskAgent succeeded on retry attempt ${attempt}`);
+      }
+      return response;
+    } catch (error) {
+      // Only retry on BamlValidationError or BamlClientFinishReasonError
+      if (
+        error instanceof BamlValidationError ||
+        error instanceof BamlClientFinishReasonError
+      ) {
+        lastError = error;
+
+        if (attempt < maxRetries) {
+          // Calculate exponential backoff delay: 1s, 2s, 4s
+          const delayMs = Math.pow(2, attempt) * 1000;
+
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+      } else {
+        // Non-retryable error (BamlAbortError, network errors, etc.) - throw immediately
+        throw error;
+      }
+    }
+  }
+
+  // If we get here, all retries were exhausted
+  if (lastError) {
+    throw lastError;
+  }
+
+  // This should never happen, but TypeScript needs it
+  throw new Error("Unexpected error in retry logic");
+}
+
+/**
+ * Runs the ask agent orchestration loop (read-only conversation mode)
+ *
+ * This function handles conversational mode where the agent:
+ * 1. Explores the codebase with read-only tools
+ * 2. Discusses and answers questions
+ * 3. Helps plan features without implementing them
+ * 4. Replies to the user when done
+ */
+export async function runAskAgent(
+  modal: ModalClient,
+  config: CodingAgentConfig
+): Promise<CodingAgentResult> {
+  const {
+    userPrompt,
+    sandboxId,
+    projectId,
+    workingDir = REPO_DIR,
+    maxIterations = 10,  // Lower max iterations for ask mode
+    maxRetries = 3,
+    onProgress,
+    signal,
+  } = config;
+
+  // Validate input
+  if (!userPrompt || !sandboxId) {
+    const error = 'userPrompt and sandboxId are required';
+    if (onProgress) {
+      await onProgress({
+        type: 'error',
+        error,
+      });
+    }
+    return { success: false, error };
+  }
+
+  // Validate Anthropic API key (required by BAML)
+  if (!process.env.ANTHROPIC_API_KEY) {
+    const error = 'ANTHROPIC_API_KEY environment variable is not configured';
+    if (onProgress) {
+      await onProgress({
+        type: 'error',
+        error,
+      });
+    }
+    return { success: false, error };
+  }
+
+  if (onProgress) {
+    await onProgress({ type: 'status', message: 'Initializing conversation...' });
+  }
+
+  // Get the sandbox reference
+  console.log(`${LOG_PREFIXES.CHAT} Getting sandbox reference for ask mode...`);
+  const sandbox = await modal.sandboxes.fromId(sandboxId);
+  console.log(`${LOG_PREFIXES.CHAT} Sandbox reference obtained:`, sandbox.sandboxId);
+
+  // ============================================
+  // ASK AGENT
+  // ============================================
+  console.log(`${LOG_PREFIXES.CHAT} Starting ask mode conversation...`);
+  if (onProgress) {
+    await onProgress({ type: 'status', message: 'Starting conversation...' });
+  }
+
+  // Create collector to track token usage and latency
+  const collector = new Collector("ask-mode");
+
+  // Load previous state from storage, or start fresh
+  let state: Message[] = getAgentState(projectId) || [];
+
+  // Append the new user message to the state
+  state.push({
+    role: "user",
+    message: userPrompt,
+  });
+
+  if (state.length > 1) {
+    console.log(`${LOG_PREFIXES.CHAT} Using previous agent state with ${state.length - 1} previous messages`);
+  } else {
+    console.log(`${LOG_PREFIXES.CHAT} Starting fresh conversation`);
+  }
+
+  let iterations = 0;
+
+  while (iterations < maxIterations) {
+    // Check if request was aborted before starting next iteration
+    if (signal?.aborted) {
+      console.log(`${LOG_PREFIXES.CHAT} Ask agent stopped by user request`);
+
+      // Save current state before stopping
+      setAgentState(projectId, state);
+      console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
+
+      if (onProgress) {
+        await onProgress({
+          type: 'stopped',
+          message: 'Conversation stopped by user',
+        });
+      }
+
+      return {
+        success: false,
+        error: 'Conversation stopped by user',
+        state: state,
+      };
+    }
+
+    iterations++;
+    console.log(`${LOG_PREFIXES.CHAT} Ask mode iteration ${iterations}/${maxIterations}`);
+
+    let response;
+    try {
+      response = await callAskAgentWithRetry(
+        state,
+        workingDir,
+        collector,
+        maxRetries
+      );
+
+      // Log token usage and latency for this iteration
+      if (collector.last) {
+        console.log(`${LOG_PREFIXES.CHAT} AskAgent iteration ${iterations} usage:`, {
+          inputTokens: collector.last.usage?.inputTokens ?? null,
+          outputTokens: collector.last.usage?.outputTokens ?? null,
+          durationMs: collector.last.timing?.durationMs ?? null,
+        });
+      }
+    } catch (error) {
+      const errorEvent = formatErrorForStream(error, "Ask agent");
+      if (onProgress) {
+        await onProgress(errorEvent);
+      }
+      return {
+        success: false,
+        error: errorEvent.error,
+        details: errorEvent.details,
+      };
+    }
+
+    // Check if ask agent is replying (done)
+    if (response && "action" in response && response.action === "reply_to_user") {
+      const replyMessage = "message" in response ? response.message : "";
+      console.log(`${LOG_PREFIXES.CHAT} Ask agent completed with reply:`, replyMessage);
+
+      // Add the final reply to state (store full ReplyToUser object)
+      state.push({
+        role: "assistant",
+        message: response,
+      });
+
+      // Save the final state to storage
+      setAgentState(projectId, state);
+      console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages`);
+
+      // Log cumulative token usage and latency
+      console.log(`${LOG_PREFIXES.CHAT} AskAgent complete - cumulative usage:`, {
+        totalInputTokens: collector.usage?.inputTokens ?? null,
+        totalOutputTokens: collector.usage?.outputTokens ?? null,
+        totalCalls: collector.logs.length,
+      });
+
+      if (onProgress) {
+        await onProgress({
+          type: 'complete',
+          message: replyMessage,
+        });
+      }
+
+      return {
+        success: true,
+        message: replyMessage,
+        state: state,
+      };
+    }
+
+    // Execute the tool (read-only: list_files or read_file)
+    const tool = response as ListFilesTool | ReadFileTool;
+    let toolName: string;
+    let currentTodo: string | undefined = undefined;
+
+    if ("filePath" in tool && tool.action === "read_file") {
+      toolName = tool.action;
+      currentTodo = `Reading ${tool.filePath}`;
+    } else if ("directoryPath" in tool && tool.action === "list_files") {
+      toolName = tool.action;
+      currentTodo = `Listing ${tool.directoryPath}`;
+    } else {
+      toolName = (tool as any).action || "unknown";
+    }
+
+    // Log tool parameters
+    console.log(`${LOG_PREFIXES.CHAT} Tool call parameters:`, extractToolParams(tool));
+
+    if (onProgress) {
+      await onProgress({
+        type: 'coding_iteration',
+        iteration: iterations,
+        tool: toolName,
+        todo: currentTodo,
+      });
+    }
+
+    console.log(`${LOG_PREFIXES.CHAT} Executing ${tool.action} tool...`);
+    const execResult = await executeSingleTool(sandbox, tool, workingDir, []);
+    const result = execResult.result;
+
+    // Check if request was aborted after tool execution (before next iteration)
+    if (signal?.aborted) {
+      console.log(`${LOG_PREFIXES.CHAT} Ask agent stopped by user request after tool execution`);
+
+      // Save current state before stopping
+      setAgentState(projectId, state);
+      console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
+
+      if (onProgress) {
+        await onProgress({
+          type: 'stopped',
+          message: 'Conversation stopped by user',
+        });
+      }
+
+      return {
+        success: false,
+        error: 'Conversation stopped by user',
+        state: state,
+      };
+    }
+
+    // Add tool execution to state
+    state.push({
+      role: "assistant",
+      message: tool,
+    });
+    state.push({
+      role: "tool",
+      message: result,
+    });
+  }
+
+  // Handle timeout if loop exceeds max iterations
+  console.error(`${LOG_PREFIXES.CHAT} Ask agent exceeded maximum iterations`);
+  const error = 'Ask agent exceeded maximum iterations. Please try again with a simpler question.';
+
+  // Save current state even on error (so user can continue from where it failed)
+  setAgentState(projectId, state);
+
+  if (onProgress) {
+    await onProgress({
+      type: 'error',
+      error,
+    });
+  }
+  return { success: false, error, state: state };
+}
+

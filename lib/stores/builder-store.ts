@@ -7,7 +7,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { StoreMessage } from "@/types";
+import type { StoreMessage, MessageMode } from "@/types";
 import { DEFAULT_PROJECT_NAME } from "@/lib/constants";
 import { createStorage, STORAGE_KEYS } from "./persist";
 
@@ -33,21 +33,24 @@ export interface BuilderState {
   // Project info
   projectName: string;
   projectId: string | null;
-  
+
   // Messages and code
   messages: StoreMessage[];
   generatedCode: string;
-  
+
   // Sandbox info
   sandboxId: string | null;
   previewUrl: string | null;
   sandboxHealthStatus: SandboxHealthStatus;
   lastHealthCheck: Date | null;
-  
+
   // Session state
   modifiedFiles: ModifiedFile[];
   lastActivity: Date | null;
-  
+
+  // Chat mode
+  currentMode: MessageMode;
+
   // Setters
   setProjectName: (name: string) => void;
   setProjectId: (id: string | null) => void;
@@ -61,7 +64,8 @@ export interface BuilderState {
   addModifiedFile: (path: string, content?: string) => void;
   clearModifiedFiles: () => void;
   updateLastActivity: () => void;
-  
+  setCurrentMode: (mode: MessageMode) => void;
+
   // Reset
   reset: () => void;
 }
@@ -77,6 +81,7 @@ const initialState = {
   lastHealthCheck: null,
   modifiedFiles: [],
   lastActivity: null,
+  currentMode: "build" as MessageMode, // Default to build mode
 };
 
 /**
@@ -142,9 +147,11 @@ export const useBuilderStore = create<BuilderState>()(
         }),
       
       clearModifiedFiles: () => set({ modifiedFiles: [] }),
-      
+
       updateLastActivity: () => set({ lastActivity: new Date() }),
-      
+
+      setCurrentMode: (mode) => set({ currentMode: mode }),
+
       reset: () => set(initialState),
     }),
     {
@@ -162,6 +169,7 @@ export const useBuilderStore = create<BuilderState>()(
         lastHealthCheck: state.lastHealthCheck,
         modifiedFiles: state.modifiedFiles,
         lastActivity: state.lastActivity,
+        currentMode: state.currentMode,
       }),
     }
   )

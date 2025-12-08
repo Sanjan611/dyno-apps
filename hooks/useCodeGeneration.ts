@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import type { Message, AgentAction, AgentActionType, SSEProgressEvent } from "@/types";
+import type { Message, AgentAction, AgentActionType, SSEProgressEvent, MessageMode } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 
 // Helper function to map tool names to user-friendly action types
@@ -103,6 +103,7 @@ export function useCodeGeneration() {
       userPrompt: string,
       projectId: string,
       setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
+      mode: MessageMode = 'build',
       abortController?: AbortController
     ): { promise: Promise<void>; abort: () => void } => {
       if (!projectId) {
@@ -112,7 +113,7 @@ export function useCodeGeneration() {
       // Create new AbortController if one wasn't provided
       const controller = abortController || new AbortController();
       const abort = () => controller.abort();
-      
+
       const promise = (async () => {
 
       const response = await fetch(API_ENDPOINTS.PROJECT_CHAT(projectId), {
@@ -122,6 +123,7 @@ export function useCodeGeneration() {
         },
         body: JSON.stringify({
           userPrompt,
+          mode,
         }),
         signal: controller.signal,
       });

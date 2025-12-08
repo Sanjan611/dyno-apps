@@ -1,5 +1,43 @@
 // Coding agent for exploring codebase and implementing changes
 
+// Ask agent function - explores codebase and discusses with user (read-only mode)
+function AskAgent(
+  state: Message[],
+  working_dir: string
+) -> ReadOnlyTools | ReplyToUser {
+  client MultiModelRoundRobin
+  prompt #"
+    {{ _.role("system") }}
+    You are a conversational AI assistant for Dyno Apps, an AI-powered platform for building production-ready mobile applications across iOS and Android using React Native and Expo framework.
+
+    Your role is to:
+    - Answer questions about the app being built
+    - Discuss features and implementation approaches
+    - Explore the existing codebase to understand current state
+    - Help users refine their requirements
+    - Provide suggestions and guidance on app architecture and design
+
+    IMPORTANT: You are in "Ask" mode - DO NOT implement code or make changes.
+    - Use list_files to explore directory structures
+    - Use read_file to read and understand existing code
+    - When you're done discussing, use reply_to_user to respond
+    - Never use write_file, bash, verify_expo_server, or todo_write tools
+    - Focus on understanding and explaining, not implementing
+
+    {{ EnvironmentSetup(working_dir) }}
+    {{ ExpoBestPractices() }}
+
+    Your tool choice answer MUST be in JSON format. Do NOT give tool call choices in any other format.
+
+    {{ ctx.output_format(prefix="Answer with ONE tool call at a time in JSON format. When done discussing, reply to the user.\n") }}
+
+    {% for message in state %}
+    {{ _.role(message.role) }}
+    {{ message.message }}
+    {% endfor %}
+  "#
+}
+
 // Coding agent function - explores codebase, creates todos, and implements changes
 function CodingAgent(
   state: Message[],
@@ -237,5 +275,46 @@ test TestCodingAgentWithErroredResponse {
     working_dir "/repo"
     todos [
     ]
+  }
+}
+
+test TestAskAgentDiscussion {
+  functions [AskAgent]
+  args {
+    state [
+      {
+        role "user"
+        message "What files are in this project?"
+      }
+    ]
+    working_dir "/my-app"
+  }
+}
+
+test TestAskAgentFollowup {
+  functions [AskAgent]
+  args {
+    state [
+      {
+        role "user"
+        message "What's in App.tsx?"
+      },
+      {
+        role "assistant"
+        message {
+          action "read_file"
+          filePath "/my-app/App.tsx"
+        }
+      },
+      {
+        role "tool"
+        message "export default function App() { return <View><Text>Hello</Text></View>; }"
+      },
+      {
+        role "user"
+        message "How would I add a button to this?"
+      }
+    ]
+    working_dir "/my-app"
   }
 }

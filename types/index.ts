@@ -26,6 +26,13 @@ export type {
 // ============================================================================
 
 /**
+ * Message mode - determines agent behavior
+ * - ask: Conversational mode for discussion and planning (no code changes)
+ * - build: Implementation mode for code generation and changes
+ */
+export type MessageMode = 'ask' | 'build';
+
+/**
  * Chat message for the builder UI
  * Used in ChatPanel and store
  */
@@ -36,6 +43,7 @@ export interface Message {
   timestamp: Date;
   actions?: AgentAction[];
   isComplete?: boolean;
+  mode?: MessageMode;
 }
 
 /**
@@ -47,6 +55,7 @@ export interface StoreMessage {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  mode?: MessageMode;
 }
 
 // ============================================================================

@@ -30,7 +30,7 @@ export default function ChatPanel() {
   const [isLoading, setIsLoading] = useState(false);
   const [viewingLogs, setViewingLogs] = useState(false);
   const [logs, setLogs] = useState<any>(null);
-  const { setSandboxId, setPreviewUrl, sandboxId, setProjectId, projectId } = useBuilderStore();
+  const { setSandboxId, setPreviewUrl, sandboxId, setProjectId, projectId, currentMode, setCurrentMode } = useBuilderStore();
   const [hasSentInitialMessage, setHasSentInitialMessage] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<(() => void) | null>(null);
@@ -51,7 +51,7 @@ export default function ChatPanel() {
   }, [messages]);
 
   const sendMessage = useCallback(
-    async (rawContent: string) => {
+    async (rawContent: string, mode: 'ask' | 'build') => {
       const content = rawContent.trim();
       if (!content) return;
 
@@ -60,6 +60,7 @@ export default function ChatPanel() {
         role: "user",
         content,
         timestamp: new Date(),
+        mode,
       };
 
       setMessages((prev) => [...prev, newMessage]);
@@ -80,7 +81,7 @@ export default function ChatPanel() {
           await initializeExpo(currentSandboxId, currentProjectId);
 
           // Generate code (state is managed server-side)
-          const { promise, abort } = generateCode(newMessage.content, currentProjectId, setMessages);
+          const { promise, abort } = generateCode(newMessage.content, currentProjectId, setMessages, mode);
           abortRef.current = abort;
           await promise;
         } catch (error) {
@@ -114,7 +115,7 @@ export default function ChatPanel() {
       setIsLoading(true);
       try {
         // Generate code (state is managed server-side)
-        const { promise, abort } = generateCode(newMessage.content, currentProjectId, setMessages);
+        const { promise, abort } = generateCode(newMessage.content, currentProjectId, setMessages, mode);
         abortRef.current = abort;
         await promise;
       } catch (error) {
@@ -142,8 +143,9 @@ export default function ChatPanel() {
   const handleSend = async () => {
     if (!input.trim()) return;
     const message = input;
+    const mode = currentMode; // Capture mode at send time
     setInput("");
-    await sendMessage(message);
+    await sendMessage(message, mode);
   };
 
   const handleStop = () => {
@@ -238,6 +240,8 @@ export default function ChatPanel() {
         onSend={handleSend}
         onStop={handleStop}
         isLoading={isLoading}
+        currentMode={currentMode}
+        onModeChange={setCurrentMode}
       />
     </div>
   );
