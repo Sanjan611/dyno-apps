@@ -171,6 +171,13 @@ client<llm> MultiModelRoundRobin {
   }
 }
 
+client<llm> GPTRoundRobin {
+  provider round-robin
+  options {
+    strategy [CustomGPT5, CustomGPT5Mini]
+  }
+}
+
 // https://docs.boundaryml.com/docs/snippets/clients/retry
 retry_policy Constant {
   max_retries 3

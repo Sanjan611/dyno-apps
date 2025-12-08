@@ -113,17 +113,17 @@ async function callCodingAgentWithRetry(
         if (attempt < maxRetries) {
           // Calculate exponential backoff delay: 1s, 2s, 4s
           const delayMs = Math.pow(2, attempt) * 1000;
-          console.log(
-            `${LOG_PREFIXES.CHAT} CodingAgent validation error on attempt ${attempt + 1}/${maxRetries + 1}, retrying in ${delayMs}ms...`
-          );
-          console.error(`${LOG_PREFIXES.CHAT} Validation error details:`, error.detailed_message || error.message);
+          // console.log(
+          //   `${LOG_PREFIXES.CHAT} CodingAgent validation error on attempt ${attempt + 1}/${maxRetries + 1}, retrying in ${delayMs}ms...`
+          // );
+          // console.error(`${LOG_PREFIXES.CHAT} Validation error details:`, error.detailed_message || error.message);
           if (error.raw_output) {
-            console.error(`${LOG_PREFIXES.CHAT} Validation error raw output:`, error.raw_output);
+            // console.error(`${LOG_PREFIXES.CHAT} Validation error raw output:`, error.raw_output);
           }
           // Log state info for debugging
-          console.error(`${LOG_PREFIXES.CHAT} State length at error:`, state.length);
+          // console.error(`${LOG_PREFIXES.CHAT} State length at error:`, state.length);
           if (state.length > 0) {
-            console.error(`${LOG_PREFIXES.CHAT} Last message in state:`, JSON.stringify(state[state.length - 1], null, 2));
+            // console.error(`${LOG_PREFIXES.CHAT} Last message in state:`, JSON.stringify(state[state.length - 1], null, 2));
           }
           
           // Wait before retrying
@@ -131,14 +131,14 @@ async function callCodingAgentWithRetry(
         } else {
           // All retries exhausted
           console.error(
-            `${LOG_PREFIXES.CHAT} CodingAgent failed after ${maxRetries + 1} attempts with validation error`
+            // `${LOG_PREFIXES.CHAT} CodingAgent failed after ${maxRetries + 1} attempts with validation error`
           );
-          console.error(`${LOG_PREFIXES.CHAT} Final validation error details:`, error.detailed_message || error.message);
+          // console.error(`${LOG_PREFIXES.CHAT} Final validation error details:`, error.detailed_message || error.message);
           if (error.raw_output) {
-            console.error(`${LOG_PREFIXES.CHAT} Final validation error raw output:`, error.raw_output);
+            // console.error(`${LOG_PREFIXES.CHAT} Final validation error raw output:`, error.raw_output);
           }
           // Log the state that caused the error (for debugging)
-          console.error(`${LOG_PREFIXES.CHAT} State at error (last 3 messages):`, JSON.stringify(state.slice(-3), null, 2));
+          // console.error(`${LOG_PREFIXES.CHAT} State at error (last 3 messages):`, JSON.stringify(state.slice(-3), null, 2));
         }
       } else {
         // Non-retryable error (BamlAbortError, network errors, etc.) - throw immediately

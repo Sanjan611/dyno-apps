@@ -48,7 +48,6 @@ class BashTool {
       - If the output exceeds 30000 characters, output will be truncated before being returned to you.
       - VERY IMPORTANT: You MUST avoid using search commands like `find` and `grep`. Instead use list_files and read_file to search. You MUST avoid read tools like `cat`, `head`, `tail`, and `ls`, and use read_file and list_files to read files.
       - When issuing multiple commands, use the ';' or '&&' operator to separate them. DO NOT use newlines (newlines are ok in quoted strings).
-      - Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of `cd`. You may use `cd` if the User explicitly requests it.
       - **CRITICAL for Expo packages**: When installing Expo libraries, you MUST use `bun expo install <package-name>`. Never use `npm install` or `bun install` for Expo packages. For example: `bun expo install expo-audio` (correct) vs `npm install expo-audio` (incorrect).
   "#)
   command string @description("The command to execute")

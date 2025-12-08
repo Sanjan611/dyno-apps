@@ -8,6 +8,7 @@ function CodingAgent(
 ) -> AgentTools | ReplyToUser {
   // client CustomGPT5Mini
   // client CustomGPT5
+  // client GPTRoundRobin
   // client OpenRouterGrok
   client MultiModelRoundRobin
   // client OpenRouterGLM
@@ -48,6 +49,9 @@ function CodingAgent(
 
     ## Examples
 
+    ### GOOD EXAMPLE (Tool call)
+    {{ GoodExampleToolCall() }}
+
     ### GOOD EXAMPLE (Discussion first)
     {{ GoodExampleDiscussionFirst() }}
 
@@ -57,7 +61,9 @@ function CodingAgent(
     ## Todo List Management
     {{ TodoListManagement() }}
 
-    {{ ctx.output_format(prefix="Answer with ONE tool call at a time. If the task is complete, reply to the user:\n") }}
+    Your tool choice answer MUST be in JSON format. Do NOT give tool call choices in any other format.
+
+    {{ ctx.output_format(prefix="Answer with ONE tool call at a time in JSON format. If the task is complete, reply to the user. \n") }}
 
     {% for message in state %}
     {{ _.role(message.role) }}
@@ -215,6 +221,21 @@ test TestCodingAgentMediumComplexityRequest {
         activeForm "Updating navigation to handle restaurant detail navigation"
         status "pending"
       }
+    ]
+  }
+}
+
+test TestCodingAgentWithErroredResponse {
+  functions [CodingAgent]
+  args {
+    state [
+      {
+        role "user"
+        message "build an app that says \"hello\""
+      }
+    ]
+    working_dir "/repo"
+    todos [
     ]
   }
 }

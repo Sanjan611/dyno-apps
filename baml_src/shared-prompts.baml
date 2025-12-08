@@ -11,6 +11,8 @@ template_string EnvironmentSetup(working_dir: string) #"
   Current working directory: {{ working_dir }}
   
   **IMPORTANT: All file operations must use absolute paths starting with {{ working_dir }}. Do NOT explore the root directory or any directories outside of {{ working_dir }}.**
+  
+  **Bash Commands**: All bash tool commands automatically execute in `{{ working_dir }}`. The working directory is respected and automatically set, so commands run in the correct location by default. You typically don't need to use `cd` commands.
 "#
 
 template_string ExpoBestPractices #"
@@ -234,6 +236,7 @@ template_string ToolUsageGuidelines(working_dir: string) #"
   Example: "Clients are marked as failed in the `connectToServer` function in src/services/process.ts:712."
 
   # Bash Tool Usage
+  - **IMPORTANT: All bash commands automatically execute in the working directory (`{{ working_dir }}`). The working directory is respected and automatically set for each command. You typically don't need to use `cd` commands because commands already run in the correct directory. Run commands directly (e.g., `bun install` not `cd {{ working_dir }} && bun install`).**
   - Use the bash tool for running installation commands and other shell operations
   - **CRITICAL for Expo packages**: Always use `bun expo install <package-name>` when installing Expo libraries (e.g., `bun expo install expo-audio`). Never use `npm install` or `bun install` for Expo packages
   - **IMPORTANT: Do NOT use bash for reading files or searching - use read_file and list_files instead**
@@ -242,7 +245,6 @@ template_string ToolUsageGuidelines(working_dir: string) #"
   - **Only install NEW packages** when the user requests functionality requiring a third-party library not already present
   - Always quote file paths that contain spaces with double quotes (e.g., cd "path with spaces/file.txt")
   - When issuing multiple commands, use ';' or '&&' to separate them (do not use newlines)
-  - Prefer absolute paths and avoid using `cd` unless necessary
   - Commands default to 120000ms (2 minutes) timeout, but you can specify up to 600000ms (10 minutes) for longer operations
   - Provide a clear, concise description (5-10 words) of what the command does
 
@@ -749,4 +751,27 @@ template_string TodoListManagement() #"
       - To update progress, replace the entire todo list with todo_write showing all tasks with updated statuses
       - Update task status in real-time as you work
       - Remove tasks that are no longer relevant from the list entirely
+"#
+
+template_string GoodExampleToolCall #"
+  When returning a tool, you MUST return the tool in JSON format. Do NOT give tool call choices in any other format. A good example is:
+
+  User: "Build an app that is like tinder but for sweaters"
+  Assistant: {
+    "tool": "todo_write",
+    "args": {
+      "todos": [
+        {
+          "content": "Build an app that is like tinder but for sweaters",
+          "activeForm": "Building an app that is like tinder but for sweaters",
+          "status": "in_progress"
+        },
+        {
+          "content": "Create a new directory called 'sweaters'",
+          "activeForm": "Creating a new directory called 'sweaters'",
+          "status": "pending"
+        }
+      ]
+    }
+  }
 "#
