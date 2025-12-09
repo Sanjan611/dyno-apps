@@ -1,9 +1,10 @@
 "use client";
 
 import { Send, Square, MessageCircle, Hammer } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import type { MessageMode } from "@/types";
+import { useRef, useEffect } from "react";
 
 interface ChatInputProps {
   input: string;
@@ -29,6 +30,20 @@ export default function ChatInput({
   onModeChange,
   disabled = false,
 }: ChatInputProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-grow textarea as user types
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      // Reset height to get accurate scrollHeight
+      textarea.style.height = "52px";
+      // Set new height based on content (max 200px)
+      const newHeight = Math.min(textarea.scrollHeight, 200);
+      textarea.style.height = `${newHeight}px`;
+    }
+  }, [input]);
+
   const handleButtonClick = () => {
     if (isLoading && onStop) {
       onStop();
@@ -74,21 +89,27 @@ export default function ChatInput({
       </div>
 
       {/* Input Field */}
-      <div className="relative flex items-center">
-        <Input
-          type="text"
+      <div className="relative flex items-end">
+        <Textarea
+          ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyPress={(e) => e.key === "Enter" && !isLoading && !disabled && onSend()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !isLoading && !disabled) {
+              e.preventDefault();
+              onSend();
+            }
+          }}
           placeholder={disabled ? "Start sandbox to begin..." : (currentMode === 'ask' ? "Ask a question..." : "Type your message...")}
-          className="pr-12 py-6 rounded-full border-slate-200 bg-slate-50 focus:bg-white focus:border-primary/30 focus:ring-primary/20 shadow-inner"
+          className="pr-14 py-3 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white focus:border-primary/30 focus:ring-primary/20 shadow-inner resize-none overflow-y-auto"
           disabled={isLoading || disabled}
+          rows={1}
         />
         <Button
           onClick={handleButtonClick}
           size="icon"
           disabled={disabled || (!isLoading && !input.trim())}
-          className={`absolute right-1.5 h-9 w-9 rounded-full transition-all shadow-sm ${
+          className={`absolute right-2 bottom-2 h-9 w-9 rounded-full transition-all shadow-sm ${
             isLoading
               ? "bg-black hover:bg-black/90"
               : "bg-primary hover:bg-primary/90"
