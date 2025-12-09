@@ -82,6 +82,14 @@ function CodingAgent(
       - **ONLY reply once the server is confirmed healthy and error-free**
     - This ensures users always see a working app preview
 
+    When calling verify_expo_server, the results will show you the full log output since start of the server. Focus on the last few lines to determine whether the server is healthy and error-free.
+    A successfully running expo server will look like this:
+    ```
+        Web ./index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+        Web Bundled 16ms index.js (1 module)
+        LOG  [web] Logs will appear in the browser console
+    ```
+
     ## Common Pittfalls to AVOID
     {{ CommonPittfallsToAvoid() }}
 
