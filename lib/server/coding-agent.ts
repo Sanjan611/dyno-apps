@@ -73,6 +73,78 @@ export interface CodingAgentResult {
 }
 
 // ============================================================================
+// BAML Metrics Extraction
+// ============================================================================
+
+/**
+ * Metrics extracted from BAML Collector for logging
+ */
+interface BamlMetrics {
+  clientName?: string | null;
+  provider?: string | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  cachedInputTokens?: number | null;
+  durationMs?: number | null;
+}
+
+interface CumulativeBamlMetrics extends BamlMetrics {
+  totalCalls: number;
+}
+
+/**
+ * Extracts BAML metrics from a Collector for logging
+ */
+function extractBamlMetrics(collector: Collector, isCumulative: boolean = false): BamlMetrics | CumulativeBamlMetrics {
+  if (isCumulative) {
+    return {
+      clientName: null, // Not applicable for cumulative
+      provider: null, // Not applicable for cumulative
+      inputTokens: collector.usage?.inputTokens ?? null,
+      outputTokens: collector.usage?.outputTokens ?? null,
+      cachedInputTokens: collector.usage?.cachedInputTokens ?? null,
+      durationMs: null, // Not aggregated in cumulative
+      totalCalls: collector.logs.length,
+    };
+  }
+  
+  if (!collector.last) {
+    return {
+      clientName: null,
+      provider: null,
+      inputTokens: null,
+      outputTokens: null,
+      cachedInputTokens: null,
+      durationMs: null,
+    };
+  }
+  
+  // Get client info from the calls array (per BAML docs: LLMCall has clientName and provider)
+  // Only use the selected call for metrics
+  let clientName: string | null = null;
+  let provider: string | null = null;
+  
+  if (collector.last.calls && collector.last.calls.length > 0) {
+    // Find the selected call (the one that was actually used)
+    const selectedCall = collector.last.calls.find((call: any) => call.selected === true);
+    
+    if (selectedCall) {
+      clientName = selectedCall.clientName ?? null;
+      provider = selectedCall.provider ?? null;
+    }
+  }
+  
+  return {
+    clientName,
+    provider,
+    inputTokens: collector.last.usage?.inputTokens ?? null,
+    outputTokens: collector.last.usage?.outputTokens ?? null,
+    cachedInputTokens: collector.last.usage?.cachedInputTokens ?? null,
+    durationMs: collector.last.timing?.durationMs ?? null,
+  };
+}
+
+// ============================================================================
 // Retry Logic
 // ============================================================================
 
@@ -336,11 +408,8 @@ export async function runCodingAgent(
       
       // Log token usage and latency for this iteration
       if (collector.last) {
-        console.log(`${LOG_PREFIXES.CHAT} CodingAgent iteration ${iterations} usage:`, {
-          inputTokens: collector.last.usage?.inputTokens ?? null,
-          outputTokens: collector.last.usage?.outputTokens ?? null,
-          durationMs: collector.last.timing?.durationMs ?? null,
-        });
+        const metrics = extractBamlMetrics(collector, false);
+        console.log(`${LOG_PREFIXES.CHAT} CodingAgent iteration ${iterations} usage:`, metrics);
       }
     } catch (error) {
       const errorEvent = formatErrorForStream(error, "Coding agent");
@@ -376,11 +445,8 @@ export async function runCodingAgent(
       console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages`);
       
       // Log cumulative token usage and latency
-      console.log(`${LOG_PREFIXES.CHAT} CodingAgent complete - cumulative usage:`, {
-        totalInputTokens: collector.usage?.inputTokens ?? null,
-        totalOutputTokens: collector.usage?.outputTokens ?? null,
-        totalCalls: collector.logs.length,
-      });
+      const cumulativeMetrics = extractBamlMetrics(collector, true);
+      console.log(`${LOG_PREFIXES.CHAT} CodingAgent complete - cumulative usage:`, cumulativeMetrics);
       
       if (onProgress) {
         await onProgress({
@@ -695,11 +761,8 @@ export async function runAskAgent(
 
       // Log token usage and latency for this iteration
       if (collector.last) {
-        console.log(`${LOG_PREFIXES.CHAT} AskAgent iteration ${iterations} usage:`, {
-          inputTokens: collector.last.usage?.inputTokens ?? null,
-          outputTokens: collector.last.usage?.outputTokens ?? null,
-          durationMs: collector.last.timing?.durationMs ?? null,
-        });
+        const metrics = extractBamlMetrics(collector, false);
+        console.log(`${LOG_PREFIXES.CHAT} AskAgent iteration ${iterations} usage:`, metrics);
       }
     } catch (error) {
       const errorEvent = formatErrorForStream(error, "Ask agent");
@@ -729,11 +792,8 @@ export async function runAskAgent(
       console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages`);
 
       // Log cumulative token usage and latency
-      console.log(`${LOG_PREFIXES.CHAT} AskAgent complete - cumulative usage:`, {
-        totalInputTokens: collector.usage?.inputTokens ?? null,
-        totalOutputTokens: collector.usage?.outputTokens ?? null,
-        totalCalls: collector.logs.length,
-      });
+      const cumulativeMetrics = extractBamlMetrics(collector, true);
+      console.log(`${LOG_PREFIXES.CHAT} AskAgent complete - cumulative usage:`, cumulativeMetrics);
 
       if (onProgress) {
         await onProgress({
