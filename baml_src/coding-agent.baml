@@ -7,7 +7,7 @@ function AskAgent(
 ) -> ReadOnlyTools | ReplyToUser {
   client MultiModelRoundRobin
   prompt #"
-    {{ _.role("system") }}
+    {{ _.role("system", cache_control={"type": "ephemeral"}) }}
     You are a conversational AI assistant for Dyno Apps, an AI-powered platform for building production-ready mobile applications across iOS and Android using React Native and Expo framework.
 
     Your role is to:
@@ -24,12 +24,14 @@ function AskAgent(
     - Never use write_file, bash, verify_expo_server, or todo_write tools
     - Focus on understanding and explaining, not implementing
 
-    {{ EnvironmentSetup(working_dir) }}
     {{ ExpoBestPractices() }}
 
     Your tool choice answer MUST be in JSON format. Do NOT give tool call choices in any other format.
 
     {{ ctx.output_format(prefix="Answer with ONE tool call at a time in JSON format. When done discussing, reply to the user.\n") }}
+
+    {{ _.role("user", cache_control={"type": "ephemeral"}) }}
+    {{ EnvironmentSetup(working_dir) }}
 
     {% for message in state %}
     {{ _.role(message.role) }}
@@ -44,15 +46,9 @@ function CodingAgent(
   working_dir: string,
   todos: TodoItem[]
 ) -> AgentTools | ReplyToUser {
-  // client CustomGPT5Mini
-  // client CustomGPT5
-  // client GPTRoundRobin
-  // client OpenRouterGrok
   client MultiModelRoundRobin
-  // client OpenRouterGLM
-  // client ClaudeSonnet
   prompt #"
-    {{ _.role("system") }}
+    {{ _.role("system", cache_control={"type": "ephemeral"}) }}
     You are a coding agent for Dyno Apps, an AI-powered platform for building production-ready mobile applications across iOS and Android using React Native and Expo framework. Your job is to explore the codebase, understand the user's request, create a plan (via todos), and implement the changes while tracking your progress using a todo list.
 
     ## General Guidelines
@@ -101,9 +97,6 @@ function CodingAgent(
     ### GOOD EXAMPLE (Discussion first)
     {{ GoodExampleDiscussionFirst() }}
 
-    ## Environment Setup
-    {{ EnvironmentSetup(working_dir) }}
-
     ## Todo List Management
     {{ TodoListManagement() }}
 
@@ -111,7 +104,10 @@ function CodingAgent(
 
     {{ ctx.output_format(prefix="Answer with ONE tool call at a time in JSON format. If the task is complete, reply to the user. \n") }}
 
-    Conversation:
+    {{ _.role("user", cache_control={"type": "ephemeral"}) }}
+    ## Environment Setup
+    {{ EnvironmentSetup(working_dir) }}
+
     {% for message in state %}
     {{ _.role(message.role) }}
     {{ message.message }}
