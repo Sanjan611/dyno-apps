@@ -43,6 +43,7 @@ export interface BuilderState {
   previewUrl: string | null;
   sandboxHealthStatus: SandboxHealthStatus;
   lastHealthCheck: Date | null;
+  sandboxStarted: boolean;
 
   // Session state
   modifiedFiles: ModifiedFile[];
@@ -61,6 +62,7 @@ export interface BuilderState {
   setPreviewUrl: (url: string | null) => void;
   setSandboxHealthStatus: (status: SandboxHealthStatus) => void;
   updateLastHealthCheck: () => void;
+  setSandboxStarted: (started: boolean) => void;
   addModifiedFile: (path: string, content?: string) => void;
   clearModifiedFiles: () => void;
   updateLastActivity: () => void;
@@ -82,6 +84,7 @@ const initialState = {
   modifiedFiles: [],
   lastActivity: null,
   currentMode: "build" as MessageMode, // Default to build mode
+  sandboxStarted: false,
 };
 
 /**
@@ -117,6 +120,9 @@ export const useBuilderStore = create<BuilderState>()(
       
       updateLastHealthCheck: () => 
         set({ lastHealthCheck: new Date() }),
+      
+      setSandboxStarted: (started) => 
+        set({ sandboxStarted: started }),
       
       addModifiedFile: (path, content) =>
         set((state) => {
@@ -170,6 +176,7 @@ export const useBuilderStore = create<BuilderState>()(
         modifiedFiles: state.modifiedFiles,
         lastActivity: state.lastActivity,
         currentMode: state.currentMode,
+        sandboxStarted: state.sandboxStarted,
       }),
     }
   )

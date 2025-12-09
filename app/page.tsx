@@ -72,7 +72,7 @@ export default function Home() {
               <TypingAnimation text="Build your Dyno." />
             </h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              From an idea in your head to an app on your phone.
+              From an idea in your head to an app on your phone. 
               <br className="hidden md:block" />
               Built from the ground up for continued development and support.
             </p>

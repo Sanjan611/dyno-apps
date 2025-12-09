@@ -1,11 +1,12 @@
 "use client";
 
 import { Suspense, useState, useRef, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import ChatPanel from "@/components/builder/ChatPanel";
 import PreviewPanel from "@/components/builder/PreviewPanel";
 import ProjectHeader from "@/components/builder/ProjectHeader";
+import NavigationWarningModal from "@/components/builder/NavigationWarningModal";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,7 +19,7 @@ import {
 import { AlertCircle } from "lucide-react";
 import { useBuilderStore } from "@/lib/store";
 import { useProjectLoader } from "@/hooks/useProjectLoader";
-import { PANEL_CONSTRAINTS } from "@/lib/constants";
+import { PANEL_CONSTRAINTS, API_ENDPOINTS } from "@/lib/constants";
 
 // Loading fallback for Suspense boundary
 function BuilderLoading() {
@@ -34,8 +35,12 @@ function BuilderLoading() {
 function BuilderContent() {
   const [leftWidth, setLeftWidth] = useState(PANEL_CONSTRAINTS.DEFAULT_LEFT_WIDTH);
   const [isDragging, setIsDragging] = useState(false);
+  const [showNavigationWarning, setShowNavigationWarning] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const {
     projectName,
     setProjectName,
@@ -43,6 +48,8 @@ function BuilderContent() {
     setSandboxId,
     projectId,
     reset,
+    sandboxStarted,
+    setSandboxStarted,
   } = useBuilderStore();
 
   const { sandboxMissing, isValidatingSandbox } = useProjectLoader({
@@ -51,6 +58,82 @@ function BuilderContent() {
     setSandboxId,
     reset,
   });
+
+  // Intercept navigation when sandbox is started
+  useEffect(() => {
+    if (!sandboxStarted) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "Navigating away will close the sandbox. Please save your work before exiting.";
+      return e.returnValue;
+    };
+
+    // Intercept browser navigation (tab close, refresh)
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    // Intercept Next.js Link navigation
+    const handleLinkClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const link = target.closest("a[href]") as HTMLAnchorElement | null;
+      
+      if (link && link.href) {
+        try {
+          const url = new URL(link.href);
+          const currentUrl = new URL(window.location.href);
+          
+          // Only intercept if navigating to a different route (same origin)
+          if (url.origin === currentUrl.origin && url.pathname !== pathname) {
+            e.preventDefault();
+            e.stopPropagation();
+            setPendingNavigation(() => () => {
+              router.push(url.pathname + url.search);
+            });
+            setShowNavigationWarning(true);
+          }
+        } catch (error) {
+          // Invalid URL, ignore
+          console.warn("Invalid URL in link click:", link.href);
+        }
+      }
+    };
+
+    document.addEventListener("click", handleLinkClick, true);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("click", handleLinkClick, true);
+    };
+  }, [sandboxStarted, pathname, router]);
+
+  const handleStay = () => {
+    setShowNavigationWarning(false);
+    setPendingNavigation(null);
+  };
+
+  const handleLeave = async () => {
+    setShowNavigationWarning(false);
+    
+    // Terminate sandbox
+    if (projectId) {
+      try {
+        await fetch(API_ENDPOINTS.PROJECT_SANDBOX(projectId), {
+          method: "DELETE",
+        });
+      } catch (error) {
+        console.error("Error terminating sandbox:", error);
+      }
+    }
+    
+    // Reset sandbox state
+    setSandboxStarted(false);
+    
+    // Execute pending navigation
+    if (pendingNavigation) {
+      pendingNavigation();
+      setPendingNavigation(null);
+    }
+  };
 
   const handleMouseDown = () => {
     setIsDragging(true);
@@ -90,6 +173,11 @@ function BuilderContent() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
+      {/* Navigation Warning Modal */}
+      {showNavigationWarning && (
+        <NavigationWarningModal onStay={handleStay} onLeave={handleLeave} />
+      )}
+
       {/* Header */}
       <ProjectHeader
         projectName={projectName}

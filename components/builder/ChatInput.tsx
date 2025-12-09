@@ -13,6 +13,7 @@ interface ChatInputProps {
   isLoading: boolean;
   currentMode: MessageMode;
   onModeChange: (mode: MessageMode) => void;
+  disabled?: boolean;
 }
 
 /**
@@ -26,6 +27,7 @@ export default function ChatInput({
   isLoading,
   currentMode,
   onModeChange,
+  disabled = false,
 }: ChatInputProps) {
   const handleButtonClick = () => {
     if (isLoading && onStop) {
@@ -41,14 +43,14 @@ export default function ChatInput({
       <div className="flex items-center justify-center gap-2 mb-3">
         <button
           onClick={() => onModeChange('ask')}
-          disabled={isLoading}
+          disabled={isLoading || disabled}
           className={`
             flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
             ${currentMode === 'ask'
               ? 'bg-blue-100 text-blue-700 border-2 border-blue-300'
               : 'bg-slate-100 text-slate-600 border-2 border-transparent hover:bg-slate-200'
             }
-            ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+            ${isLoading || disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
           `}
         >
           <MessageCircle className="w-4 h-4" />
@@ -56,14 +58,14 @@ export default function ChatInput({
         </button>
         <button
           onClick={() => onModeChange('build')}
-          disabled={isLoading}
+          disabled={isLoading || disabled}
           className={`
             flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
             ${currentMode === 'build'
               ? 'bg-primary/10 text-primary border-2 border-primary/30'
               : 'bg-slate-100 text-slate-600 border-2 border-transparent hover:bg-slate-200'
             }
-            ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+            ${isLoading || disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
           `}
         >
           <Hammer className="w-4 h-4" />
@@ -77,15 +79,15 @@ export default function ChatInput({
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyPress={(e) => e.key === "Enter" && !isLoading && onSend()}
-          placeholder={currentMode === 'ask' ? "Ask a question..." : "Type your message..."}
+          onKeyPress={(e) => e.key === "Enter" && !isLoading && !disabled && onSend()}
+          placeholder={disabled ? "Start sandbox to begin..." : (currentMode === 'ask' ? "Ask a question..." : "Type your message...")}
           className="pr-12 py-6 rounded-full border-slate-200 bg-slate-50 focus:bg-white focus:border-primary/30 focus:ring-primary/20 shadow-inner"
-          disabled={isLoading}
+          disabled={isLoading || disabled}
         />
         <Button
           onClick={handleButtonClick}
           size="icon"
-          disabled={!isLoading && !input.trim()}
+          disabled={disabled || (!isLoading && !input.trim())}
           className={`absolute right-1.5 h-9 w-9 rounded-full transition-all shadow-sm ${
             isLoading
               ? "bg-black hover:bg-black/90"

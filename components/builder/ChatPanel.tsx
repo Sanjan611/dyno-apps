@@ -1,16 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Terminal, RefreshCw } from "lucide-react";
+import { Terminal, RefreshCw, Play, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   CardHeader,
   CardTitle,
   CardDescription,
+  Card,
+  CardContent,
 } from "@/components/ui/card";
 import { useBuilderStore } from "@/lib/store";
 import { useCodeGeneration } from "@/hooks/useCodeGeneration";
-import { useProjectSession } from "@/hooks/useProjectSession";
+import { useSandboxStartup } from "@/hooks/useSandboxStartup";
 import MessageList from "./MessageList";
 import ChatInput from "./ChatInput";
 import type { Message } from "@/types";
@@ -30,18 +32,22 @@ export default function ChatPanel() {
   const [isLoading, setIsLoading] = useState(false);
   const [viewingLogs, setViewingLogs] = useState(false);
   const [logs, setLogs] = useState<any>(null);
-  const { setSandboxId, setPreviewUrl, sandboxId, setProjectId, projectId, currentMode, setCurrentMode } = useBuilderStore();
+  const { 
+    setSandboxId, 
+    setPreviewUrl, 
+    sandboxId, 
+    setProjectId, 
+    projectId, 
+    currentMode, 
+    setCurrentMode,
+    sandboxStarted,
+  } = useBuilderStore();
   const [hasSentInitialMessage, setHasSentInitialMessage] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<(() => void) | null>(null);
 
   const { generateCode } = useCodeGeneration();
-  const { initializeProject, initializeExpo } = useProjectSession({
-    setProjectId,
-    setSandboxId,
-    setPreviewUrl,
-    setMessages,
-  });
+  const { startSandbox, isStarting: isStartingSandbox, error: sandboxError, progressMessages, currentProgress } = useSandboxStartup();
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -54,6 +60,11 @@ export default function ChatPanel() {
     async (rawContent: string, mode: 'ask' | 'build') => {
       const content = rawContent.trim();
       if (!content) return;
+
+      // Don't allow sending messages if sandbox isn't started
+      if (!sandboxStarted) {
+        return;
+      }
 
       const newMessage: Message = {
         id: Date.now().toString(),
@@ -73,13 +84,13 @@ export default function ChatPanel() {
       if (isFirstMessage) {
         setIsLoading(true);
         try {
-          // Initialize project and sandbox
-          const { projectId: currentProjectId, sandboxId: currentSandboxId } =
-            await initializeProject(newMessage);
-
-          // Initialize Expo
-          await initializeExpo(currentSandboxId, currentProjectId);
-
+          // Project and sandbox should already exist (created when sandbox was started)
+          const currentProjectId = useBuilderStore.getState().projectId;
+          
+          if (!currentProjectId) {
+            throw new Error("No project available. Please start the sandbox first.");
+          }
+          
           // Generate code (state is managed server-side)
           const { promise, abort } = generateCode(newMessage.content, currentProjectId, setMessages, mode);
           abortRef.current = abort;
@@ -133,10 +144,9 @@ export default function ChatPanel() {
     },
     [
       hasSentInitialMessage,
-      initializeProject,
-      initializeExpo,
       generateCode,
       setMessages,
+      sandboxStarted,
     ]
   );
 
@@ -153,6 +163,15 @@ export default function ChatPanel() {
       abortRef.current();
       abortRef.current = null;
       setIsLoading(false);
+    }
+  };
+
+  const handleStartSandbox = async () => {
+    try {
+      await startSandbox();
+    } catch (error) {
+      // Error is handled by useSandboxStartup hook
+      console.error("Error starting sandbox:", error);
     }
   };
 
@@ -234,6 +253,61 @@ export default function ChatPanel() {
         <MessageList messages={messages} isLoading={isLoading} />
       </div>
 
+      {/* Start Sandbox Overlay */}
+      {!sandboxStarted && (
+        <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-50 flex items-center justify-center">
+          <Card className="max-w-md w-full mx-4 shadow-xl">
+            <CardHeader>
+              <CardTitle className="text-2xl">Start Sandbox</CardTitle>
+              <CardDescription>
+                Start the development sandbox to begin building your app. This will create a new sandbox environment and initialize Expo.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {sandboxError && (
+                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                  <p className="text-sm text-destructive">{sandboxError}</p>
+                </div>
+              )}
+              <Button
+                onClick={handleStartSandbox}
+                disabled={isStartingSandbox}
+                className="w-full"
+                size="lg"
+              >
+                {isStartingSandbox ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Starting sandbox...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 mr-2" />
+                    Start Sandbox
+                  </>
+                )}
+              </Button>
+              {(progressMessages.length > 0 || currentProgress) && (
+                <div className="space-y-2 pt-2">
+                  {progressMessages.map((message, index) => (
+                    <div key={index} className="flex items-center gap-2 text-sm">
+                      <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+                      <span className="text-muted-foreground">{message}</span>
+                    </div>
+                  ))}
+                  {currentProgress && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <RefreshCw className="w-4 h-4 animate-spin text-primary flex-shrink-0" />
+                      <span className="font-medium">{currentProgress}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <ChatInput
         input={input}
         setInput={setInput}
@@ -242,6 +316,7 @@ export default function ChatPanel() {
         isLoading={isLoading}
         currentMode={currentMode}
         onModeChange={setCurrentMode}
+        disabled={!sandboxStarted}
       />
     </div>
   );

@@ -103,6 +103,7 @@ function CodingAgent(
 
     {{ ctx.output_format(prefix="Answer with ONE tool call at a time in JSON format. If the task is complete, reply to the user. \n") }}
 
+    Conversation:
     {% for message in state %}
     {{ _.role(message.role) }}
     {{ message.message }}

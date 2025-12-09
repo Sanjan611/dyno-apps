@@ -16,7 +16,7 @@ interface UseProjectLoaderOptions {
 
 /**
  * Hook for loading project data from URL parameters
- * Handles project fetching, sandbox health checks, and sandbox creation
+ * Only fetches project data - does not create or check sandboxes
  */
 export function useProjectLoader({
   setProjectId,
@@ -33,7 +33,7 @@ export function useProjectLoader({
     const sandboxIdParam = searchParams.get("sandboxId");
 
     if (projectId) {
-      // Fetch project data
+      // Fetch project data only - no sandbox creation/checking
       const loadProject = async () => {
         try {
           const response = await fetch(`${API_ENDPOINTS.PROJECTS}?projectId=${projectId}`);
@@ -43,95 +43,21 @@ export function useProjectLoader({
             setProjectId(data.project.id);
             const projectTitle = data.project.title ?? data.project.name ?? DEFAULT_PROJECT_NAME;
             setProjectName(projectTitle);
-            const projectSandboxId =
-              data.project.currentSandboxId ?? data.project.sandboxId ?? null;
-            setSandboxId(projectSandboxId);
-
-            // Check sandbox health and create if needed
-            setIsValidatingSandbox(true);
-            try {
-              // First check health
-              const healthResponse = await fetch(
-                API_ENDPOINTS.PROJECT_SANDBOX_HEALTH(projectId)
-              );
-              const healthData = await healthResponse.json();
-
-              if (healthData.success) {
-                if (!healthData.exists || !healthData.healthy) {
-                  // Sandbox doesn't exist or is unhealthy, create/get a new one
-                  const sandboxResponse = await fetch(
-                    API_ENDPOINTS.PROJECT_SANDBOX(projectId),
-                    {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                      },
-                    }
-                  );
-                  const sandboxData = await sandboxResponse.json();
-
-                  if (sandboxData.success) {
-                    setSandboxId(sandboxData.sandboxId);
-                  } else {
-                    setSandboxMissing(true);
-                  }
-                } else {
-                  // Sandbox is healthy, use existing one
-                  setSandboxId(projectSandboxId);
-                }
-              } else {
-                // Health check failed, try to create sandbox
-                const sandboxResponse = await fetch(
-                  API_ENDPOINTS.PROJECT_SANDBOX(projectId),
-                  {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                    },
-                  }
-                );
-                const sandboxData = await sandboxResponse.json();
-
-                if (sandboxData.success) {
-                  setSandboxId(sandboxData.sandboxId);
-                } else {
-                  setSandboxMissing(true);
-                }
-              }
-            } catch (error) {
-              console.error("Error checking/creating sandbox:", error);
-              // Try to create sandbox as fallback
-              try {
-                const sandboxResponse = await fetch(
-                  API_ENDPOINTS.PROJECT_SANDBOX(projectId),
-                  {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                    },
-                  }
-                );
-                const sandboxData = await sandboxResponse.json();
-                if (sandboxData.success) {
-                  setSandboxId(sandboxData.sandboxId);
-                } else {
-                  setSandboxMissing(true);
-                }
-              } catch (fallbackError) {
-                setSandboxMissing(true);
-              }
-            } finally {
-              setIsValidatingSandbox(false);
-            }
+            // Don't set sandboxId - sandbox will be started explicitly by user
+            setSandboxId(null);
+          } else {
+            // Project not found or error
+            setSandboxMissing(true);
           }
         } catch (error) {
           console.error("Error loading project:", error);
+          setSandboxMissing(true);
         }
       };
 
       loadProject();
     } else if (sandboxIdParam) {
-      // Direct sandboxId provided
+      // Direct sandboxId provided (legacy support)
       setSandboxId(sandboxIdParam);
     } else {
       // No projectId in URL – treat this as starting a brand new project in the builder.
