@@ -72,7 +72,7 @@ export async function createSandbox(
     timeoutMs?: number;
   } = {
     unencryptedPorts: [EXPO_PORT],
-    timeoutMs: 20 * 60 * 1000,
+    timeoutMs: 60 * 60 * 1000, // 1 hour
   };
 
   // Set environment variables if provided

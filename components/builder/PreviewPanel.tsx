@@ -5,7 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 import AppPreview from "./AppPreview";
 import CodeViewer from "./CodeViewer";
 import { useBuilderStore } from "@/lib/store";
-import { Smartphone, Code2, ExternalLink, RefreshCw, Battery, Wifi, Signal, QrCode, Copy, Check } from "lucide-react";
+import { Smartphone, Code2, RefreshCw, Battery, Wifi, Signal, QrCode, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function PreviewPanel() {
@@ -72,11 +72,6 @@ export default function PreviewPanel() {
               }}>
                  <RefreshCw className="w-4 h-4 mr-2" />
                  Reload
-              </Button>
-              <Button variant="outline" size="sm" className="text-xs" asChild>
-                <a href={previewUrl} target="_blank" rel="noopener noreferrer">
-                  Open in New Tab <ExternalLink className="w-3 h-3 ml-2" />
-                </a>
               </Button>
            </div>
         )}
