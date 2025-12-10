@@ -21,7 +21,7 @@ function AskAgent(
     - Use list_files to explore directory structures
     - Use read_file to read and understand existing code
     - When you're done discussing, use reply_to_user to respond
-    - Never use write_file, bash, verify_expo_server, or todo_write tools
+    - Never use write_file, edit_file, bash, verify_expo_server, or todo_write tools
     - Focus on understanding and explaining, not implementing
 
     {{ ExpoBestPractices() }}
@@ -94,13 +94,10 @@ function CodingAgent(
     ### GOOD EXAMPLE (Tool call)
     {{ GoodExampleToolCall() }}
 
-    ### GOOD EXAMPLE (Discussion first)
-    {{ GoodExampleDiscussionFirst() }}
-
     ## Todo List Management
     {{ TodoListManagement() }}
 
-    Your tool choice answer MUST be in JSON format. Do NOT give tool call choices in any other format.
+    Your response MUST be in JSON format. Do NOT give responses in any other format.
 
     {{ ctx.output_format(prefix="Answer with ONE tool call at a time in JSON format. If the task is complete, reply to the user. \n") }}
 
@@ -127,16 +124,19 @@ test TestCodingAgentSimpleRequest {
     working_dir "/repo"
     todos [
       {
+        id "read-app"
         content "Read App.js to understand current structure"
         activeForm "Reading App.js to understand current structure"
         status "in_progress"
       }
       {
+        id "add-welcome"
         content "Add a welcome message component"
         activeForm "Adding a welcome message component"
         status "pending"
       }
       {
+        id "update-screen"
         content "Update the main screen to display the welcome message"
         activeForm "Updating the main screen to display the welcome message"
         status "pending"
@@ -157,16 +157,19 @@ test TestCodingAgentWithButton {
     working_dir "/repo"
     todos [
       {
+        id "read-app"
         content "Read App.js to understand current structure"
         activeForm "Reading App.js to understand current structure"
         status "in_progress"
       }
       {
+        id "add-button"
         content "Add a Button component with text 'Click Me'"
         activeForm "Adding a Button component with text 'Click Me'"
         status "pending"
       }
       {
+        id "update-screen"
         content "Update the main screen to include the button"
         activeForm "Updating the main screen to include the button"
         status "pending"
@@ -200,26 +203,31 @@ test TestCodingAgentMediumComplexityRequest {
           action "todo_write"
           todos [
             {
+              id "read-app"
               content "Read App.js to understand current structure"
               activeForm "Reading App.js to understand current structure"
               status "completed"
             }
             {
+              id "create-list"
               content "Create RestaurantList component to display restaurants"
               activeForm "Creating RestaurantList component to display restaurants"
               status "in_progress"
             }
             {
+              id "create-detail"
               content "Create RestaurantDetail screen for viewing restaurant details"
               activeForm "Creating RestaurantDetail screen for viewing restaurant details"
               status "pending"
             }
             {
+              id "add-filter"
               content "Add cuisine filter functionality"
               activeForm "Adding cuisine filter functionality"
               status "pending"
             }
             {
+              id "update-nav"
               content "Update navigation to handle restaurant detail navigation"
               activeForm "Updating navigation to handle restaurant detail navigation"
               status "pending"
@@ -235,31 +243,37 @@ test TestCodingAgentMediumComplexityRequest {
     working_dir "/repo"
     todos [
       {
+        id "read-app"
         content "Read App.js to understand current structure"
         activeForm "Reading App.js to understand current structure"
         status "completed"
       }
       {
+        id "create-list"
         content "Create RestaurantList component to display restaurants"
         activeForm "Creating RestaurantList component to display restaurants"
         status "in_progress"
       }
       {
+        id "create-detail"
         content "Create RestaurantDetail screen for viewing restaurant details"
         activeForm "Creating RestaurantDetail screen for viewing restaurant details"
         status "pending"
       }
       {
+        id "add-filter"
         content "Add cuisine filter functionality"
         activeForm "Adding cuisine filter functionality"
         status "pending"
       }
       {
+        id "add-search"
         content "Add search functionality to filter restaurants by name"
         activeForm "Adding search functionality to filter restaurants by name"
         status "pending"
       }
       {
+        id "update-nav"
         content "Update navigation to handle restaurant detail navigation"
         activeForm "Updating navigation to handle restaurant detail navigation"
         status "pending"

@@ -19,6 +19,7 @@ import type {
   ListFilesTool,
   ReadFileTool,
   WriteFileTool,
+  EditTool,
   Message,
   ReplyToUser,
   FileTools,
@@ -486,6 +487,9 @@ export async function runCodingAgent(
     } else if (tool.action === "list_files") {
       toolName = tool.action;
       currentTodo = `Listing ${(tool as ListFilesTool).directoryPath}`;
+    } else if (tool.action === "edit_file") {
+      toolName = tool.action;
+      currentTodo = `Editing ${(tool as EditTool).filePath}`;
     } else if (tool.action === "verify_expo_server") {
       toolName = tool.action;
       currentTodo = "Verifying Expo server status";
@@ -592,7 +596,7 @@ async function callAskAgentWithRetry(
   workingDir: string,
   collector: Collector,
   maxRetries: number = 3
-): Promise<ReadFileTool | ListFilesTool | ReplyToUser> {
+): Promise<ListFilesTool | ReadFileTool | ReplyToUser> {
   let lastError: BamlValidationError | BamlClientFinishReasonError | null = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {

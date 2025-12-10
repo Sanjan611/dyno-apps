@@ -11,14 +11,24 @@ class ListFilesTool {
 }
 
 class ReadFileTool {
-  action "read_file" @description("Read the content of a file")
-  filePath string @description("Path to the file to read")
+  action "read_file" @description("Read file contents with optional line range. Returns cat -n style output with line numbers.")
+  filePath string @description("Absolute path to the file to read")
+  offset int? @description("Starting line number (1-indexed). Defaults to 1.")
+  limit int? @description("Number of lines to read. Defaults to 2000.")
 }
 
 class WriteFileTool {
   action "write_file" @description("Write content to a file")
   filePath string @description("Path to the file to write")
   content string @description("The content to write to the file")
+}
+
+class EditTool {
+  action "edit_file" @description("Perform surgical string replacement in a file. Requires exact string match.")
+  filePath string @description("Absolute path to the file to edit")
+  oldString string @description("The exact text to replace (must be unique in file unless replaceAll is true)")
+  newString string @description("The replacement text")
+  replaceAll bool? @description("Replace all occurrences instead of requiring uniqueness. Default: false")
 }
 
 class BashTool {
@@ -46,7 +56,7 @@ class BashTool {
       - You can specify an optional timeout in milliseconds (up to 600000ms / 10 minutes). If not specified, commands will timeout after 120000ms (2 minutes).
       - It is very helpful if you write a clear, concise description of what this command does in 5-10 words.
       - If the output exceeds 30000 characters, output will be truncated before being returned to you.
-      - VERY IMPORTANT: You MUST avoid using search commands like `find` and `grep`. Instead use list_files and read_file to search. You MUST avoid read tools like `cat`, `head`, `tail`, and `ls`, and use read_file and list_files to read files.
+      - VERY IMPORTANT: You MUST avoid using search commands like `find` and `grep` in bash. Instead use list_files and read_file to search. You MUST avoid read tools like `cat`, `head`, `tail`, and `ls`, and use read_file and list_files to read files.
       - When issuing multiple commands, use the ';' or '&&' operator to separate them. DO NOT use newlines (newlines are ok in quoted strings).
       - **CRITICAL for Expo packages**: When installing Expo libraries, you MUST use `bun expo install <package-name>`. Never use `npm install` or `bun install` for Expo packages. For example: `bun expo install expo-audio` (correct) vs `npm install expo-audio` (incorrect).
   "#)
@@ -81,13 +91,14 @@ class VerifyExpoServerTool {
 type ReadOnlyTools = ListFilesTool | ReadFileTool
 
 // Union type for all file tools (used by coding agent)
-type FileTools = ListFilesTool | ReadFileTool | WriteFileTool | BashTool | VerifyExpoServerTool
+type FileTools = ListFilesTool | ReadFileTool | WriteFileTool | EditTool | BashTool | VerifyExpoServerTool
 
 // Todo management classes
 class TodoItem {
+  id string @description("Unique identifier for this todo (e.g., 'setup-auth', 'add-button')")
   content string @description("Imperative form of the task (e.g., 'Run tests')")
-  activeForm string @description("Present continuous form of the task (e.g., 'Running tests')")
-  status "pending" | "in_progress" | "completed"
+  activeForm string @description("Present continuous form for UI display (e.g., 'Running tests')")
+  status "pending" | "in_progress" | "completed" | "cancelled"
 }
 
 class TodoWriteTool {

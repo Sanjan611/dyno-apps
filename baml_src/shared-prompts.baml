@@ -737,11 +737,12 @@ template_string TodoListManagement() #"
     - The task is purely conversational or informational
 
     ### Task States and Management
-    - **Task States**: Use "pending", "in_progress", or "completed"
-    - **Task Descriptions**: Each todo item requires three fields:
+    - **Task States**: Use "pending", "in_progress", "completed", or "cancelled"
+    - **Task Descriptions**: Each todo item requires four fields:
+      - id: Unique identifier (e.g., "read-app", "add-button")
       - content: Imperative form (e.g., "Read App.js to understand current structure")
       - activeForm: Present continuous form (e.g., "Reading App.js to understand current structure")
-      - status: "pending", "in_progress", or "completed"
+      - status: "pending", "in_progress", "completed", or "cancelled"
     - **CRITICAL RULES**:
       - EXACTLY ONE task must be "in_progress" at any time
       - Mark tasks as "completed" IMMEDIATELY after finishing (no batching)
@@ -762,11 +763,13 @@ template_string GoodExampleToolCall #"
     "args": {
       "todos": [
         {
+          "id": "build-app",
           "content": "Build an app that is like tinder but for sweaters",
           "activeForm": "Building an app that is like tinder but for sweaters",
           "status": "in_progress"
         },
         {
+          "id": "create-dir",
           "content": "Create a new directory called 'sweaters'",
           "activeForm": "Creating a new directory called 'sweaters'",
           "status": "pending"

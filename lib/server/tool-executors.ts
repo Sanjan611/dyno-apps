@@ -3,6 +3,7 @@ import type {
   ListFilesTool,
   ReadFileTool,
   WriteFileTool,
+  EditTool,
   BashTool,
   VerifyExpoServerTool,
   Message,
@@ -14,7 +15,7 @@ import type {
 import { CONTENT_LIMITS, TIMEOUTS, LOG_PREFIXES, REPO_DIR } from "@/lib/constants";
 
 // Type for single (non-array) tools
-export type SingleTool = ListFilesTool | ReadFileTool | WriteFileTool | BashTool | TodoWriteTool | VerifyExpoServerTool;
+export type SingleTool = ListFilesTool | ReadFileTool | WriteFileTool | EditTool | BashTool | TodoWriteTool | VerifyExpoServerTool;
 
 // Result interface for single tool execution
 export interface SingleToolResult {
@@ -87,7 +88,32 @@ async function executeReadFile(
     const content = await file.read();
     await file.close();
     const decoded = new TextDecoder().decode(content);
-    return `Read file ${tool.filePath}:\n${decoded}`;
+    
+    // Split into lines
+    const allLines = decoded.split("\n");
+    
+    // Apply offset and limit
+    const offset = (tool.offset ?? 1) - 1; // Convert to 0-indexed
+    const limit = tool.limit ?? 2000;
+    const startLine = Math.max(0, offset);
+    const endLine = Math.min(allLines.length, startLine + limit);
+    const selectedLines = allLines.slice(startLine, endLine);
+    
+    // Format with line numbers (cat -n style: spaces + line_number + tab + content)
+    // Line numbers are 1-indexed
+    const formattedLines = selectedLines.map((line, index) => {
+      const lineNumber = startLine + index + 1;
+      // Truncate line at 2000 characters
+      const truncatedLine = line.length > 2000 ? line.substring(0, 2000) : line;
+      // Format: spaces for alignment + line_number + tab + content
+      // Use 6 spaces for line numbers up to 999999
+      const lineNumStr = lineNumber.toString();
+      const padding = "      ".substring(0, 6 - lineNumStr.length);
+      return `${padding}${lineNumber}\t${truncatedLine}`;
+    });
+    
+    const result = formattedLines.join("\n");
+    return result;
   } catch (error) {
     // Return error message so agent can handle it
     const errorMessage =
@@ -165,6 +191,48 @@ async function executeLintCheck(
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
     return `Lint check encountered an error: ${errorMessage}. Continuing without lint results.`;
+  }
+}
+
+async function executeEditFile(
+  sandbox: any,
+  tool: EditTool
+): Promise<string> {
+  try {
+    // Read the file first
+    const file = await sandbox.open(tool.filePath, "r");
+    const content = await file.read();
+    await file.close();
+    const decoded = new TextDecoder().decode(content);
+    
+    // Count occurrences of oldString
+    const occurrences = decoded.split(tool.oldString).length - 1;
+    
+    if (occurrences === 0) {
+      return `Error editing file ${tool.filePath}: The string to replace was not found in the file.`;
+    }
+    
+    // Check uniqueness unless replaceAll is true
+    if (!tool.replaceAll && occurrences > 1) {
+      return `Error editing file ${tool.filePath}: The string to replace appears ${occurrences} times in the file. Use replaceAll=true to replace all occurrences, or make the oldString more specific to uniquely identify the location.`;
+    }
+    
+    // Perform replacement
+    const newContent = tool.replaceAll
+      ? decoded.replaceAll(tool.oldString, tool.newString)
+      : decoded.replace(tool.oldString, tool.newString);
+    
+    // Write back to file
+    const writeFile = await sandbox.open(tool.filePath, "w");
+    await writeFile.write(new TextEncoder().encode(newContent));
+    await writeFile.close();
+    
+    const replacedCount = tool.replaceAll ? occurrences : 1;
+    return `Successfully edited file ${tool.filePath}. Replaced ${replacedCount} occurrence(s).`;
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    return `Error editing file ${tool.filePath}: ${errorMessage}. Please check the path and content format.`;
   }
 }
 
@@ -322,6 +390,8 @@ export async function executeSingleTool(
       return { result: await executeReadFile(sandbox, tool) };
     case "write_file":
       return { result: await executeWriteFile(sandbox, tool, workingDir) };
+    case "edit_file":
+      return { result: await executeEditFile(sandbox, tool) };
     case "bash":
       return { result: await executeBashCommand(sandbox, tool) };
     case "todo_write":
