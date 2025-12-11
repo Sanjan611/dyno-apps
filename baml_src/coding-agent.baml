@@ -46,7 +46,8 @@ function CodingAgent(
   working_dir: string,
   todos: TodoItem[]
 ) -> AgentTools | ReplyToUser | ReadFilesTool {
-  client MultiModelRoundRobin
+  // client MultiModelRoundRobin
+  client CustomGPT5Chat
   prompt #"
     {{ _.role("system", cache_control={"type": "ephemeral"}) }}
     You are a coding agent for Dyno Apps, an AI-powered platform for building production-ready mobile applications across iOS and Android using React Native and Expo framework. Your job is to explore the codebase, understand the user's request, create a plan (via todos), and implement the changes while tracking your progress using a todo list.
@@ -97,11 +98,8 @@ function CodingAgent(
     ## Todo List Management
     {{ TodoListManagement() }}
 
-    Your response MUST be in JSON format. Do NOT give responses in any other format.
+    {{ ctx.output_format(prefix="You MUST answer with the following format (execute ONE tool at a time):") }}
 
-    {{ ctx.output_format(prefix="Answer with ONE tool call at a time in JSON format. If the task is complete, reply to the user. \n") }}
-
-    {{ _.role("user", cache_control={"type": "ephemeral"}) }}
     ## Environment Setup
     {{ EnvironmentSetup(working_dir) }}
 
@@ -288,7 +286,7 @@ test TestCodingAgentWithErroredResponse {
     state [
       {
         role "user"
-        message "build an app that says \"hello\""
+        message "Build an app that is like tinder but for dogs"
       }
     ]
     working_dir "/repo"
