@@ -17,6 +17,11 @@ class ReadFileTool {
   limit int? @description("Number of lines to read. Defaults to 2000.")
 }
 
+class ReadFilesTool {
+  action "read_files" @description("Read multiple file contents")
+  tools ReadFileTool[]
+}
+
 class WriteFileTool {
   action "write_file" @description("Write content to a file")
   filePath string @description("Path to the file to write")
@@ -88,10 +93,10 @@ class VerifyExpoServerTool {
 }
 
 // Union type for read-only tools
-type ReadOnlyTools = ListFilesTool | ReadFileTool
+type ReadOnlyTools = ListFilesTool | ReadFileTool | ReadFilesTool
 
 // Union type for all file tools (used by coding agent)
-type FileTools = ListFilesTool | ReadFileTool | WriteFileTool | EditTool | BashTool | VerifyExpoServerTool
+type FileTools = ListFilesTool | ReadFileTool | ReadFilesTool | WriteFileTool | EditTool | BashTool | VerifyExpoServerTool
 
 // Todo management classes
 class TodoItem {

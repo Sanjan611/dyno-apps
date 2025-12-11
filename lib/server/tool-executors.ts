@@ -2,6 +2,7 @@ import { dirname } from "path";
 import type {
   ListFilesTool,
   ReadFileTool,
+  ReadFilesTool,
   WriteFileTool,
   EditTool,
   BashTool,
@@ -15,7 +16,7 @@ import type {
 import { CONTENT_LIMITS, TIMEOUTS, LOG_PREFIXES, REPO_DIR } from "@/lib/constants";
 
 // Type for single (non-array) tools
-export type SingleTool = ListFilesTool | ReadFileTool | WriteFileTool | EditTool | BashTool | TodoWriteTool | VerifyExpoServerTool;
+export type SingleTool = ListFilesTool | ReadFileTool | ReadFilesTool | WriteFileTool | EditTool | BashTool | TodoWriteTool | VerifyExpoServerTool;
 
 // Result interface for single tool execution
 export interface SingleToolResult {
@@ -119,6 +120,36 @@ async function executeReadFile(
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
     return `Error reading file ${tool.filePath}: ${errorMessage}. The file may not exist or the path may be incorrect.`;
+  }
+}
+
+// Batch read multiple files in parallel
+async function executeReadFiles(
+  sandbox: any,
+  tool: ReadFilesTool
+): Promise<string> {
+  try {
+    // Execute all ReadFileTool operations in parallel
+    const readPromises = tool.tools.map(readTool => 
+      executeReadFile(sandbox, readTool).catch(err => {
+        const errorMessage = err instanceof Error ? err.message : "Unknown error";
+        return `Error reading file ${readTool.filePath}: ${errorMessage}. The file may not exist or the path may be incorrect.`;
+      })
+    );
+    
+    const results = await Promise.all(readPromises);
+    
+    // Format as JSON array so model can see the parallel pattern in message state
+    // This helps the model learn from past conversations that parallel reads are possible
+    const formattedResults = tool.tools.map((readTool, index) => ({
+      filePath: readTool.filePath,
+      content: results[index]
+    }));
+    
+    return JSON.stringify(formattedResults, null, 2);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return `Error executing batch file read: ${errorMessage}`;
   }
 }
 
@@ -388,6 +419,8 @@ export async function executeSingleTool(
       return { result: await executeListFiles(sandbox, tool) };
     case "read_file":
       return { result: await executeReadFile(sandbox, tool) };
+    case "read_files":
+      return { result: await executeReadFiles(sandbox, tool) };
     case "write_file":
       return { result: await executeWriteFile(sandbox, tool, workingDir) };
     case "edit_file":
@@ -426,7 +459,7 @@ export function areAllTodosCompleted(todoList: TodoItem[]): boolean {
 
 // Helper function to extract tool parameters for display (excluding content for WriteFileTool)
 export function extractToolParams(
-  tool: FileTools | TodoTools
+  tool: FileTools | TodoTools | ReadFilesTool
 ): Record<string, any> {
   if (tool.action === "write_file") {
     // For WriteFileTool, exclude content field

@@ -18,6 +18,7 @@ import {
 import type {
   ListFilesTool,
   ReadFileTool,
+  ReadFilesTool,
   WriteFileTool,
   EditTool,
   Message,
@@ -158,7 +159,7 @@ async function callCodingAgentWithRetry(
   todoList: TodoItem[],
   collector: Collector,
   maxRetries: number = 3
-): Promise<AgentTools | ReplyToUser> {
+): Promise<AgentTools | ReplyToUser | ReadFilesTool> {
   let lastError: BamlValidationError | BamlClientFinishReasonError | null = null;
   
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -466,7 +467,7 @@ export async function runCodingAgent(
     }
 
     // Execute the tool
-    const tool = response as FileTools | TodoTools;
+    const tool = response as FileTools | TodoTools | ReadFilesTool;
     let toolName: string;
     let currentTodo: string | undefined = undefined;
 
@@ -484,6 +485,11 @@ export async function runCodingAgent(
     } else if (tool.action === "read_file") {
       toolName = tool.action;
       currentTodo = `Reading ${(tool as ReadFileTool).filePath}`;
+    } else if (tool.action === "read_files") {
+      toolName = tool.action;
+      const readFilesTool = tool as ReadFilesTool;
+      const fileCount = readFilesTool.tools.length;
+      currentTodo = `Reading ${fileCount} file${fileCount !== 1 ? 's' : ''}`;
     } else if (tool.action === "list_files") {
       toolName = tool.action;
       currentTodo = `Listing ${(tool as ListFilesTool).directoryPath}`;
@@ -562,9 +568,10 @@ export async function runCodingAgent(
     }
 
     // Add tool execution to state
+    // Note: ReadFilesTool is part of FileTools (and thus AgentTools) after BAML regeneration
     state.push({
       role: "assistant",
-      message: tool,
+      message: tool as AgentTools,
     });
     state.push({
       role: "tool",
@@ -596,7 +603,7 @@ async function callAskAgentWithRetry(
   workingDir: string,
   collector: Collector,
   maxRetries: number = 3
-): Promise<ListFilesTool | ReadFileTool | ReplyToUser> {
+): Promise<ListFilesTool | ReadFileTool | ReadFilesTool | ReplyToUser> {
   let lastError: BamlValidationError | BamlClientFinishReasonError | null = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -813,14 +820,19 @@ export async function runAskAgent(
       };
     }
 
-    // Execute the tool (read-only: list_files or read_file)
-    const tool = response as ListFilesTool | ReadFileTool;
+    // Execute the tool (read-only: list_files, read_file, or read_files)
+    const tool = response as ListFilesTool | ReadFileTool | ReadFilesTool;
     let toolName: string;
     let currentTodo: string | undefined = undefined;
 
     if ("filePath" in tool && tool.action === "read_file") {
       toolName = tool.action;
       currentTodo = `Reading ${tool.filePath}`;
+    } else if (tool.action === "read_files") {
+      toolName = tool.action;
+      const readFilesTool = tool as ReadFilesTool;
+      const fileCount = readFilesTool.tools.length;
+      currentTodo = `Reading ${fileCount} file${fileCount !== 1 ? 's' : ''}`;
     } else if ("directoryPath" in tool && tool.action === "list_files") {
       toolName = tool.action;
       currentTodo = `Listing ${tool.directoryPath}`;

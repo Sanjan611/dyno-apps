@@ -45,7 +45,7 @@ function CodingAgent(
   state: Message[],
   working_dir: string,
   todos: TodoItem[]
-) -> AgentTools | ReplyToUser {
+) -> AgentTools | ReplyToUser | ReadFilesTool {
   client MultiModelRoundRobin
   prompt #"
     {{ _.role("system", cache_control={"type": "ephemeral"}) }}

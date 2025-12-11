@@ -777,4 +777,24 @@ template_string GoodExampleToolCall #"
       ]
     }
   }
+
+  #### Using read_files tool
+  For maximum efficiency, whenever you need to perform multiple independent read_file tool calls, call the read_files tool with an array of read_file tool calls.
+
+  User: "Read the App.js and package.json files"
+  Assistant: {
+    "tool": "read_files",
+    "args": {
+      "tools": [
+        {
+          "action": "read_file",
+          "filePath": "App.js"
+        }
+        {
+          "action": "read_file",
+          "filePath": "package.json"
+        }
+      ]
+    }
+  }
 "#
