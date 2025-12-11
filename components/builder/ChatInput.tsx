@@ -37,9 +37,12 @@ export default function ChatInput({
     const textarea = textareaRef.current;
     if (textarea) {
       // Reset height to get accurate scrollHeight
-      textarea.style.height = "52px";
-      // Set new height based on content (max 200px)
-      const newHeight = Math.min(textarea.scrollHeight, 200);
+      textarea.style.height = "auto";
+      // Calculate single-line height based on line-height and padding
+      // Line height is typically ~1.5em (24px for 16px base), plus padding (py-1 = 8px total)
+      const singleLineHeight = 32;
+      // Set new height based on content (min: single line, max: 200px)
+      const newHeight = Math.max(singleLineHeight, Math.min(textarea.scrollHeight, 200));
       textarea.style.height = `${newHeight}px`;
     }
   }, [input]);
@@ -89,7 +92,7 @@ export default function ChatInput({
       </div>
 
       {/* Input Field */}
-      <div className="relative flex items-end">
+      <div className="flex items-end gap-2 px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 focus-within:bg-white focus-within:border-primary/30 focus-within:ring-1 focus-within:ring-primary/20 shadow-inner transition-all">
         <Textarea
           ref={textareaRef}
           value={input}
@@ -101,7 +104,7 @@ export default function ChatInput({
             }
           }}
           placeholder={disabled ? "Start sandbox to begin..." : (currentMode === 'ask' ? "Ask a question..." : "Type your message...")}
-          className="pr-14 py-3 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white focus:border-primary/30 focus:ring-primary/20 shadow-inner resize-none overflow-y-auto"
+          className="min-h-0 border-0 bg-transparent px-0 py-1 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 resize-none overflow-y-auto"
           disabled={isLoading || disabled}
           rows={1}
         />
@@ -109,7 +112,7 @@ export default function ChatInput({
           onClick={handleButtonClick}
           size="icon"
           disabled={disabled || (!isLoading && !input.trim())}
-          className={`absolute right-2 bottom-2 h-9 w-9 rounded-full transition-all shadow-sm ${
+          className={`h-9 w-9 rounded-full transition-all shadow-sm flex-shrink-0 ${
             isLoading
               ? "bg-black hover:bg-black/90"
               : "bg-primary hover:bg-primary/90"
