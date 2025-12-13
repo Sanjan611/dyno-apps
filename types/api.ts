@@ -63,6 +63,11 @@ export interface CreateProjectResponse {
 export interface GetProjectsResponse {
   success: boolean;
   projects?: ProjectWithMeta[];
+  limit?: {
+    max: number;
+    current: number;
+    canCreate: boolean;
+  };
   error?: string;
 }
 

@@ -13,8 +13,10 @@ import {
   notFoundResponse,
   badRequestResponse,
   internalErrorResponse,
+  errorResponse,
 } from "@/lib/server/api-utils";
 import { createProjectRepo } from "@/lib/server/github";
+import { checkProjectLimit, getUserLimit } from "@/lib/server/userLimitsStore";
 import type { GetProjectsResponse, GetProjectResponse } from "@/types/api";
 
 // GET /api/projects - Get all projects or a single project by ID
@@ -38,14 +40,23 @@ export const GET = withAuth<GetProjectsResponse | GetProjectResponse>(async (req
       });
     }
 
-    // Otherwise, return all projects
+    // Otherwise, return all projects with limit information
     const projectsArray = (await getAllProjects(user.id)).map((project) => ({
       ...project,
       lastModified: formatRelativeTime(project.updatedAt),
     }));
 
+    // Include limit information for the frontend
+    const limit = await getUserLimit(user.id);
+    const currentCount = projectsArray.length;
+
     return successResponse({
       projects: projectsArray,
+      limit: {
+        max: limit,
+        current: currentCount,
+        canCreate: currentCount < limit,
+      },
     });
   } catch (error) {
     console.error("[projects] Error fetching projects:", error);
@@ -56,6 +67,15 @@ export const GET = withAuth<GetProjectsResponse | GetProjectResponse>(async (req
 // POST /api/projects - Create a new project (no sandbox creation)
 export const POST = withAuth(async (request, user) => {
   try {
+    // Check project limit before proceeding
+    const limitCheck = await checkProjectLimit(user.id);
+    if (!limitCheck.allowed) {
+      return errorResponse(
+        `You have reached your project limit (${limitCheck.currentCount}/${limitCheck.limit})`,
+        403
+      );
+    }
+
     const { name, title, description, firstMessage, repositoryUrl } = await request.json();
 
     // Extract project name from first message or use default

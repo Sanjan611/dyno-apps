@@ -24,6 +24,7 @@ export default function ProjectGalleryPage() {
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [limitInfo, setLimitInfo] = useState<{ max: number; current: number; canCreate: boolean } | null>(null);
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -35,6 +36,9 @@ export default function ProjectGalleryPage() {
         if (data.success) {
           setProjects(data.projects || []);
           setFilteredProjects(data.projects || []);
+          if (data.limit) {
+            setLimitInfo(data.limit);
+          }
         } else {
           setError(data.error || "Failed to load projects");
         }
@@ -63,6 +67,18 @@ export default function ProjectGalleryPage() {
     }
   }, [searchQuery, projects]);
 
+  const handleNewProjectClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (limitInfo && !limitInfo.canCreate) {
+      e.preventDefault();
+      setActionError(
+        `You have reached your project limit (${limitInfo.current}/${limitInfo.max}). Please delete a project to create a new one.`
+      );
+      // Clear error after 5 seconds
+      setTimeout(() => setActionError(null), 5000);
+      return false;
+    }
+  };
+
   const handleDelete = async (projectId: string) => {
     const project = projects.find((p) => p.id === projectId);
     if (!project) return;
@@ -89,6 +105,12 @@ export default function ProjectGalleryPage() {
 
       if (data.success) {
         setProjects((prev) => prev.filter((p) => p.id !== projectId));
+        // Refresh limit info after deletion
+        const refreshResponse = await fetch("/api/projects");
+        const refreshData = await refreshResponse.json();
+        if (refreshData.success && refreshData.limit) {
+          setLimitInfo(refreshData.limit);
+        }
       } else {
         setActionError(data.error || "Failed to delete project");
       }
@@ -117,8 +139,13 @@ export default function ProjectGalleryPage() {
             <span className="h-6 w-[1px] bg-gray-200 hidden sm:block" />
             <h1 className="text-sm font-medium text-muted-foreground hidden sm:block">Project Gallery</h1>
           </div>
-          <Button asChild className="bg-primary hover:bg-primary/90 shadow-md hover:shadow-lg transition-all">
-            <Link href="/builder">
+          <Button 
+            asChild 
+            className="bg-primary hover:bg-primary/90 shadow-md hover:shadow-lg transition-all"
+            disabled={limitInfo ? !limitInfo.canCreate : false}
+            title={limitInfo && !limitInfo.canCreate ? `Project limit reached (${limitInfo.current}/${limitInfo.max})` : undefined}
+          >
+            <Link href="/builder" onClick={handleNewProjectClick}>
               <PlusCircle className="w-4 h-4 mr-2" />
               New Project
             </Link>
@@ -182,7 +209,12 @@ export default function ProjectGalleryPage() {
         ) : projects.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Create New Card */}
-            <Link href="/builder" className="group">
+            <Link 
+              href="/builder" 
+              className="group"
+              onClick={handleNewProjectClick}
+              style={limitInfo && !limitInfo.canCreate ? { pointerEvents: 'none', opacity: 0.5 } : {}}
+            >
               <Card className="h-full border-2 border-dashed border-primary/30 bg-gradient-to-br from-primary/5 to-secondary/5 hover:border-primary/60 hover:from-primary/10 hover:to-secondary/10 transition-all duration-300 flex flex-col items-center justify-center p-8 cursor-pointer backdrop-blur-sm relative overflow-hidden">
                 {/* Glow effect */}
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/0 to-secondary/0 group-hover:from-primary/10 group-hover:to-secondary/10 transition-all duration-300" />
@@ -287,8 +319,10 @@ export default function ProjectGalleryPage() {
                   size="lg" 
                   className="text-lg px-8 py-6 bg-gradient-to-r from-primary to-secondary hover:opacity-90 shadow-xl hover:shadow-2xl transition-all duration-300 rounded-xl group/btn" 
                   asChild
+                  disabled={limitInfo ? !limitInfo.canCreate : false}
+                  title={limitInfo && !limitInfo.canCreate ? `Project limit reached (${limitInfo.current}/${limitInfo.max})` : undefined}
                 >
-                  <Link href="/builder">
+                  <Link href="/builder" onClick={handleNewProjectClick}>
                     <PlusCircle className="w-5 h-5 mr-2 group-hover/btn:rotate-90 transition-transform duration-300" />
                     Create Your First Project
                   </Link>
