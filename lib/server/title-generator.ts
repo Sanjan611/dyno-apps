@@ -10,9 +10,12 @@ import { DEFAULT_PROJECT_NAME } from "../constants";
 const LOG_PREFIX = "[title-generator]";
 
 /**
- * Attempts to auto-generate a project title if:
- * 1. The current title is "Untitled" or "Untitled Project" or DEFAULT_PROJECT_NAME
- * 2. The title has not been manually updated by the user
+ * Attempts to auto-generate a project title if the current title is one of the default values:
+ * - "Untitled"
+ * - "Untitled Project"
+ * - DEFAULT_PROJECT_NAME
+ *
+ * If the title is anything else, we assume the user has set it explicitly and don't modify it.
  *
  * This is designed to be non-blocking - if title generation fails,
  * it logs the error but doesn't throw.
@@ -35,13 +38,8 @@ export async function autoGenerateProjectTitle(
       return;
     }
 
-    // Check if title was manually updated
-    if (project.titleManuallyUpdated) {
-      console.log(`${LOG_PREFIX} Title was manually updated, skipping auto-generation for project: ${projectId}`);
-      return;
-    }
-
-    // Check if title is still the default "Untitled" or "Untitled Project"
+    // Check if title is still one of the default values
+    // If it's anything else, we assume the user set it explicitly
     const isDefaultTitle =
       project.title === "Untitled" ||
       project.title === "Untitled Project" ||
@@ -61,10 +59,9 @@ export async function autoGenerateProjectTitle(
       return;
     }
 
-    // Update the project with the new title (but don't mark as manually updated)
+    // Update the project with the new title
     await updateProject(projectId, userId, {
       title: generatedTitle.trim(),
-      titleManuallyUpdated: false, // Keep this false since it's auto-generated
     });
 
     console.log(`${LOG_PREFIX} Successfully updated project ${projectId} with title: "${generatedTitle.trim()}"`);

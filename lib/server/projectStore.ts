@@ -14,7 +14,6 @@ function mapProject(row: any): Project {
     userId: row.user_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    titleManuallyUpdated: row.title_manually_updated ?? false,
   };
 }
 
@@ -120,9 +119,6 @@ export async function updateProject(
   }
   if (updates.currentSandboxId !== undefined) {
     updatePayload.current_sandbox_id = updates.currentSandboxId;
-  }
-  if (updates.titleManuallyUpdated !== undefined) {
-    updatePayload.title_manually_updated = updates.titleManuallyUpdated;
   }
 
   if (Object.keys(updatePayload).length === 0) {
