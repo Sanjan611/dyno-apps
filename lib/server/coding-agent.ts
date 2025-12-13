@@ -158,7 +158,8 @@ async function callCodingAgentWithRetry(
   workingDir: string,
   todoList: TodoItem[],
   collector: Collector,
-  maxRetries: number = 3
+  maxRetries: number = 3,
+  signal?: AbortSignal
 ): Promise<AgentTools | ReplyToUser | ReadFilesTool> {
   let lastError: BamlValidationError | BamlClientFinishReasonError | null = null;
   
@@ -168,7 +169,7 @@ async function callCodingAgentWithRetry(
         state,
         workingDir,
         todoList,
-        { collector }
+        { collector, signal }
       );
       
       // Success - return the response
@@ -405,7 +406,8 @@ export async function runCodingAgent(
         workingDir,
         todoList,
         collector,
-        maxRetries
+        maxRetries,
+        signal
       );
       
       // Log token usage and latency for this iteration
@@ -414,6 +416,29 @@ export async function runCodingAgent(
         console.log(`${LOG_PREFIXES.CHAT} CodingAgent iteration ${iterations} usage:`, metrics);
       }
     } catch (error) {
+      // Handle BamlAbortError as a clean cancellation (not an error)
+      if (error instanceof BamlAbortError) {
+        console.log(`${LOG_PREFIXES.CHAT} Coding agent stopped by user request (BAML abort)`);
+        
+        // Save current state before stopping
+        setAgentState(projectId, state);
+        console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
+        
+        if (onProgress) {
+          await onProgress({
+            type: 'stopped',
+            message: 'Processing stopped by user',
+          });
+        }
+        
+        return {
+          success: false,
+          error: 'Processing stopped by user',
+          state: state,
+        };
+      }
+      
+      // Handle other errors normally
       const errorEvent = formatErrorForStream(error, "Coding agent");
       if (onProgress) {
         await onProgress(errorEvent);
@@ -602,7 +627,8 @@ async function callAskAgentWithRetry(
   state: Message[],
   workingDir: string,
   collector: Collector,
-  maxRetries: number = 3
+  maxRetries: number = 3,
+  signal?: AbortSignal
 ): Promise<ListFilesTool | ReadFileTool | ReadFilesTool | ReplyToUser> {
   let lastError: BamlValidationError | BamlClientFinishReasonError | null = null;
 
@@ -611,7 +637,7 @@ async function callAskAgentWithRetry(
       const response = await b.AskAgent(
         state,
         workingDir,
-        { collector }
+        { collector, signal }
       );
 
       // Success - return the response
@@ -767,7 +793,8 @@ export async function runAskAgent(
         state,
         workingDir,
         collector,
-        maxRetries
+        maxRetries,
+        signal
       );
 
       // Log token usage and latency for this iteration
@@ -776,6 +803,29 @@ export async function runAskAgent(
         console.log(`${LOG_PREFIXES.CHAT} AskAgent iteration ${iterations} usage:`, metrics);
       }
     } catch (error) {
+      // Handle BamlAbortError as a clean cancellation (not an error)
+      if (error instanceof BamlAbortError) {
+        console.log(`${LOG_PREFIXES.CHAT} Ask agent stopped by user request (BAML abort)`);
+        
+        // Save current state before stopping
+        setAgentState(projectId, state);
+        console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
+        
+        if (onProgress) {
+          await onProgress({
+            type: 'stopped',
+            message: 'Conversation stopped by user',
+          });
+        }
+        
+        return {
+          success: false,
+          error: 'Conversation stopped by user',
+          state: state,
+        };
+      }
+      
+      // Handle other errors normally
       const errorEvent = formatErrorForStream(error, "Ask agent");
       if (onProgress) {
         await onProgress(errorEvent);
