@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { DEFAULT_PROJECT_NAME, API_ENDPOINTS } from "@/lib/constants";
+import { useBuilderStore } from "@/lib/store";
 
 interface UseProjectLoaderOptions {
   setProjectId: (id: string | null) => void;
   setProjectName: (name: string) => void;
   setSandboxId: (id: string | null) => void;
+  setSandboxStarted: (started: boolean) => void;
   /**
    * Optional reset callback for clearing builder state when starting a new project.
    * This is passed from the builder store so that a fresh project is always created
@@ -22,6 +24,7 @@ export function useProjectLoader({
   setProjectId,
   setProjectName,
   setSandboxId,
+  setSandboxStarted,
   reset,
 }: UseProjectLoaderOptions) {
   const [sandboxMissing, setSandboxMissing] = useState(false);
@@ -45,6 +48,8 @@ export function useProjectLoader({
             setProjectName(projectTitle);
             // Don't set sandboxId - sandbox will be started explicitly by user
             setSandboxId(null);
+            // Reset sandboxStarted to trigger auto-start on page load
+            setSandboxStarted(false);
           } else {
             // Project not found or error
             setSandboxMissing(true);
@@ -61,18 +66,23 @@ export function useProjectLoader({
       setSandboxId(sandboxIdParam);
     } else {
       // No projectId in URL – treat this as starting a brand new project in the builder.
-      // Clear any persisted builder state so that initializeProject POSTs /api/projects,
-      // which in turn creates the backing GitHub repository.
-      if (reset) {
-        reset();
-      } else {
-        // Fallback: minimally clear project-specific state
-        setProjectId(null);
-        setSandboxId(null);
-        setProjectName(DEFAULT_PROJECT_NAME);
+      // However, don't reset if a project already exists in the store (e.g., from sandbox startup)
+      // Check the store to see if projectId is already set
+      const currentProjectId = useBuilderStore.getState().projectId;
+      
+      // Only reset if no project exists yet
+      if (!currentProjectId) {
+        if (reset) {
+          reset();
+        } else {
+          // Fallback: minimally clear project-specific state
+          setProjectId(null);
+          setSandboxId(null);
+          setProjectName(DEFAULT_PROJECT_NAME);
+        }
       }
     }
-  }, [searchParams, setProjectId, setProjectName, setSandboxId, reset]);
+  }, [searchParams, setProjectId, setProjectName, setSandboxId, setSandboxStarted, reset]);
 
   return {
     sandboxMissing,

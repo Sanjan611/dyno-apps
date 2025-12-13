@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Terminal, RefreshCw, Play, Check } from "lucide-react";
+import { Terminal, RefreshCw, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   CardHeader,
@@ -49,6 +49,18 @@ export default function ChatPanel() {
   const { generateCode } = useCodeGeneration();
   const { startSandbox, isStarting: isStartingSandbox, error: sandboxError, progressMessages, currentProgress } = useSandboxStartup();
 
+  // Auto-trigger sandbox startup on mount
+  const hasStartedRef = useRef(false);
+  useEffect(() => {
+    if (!sandboxStarted && !isStartingSandbox && !hasStartedRef.current) {
+      hasStartedRef.current = true;
+      startSandbox().catch((error) => {
+        console.error("Error auto-starting sandbox:", error);
+        hasStartedRef.current = false; // Allow retry on error
+      });
+    }
+  }, [sandboxStarted, isStartingSandbox, startSandbox]);
+
   // Auto scroll to bottom
   useEffect(() => {
     if (scrollRef.current) {
@@ -85,7 +97,17 @@ export default function ChatPanel() {
         setIsLoading(true);
         try {
           // Project and sandbox should already exist (created when sandbox was started)
-          const currentProjectId = useBuilderStore.getState().projectId;
+          // Wait for projectId to be set if sandbox is started (handles race condition)
+          let currentProjectId = useBuilderStore.getState().projectId;
+          
+          if (!currentProjectId && sandboxStarted) {
+            // Retry a few times to wait for projectId to be set
+            for (let attempt = 0; attempt < 10; attempt++) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+              currentProjectId = useBuilderStore.getState().projectId;
+              if (currentProjectId) break;
+            }
+          }
           
           if (!currentProjectId) {
             throw new Error("No project available. Please start the sandbox first.");
@@ -166,14 +188,6 @@ export default function ChatPanel() {
     }
   };
 
-  const handleStartSandbox = async () => {
-    try {
-      await startSandbox();
-    } catch (error) {
-      // Error is handled by useSandboxStartup hook
-      console.error("Error starting sandbox:", error);
-    }
-  };
 
   return (
     <div className="flex flex-col h-full bg-white relative">
@@ -253,14 +267,14 @@ export default function ChatPanel() {
         <MessageList messages={messages} isLoading={isLoading} />
       </div>
 
-      {/* Start Sandbox Overlay */}
+      {/* Setting Up Environment Overlay */}
       {!sandboxStarted && (
         <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-50 flex items-center justify-center">
           <Card className="max-w-md w-full mx-4 shadow-xl">
             <CardHeader>
-              <CardTitle className="text-2xl">Start Sandbox</CardTitle>
+              <CardTitle className="text-2xl">Setting Up Environment</CardTitle>
               <CardDescription>
-                Start the development sandbox to begin building your app. This will create a new sandbox environment and initialize Expo.
+                Preparing your development sandbox and initializing Expo. This may take a moment.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -269,25 +283,7 @@ export default function ChatPanel() {
                   <p className="text-sm text-destructive">{sandboxError}</p>
                 </div>
               )}
-              <Button
-                onClick={handleStartSandbox}
-                disabled={isStartingSandbox}
-                className="w-full"
-                size="lg"
-              >
-                {isStartingSandbox ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    Starting sandbox...
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4 mr-2" />
-                    Start Sandbox
-                  </>
-                )}
-              </Button>
-              {(progressMessages.length > 0 || currentProgress) && (
+              {(progressMessages.length > 0 || currentProgress || isStartingSandbox) && (
                 <div className="space-y-2 pt-2">
                   {progressMessages.map((message, index) => (
                     <div key={index} className="flex items-center gap-2 text-sm">
@@ -295,10 +291,10 @@ export default function ChatPanel() {
                       <span className="text-muted-foreground">{message}</span>
                     </div>
                   ))}
-                  {currentProgress && (
+                  {(currentProgress || isStartingSandbox) && (
                     <div className="flex items-center gap-2 text-sm">
                       <RefreshCw className="w-4 h-4 animate-spin text-primary flex-shrink-0" />
-                      <span className="font-medium">{currentProgress}</span>
+                      <span className="font-medium">{currentProgress || "Setting up..."}</span>
                     </div>
                   )}
                 </div>

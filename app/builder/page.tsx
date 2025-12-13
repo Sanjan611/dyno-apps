@@ -56,6 +56,7 @@ function BuilderContent() {
     setProjectId,
     setProjectName,
     setSandboxId,
+    setSandboxStarted,
     reset,
   });
 

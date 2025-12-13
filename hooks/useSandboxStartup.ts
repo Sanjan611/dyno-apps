@@ -26,6 +26,8 @@ export function useSandboxStartup() {
     try {
       // Step 0: Create project if it doesn't exist
       let currentProjectId = projectId;
+      const isNewProject = !currentProjectId;
+      
       if (!currentProjectId) {
         setCurrentProgress("Creating project...");
         const projectResponse = await fetch(API_ENDPOINTS.PROJECTS, {
@@ -70,18 +72,48 @@ export function useSandboxStartup() {
         throw new Error("Project ID is required but was not set");
       }
 
-      // Step 1: Terminate any existing sandbox
-      try {
-        await fetch(API_ENDPOINTS.PROJECT_SANDBOX(currentProjectId), {
-          method: "DELETE",
-        });
-        // Don't fail if sandbox doesn't exist - that's fine
-      } catch (error) {
-        console.warn("[useSandboxStartup] Error terminating existing sandbox:", error);
-        // Continue anyway - sandbox might not exist
+      // Step 1: Check if existing sandbox is healthy and can be reused
+      if (currentProjectId) {
+        setCurrentProgress("Checking existing sandbox...");
+        try {
+          const healthResponse = await fetch(
+            API_ENDPOINTS.PROJECT_SANDBOX_HEALTH(currentProjectId)
+          );
+          if (healthResponse.ok) {
+            const healthData = await healthResponse.json();
+            if (healthData.success && healthData.healthy && healthData.previewUrl) {
+              // Reuse existing healthy sandbox
+              // Ensure projectId is set in store
+              useBuilderStore.getState().setProjectId(currentProjectId);
+              setSandboxId(healthData.sandboxId);
+              setPreviewUrl(healthData.previewUrl);
+              setSandboxStarted(true);
+              addProgressMessage("Existing sandbox ready");
+              setCurrentProgress(null);
+              return; // Skip creation
+            }
+          }
+        } catch (error) {
+          console.warn("[useSandboxStartup] Error checking sandbox health:", error);
+          // Continue with creation flow
+        }
+        setCurrentProgress(null);
       }
 
-      // Step 2: Create a new sandbox
+      // Step 2: Terminate any existing sandbox (skip for new projects)
+      if (!isNewProject) {
+        try {
+          await fetch(API_ENDPOINTS.PROJECT_SANDBOX(currentProjectId), {
+            method: "DELETE",
+          });
+          // Don't fail if sandbox doesn't exist - that's fine
+        } catch (error) {
+          console.warn("[useSandboxStartup] Error terminating existing sandbox:", error);
+          // Continue anyway - sandbox might not exist
+        }
+      }
+
+      // Step 3: Create a new sandbox
       setCurrentProgress("Creating sandbox...");
       const sandboxResponse = await fetch(API_ENDPOINTS.PROJECT_SANDBOX(currentProjectId), {
         method: "POST",
@@ -115,25 +147,48 @@ export function useSandboxStartup() {
       addProgressMessage("Sandbox created");
       setCurrentProgress(null);
 
-      // Step 3: Fetch project to get repositoryUrl
+      // Step 4: Verify project has currentSandboxId set and fetch repositoryUrl
       setCurrentProgress("Loading project code...");
       let repositoryUrl: string | null = null;
-      try {
-        const projectResponse = await fetch(`${API_ENDPOINTS.PROJECTS}?projectId=${currentProjectId}`);
-        if (projectResponse.ok) {
-          const projectData = await projectResponse.json();
-          if (projectData.success && projectData.project?.repositoryUrl) {
-            repositoryUrl = projectData.project.repositoryUrl;
+      let projectHasSandboxId = false;
+      
+      // Retry a few times to ensure database update is visible
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          const projectResponse = await fetch(`${API_ENDPOINTS.PROJECTS}?projectId=${currentProjectId}`);
+          if (projectResponse.ok) {
+            const projectData = await projectResponse.json();
+            if (projectData.success && projectData.project) {
+              if (projectData.project.currentSandboxId === newSandboxId) {
+                projectHasSandboxId = true;
+              }
+              if (projectData.project.repositoryUrl) {
+                repositoryUrl = projectData.project.repositoryUrl;
+              }
+            }
           }
+        } catch (error) {
+          console.warn("[useSandboxStartup] Error fetching project:", error);
         }
-      } catch (error) {
-        console.warn("[useSandboxStartup] Error fetching project for repositoryUrl:", error);
-        // Continue without repositoryUrl - not critical
+        
+        if (projectHasSandboxId) {
+          break;
+        }
+        
+        // Wait a bit before retrying (only if not the last attempt)
+        if (attempt < 4) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
       }
+      
+      if (!projectHasSandboxId) {
+        console.warn("[useSandboxStartup] Project currentSandboxId not set after sandbox creation, but continuing anyway");
+      }
+      
       addProgressMessage("Project code loaded");
       setCurrentProgress(null);
 
-      // Step 4: Initialize Expo
+      // Step 5: Initialize Expo
       setCurrentProgress("Initializing Expo server...");
       const initResponse = await fetch(API_ENDPOINTS.INIT_EXPO, {
         method: "POST",
@@ -176,7 +231,9 @@ export function useSandboxStartup() {
         );
       }
 
-      // Step 5: Update store state
+      // Step 6: Update store state
+      // Ensure projectId is set in store (important for new projects)
+      useBuilderStore.getState().setProjectId(currentProjectId);
       setPreviewUrl(initData.previewUrl);
       setSandboxStarted(true);
       addProgressMessage("Expo server initialized");
