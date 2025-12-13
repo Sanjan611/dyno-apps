@@ -5,6 +5,7 @@ import { getProject } from "@/lib/server/projectStore";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { LOG_PREFIXES, ERROR_MESSAGES } from "@/lib/constants";
 import type { SSEProgressEvent, MessageMode } from "@/types";
+import { autoGenerateProjectTitle } from "@/lib/server/title-generator";
 
 // Force dynamic route to enable streaming
 export const dynamic = 'force-dynamic';
@@ -132,6 +133,13 @@ export async function POST(
       }
 
       console.log(`${LOG_PREFIXES.CHAT} Starting chat for project: ${projectId}, sandbox: ${project.currentSandboxId}, mode: ${messageMode}`);
+
+      // Auto-generate project title in the background if needed
+      // This runs asynchronously and won't block the chat response
+      autoGenerateProjectTitle(projectId, user.id, userPrompt).catch((error) => {
+        // Already logged in autoGenerateProjectTitle, just catch to prevent unhandled promise rejection
+        console.error(`${LOG_PREFIXES.CHAT} Unhandled error in autoGenerateProjectTitle:`, error);
+      });
 
       // Initialize Modal client
       const modal = createModalClient();

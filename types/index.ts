@@ -101,6 +101,7 @@ export interface Project {
   userId: string;
   createdAt: string;
   updatedAt: string;
+  titleManuallyUpdated: boolean;
 }
 
 /**
@@ -122,6 +123,7 @@ export interface ProjectUpdate {
   description?: string | null;
   repositoryUrl?: string | null;
   currentSandboxId?: string | null;
+  titleManuallyUpdated?: boolean;
 }
 
 /**

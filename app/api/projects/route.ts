@@ -204,8 +204,11 @@ export const PATCH = withAuth(async (request, user) => {
       return badRequestResponse("title is required and must be a non-empty string");
     }
 
+    // When user manually updates the title, mark it as manually updated
+    // This prevents automatic title generation from overwriting it
     const updatedProject = await updateProject(projectId, user.id, {
       title: nextTitle.trim(),
+      titleManuallyUpdated: true,
     });
 
     if (!updatedProject) {
