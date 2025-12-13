@@ -53,6 +53,16 @@ client<llm> CustomHaiku {
   }
 }
 
+// Claude Haiku 4.5 - fast and efficient for simple tasks
+client<llm> ClaudeHaiku4 {
+  provider anthropic
+  retry_policy Constant
+  options {
+    model "claude-haiku-4-5-20251001"
+    api_key env.ANTHROPIC_API_KEY
+  }
+}
+
 // Claude Sonnet 4.5 for agent functions
 client<llm> ClaudeSonnet {
   provider anthropic

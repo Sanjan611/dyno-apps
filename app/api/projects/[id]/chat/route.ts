@@ -5,6 +5,7 @@ import { getProject } from "@/lib/server/projectStore";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { LOG_PREFIXES, ERROR_MESSAGES } from "@/lib/constants";
 import type { SSEProgressEvent, MessageMode } from "@/types";
+import { autoGenerateProjectTitle } from "@/lib/server/title-generator";
 
 // Force dynamic route to enable streaming
 export const dynamic = 'force-dynamic';
@@ -132,6 +133,16 @@ export async function POST(
       }
 
       console.log(`${LOG_PREFIXES.CHAT} Starting chat for project: ${projectId}, sandbox: ${project.currentSandboxId}, mode: ${messageMode}`);
+
+      // Auto-generate project title if needed and stream update to frontend
+      const generatedTitle = await autoGenerateProjectTitle(projectId, user.id, userPrompt);
+      if (generatedTitle) {
+        // Send title update event to frontend
+        await sendProgress({
+          type: 'title_updated',
+          title: generatedTitle,
+        });
+      }
 
       // Initialize Modal client
       const modal = createModalClient();

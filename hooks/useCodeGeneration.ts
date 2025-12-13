@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import type { Message, AgentAction, AgentActionType, SSEProgressEvent, MessageMode } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
+import { useBuilderStore } from "@/lib/store";
 
 // Helper function to map tool names to user-friendly action types
 function getActionTypeFromTool(toolName: string): AgentActionType {
@@ -259,6 +260,13 @@ export function useCodeGeneration() {
                   break;
                   
                 case 'todo_update':
+                  break;
+                  
+                case 'title_updated':
+                  if (event.title) {
+                    // Update project name in Zustand store
+                    useBuilderStore.getState().setProjectName(event.title);
+                  }
                   break;
                   
                 case 'complete':

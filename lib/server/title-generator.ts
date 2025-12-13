@@ -1,0 +1,77 @@
+/**
+ * Server-side title generation utilities
+ * Automatically generates project titles based on user prompts
+ */
+
+import { b } from "@/baml_client";
+import { getProject, updateProject } from "./projectStore";
+import { DEFAULT_PROJECT_NAME } from "../constants";
+
+const LOG_PREFIX = "[title-generator]";
+
+/**
+ * Attempts to auto-generate a project title if the current title is one of the default values:
+ * - "Untitled"
+ * - "Untitled Project"
+ * - DEFAULT_PROJECT_NAME
+ *
+ * If the title is anything else, we assume the user has set it explicitly and don't modify it.
+ *
+ * This is designed to be non-blocking - if title generation fails,
+ * it logs the error but doesn't throw.
+ *
+ * @param projectId - The project ID
+ * @param userId - The user ID
+ * @param userPrompt - The user's first message/prompt
+ * @returns The generated title if successful, null otherwise
+ */
+export async function autoGenerateProjectTitle(
+  projectId: string,
+  userId: string,
+  userPrompt: string
+): Promise<string | null> {
+  try {
+    // Fetch the current project to check if we should auto-generate
+    const project = await getProject(projectId, userId);
+
+    if (!project) {
+      console.error(`${LOG_PREFIX} Project not found: ${projectId}`);
+      return null;
+    }
+
+    // Check if title is still one of the default values
+    // If it's anything else, we assume the user set it explicitly
+    const isDefaultTitle =
+      project.title === "Untitled" ||
+      project.title === "Untitled Project" ||
+      project.title === DEFAULT_PROJECT_NAME;
+
+    if (!isDefaultTitle) {
+      console.log(`${LOG_PREFIX} Title is not default ('${project.title}'), skipping auto-generation for project: ${projectId}`);
+      return null;
+    }
+
+    // Generate the title using BAML
+    console.log(`${LOG_PREFIX} Generating title for project: ${projectId}`);
+    const generatedTitle = await b.GenerateProjectTitle(userPrompt);
+
+    if (!generatedTitle || generatedTitle.trim().length === 0) {
+      console.warn(`${LOG_PREFIX} Generated title is empty, skipping update for project: ${projectId}`);
+      return null;
+    }
+
+    const trimmedTitle = generatedTitle.trim();
+
+    // Update the project with the new title
+    await updateProject(projectId, userId, {
+      title: trimmedTitle,
+    });
+
+    console.log(`${LOG_PREFIX} Successfully updated project ${projectId} with title: "${trimmedTitle}"`);
+    return trimmedTitle;
+  } catch (error) {
+    // Log error but don't throw - title generation should be non-blocking
+    console.error(`${LOG_PREFIX} Error auto-generating title for project ${projectId}:`, error);
+    return null;
+  }
+}
