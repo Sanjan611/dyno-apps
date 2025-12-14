@@ -3,6 +3,41 @@ import type { Message, AgentAction, AgentActionType, SSEProgressEvent, MessageMo
 import { API_ENDPOINTS } from "@/lib/constants";
 import { useBuilderStore } from "@/lib/store";
 
+/**
+ * Finalizes a thinking message and adds a final assistant message
+ * Used for complete, error, and stopped events
+ */
+function finalizeThinkingMessage(
+  prev: Message[],
+  thinkingId: string | null,
+  finalContent: string,
+  role: "assistant" = "assistant"
+): Message[] {
+  const updated = prev.map((msg) => {
+    if (msg.id === thinkingId) {
+      return {
+        ...msg,
+        actions: msg.actions?.map((action) => ({
+          ...action,
+          status: 'completed' as const,
+        })),
+        isComplete: true,
+      };
+    }
+    return msg;
+  });
+
+  return [
+    ...updated,
+    {
+      id: (Date.now() + 1).toString(),
+      role,
+      content: finalContent,
+      timestamp: new Date(),
+    },
+  ];
+}
+
 // Helper function to map tool names to user-friendly action types
 function getActionTypeFromTool(toolName: string): AgentActionType {
   if (toolName.includes('list_files')) return 'list_files';
@@ -270,87 +305,33 @@ export function useCodeGeneration() {
                   break;
                   
                 case 'complete':
-                  setMessages((prev) => {
-                    const updated = prev.map((msg) => {
-                      if (msg.id === thinkingMessageId) {
-                        return {
-                          ...msg,
-                          actions: msg.actions?.map((action) => ({
-                            ...action,
-                            status: 'completed' as const,
-                          })),
-                          isComplete: true,
-                        };
-                      }
-                      return msg;
-                    });
-                    
-                    return [
-                      ...updated,
-                      {
-                        id: (Date.now() + 1).toString(),
-                        role: "assistant",
-                        content: event.message || "App updated successfully! The changes should be visible in the preview.",
-                        timestamp: new Date(),
-                      },
-                    ];
-                  });
+                  setMessages((prev) =>
+                    finalizeThinkingMessage(
+                      prev,
+                      thinkingMessageId,
+                      event.message || "App updated successfully! The changes should be visible in the preview."
+                    )
+                  );
                   break;
                   
                 case 'error':
-                  setMessages((prev) => {
-                    const updated = prev.map((msg) => {
-                      if (msg.id === thinkingMessageId) {
-                        return {
-                          ...msg,
-                          actions: msg.actions?.map((action) => ({
-                            ...action,
-                            status: 'completed' as const,
-                          })),
-                          isComplete: true,
-                        };
-                      }
-                      return msg;
-                    });
-                    
-                    return [
-                      ...updated,
-                      {
-                        id: (Date.now() + 1).toString(),
-                        role: "assistant",
-                        content: `Error: ${event.error || "Unknown error"}`,
-                        timestamp: new Date(),
-                      },
-                    ];
-                  });
+                  setMessages((prev) =>
+                    finalizeThinkingMessage(
+                      prev,
+                      thinkingMessageId,
+                      `Error: ${event.error || "Unknown error"}`
+                    )
+                  );
                   break;
                   
                 case 'stopped':
-                  setMessages((prev) => {
-                    const updated = prev.map((msg) => {
-                      if (msg.id === thinkingMessageId) {
-                        return {
-                          ...msg,
-                          actions: msg.actions?.map((action) => ({
-                            ...action,
-                            status: 'completed' as const,
-                          })),
-                          isComplete: true,
-                        };
-                      }
-                      return msg;
-                    });
-                    
-                    return [
-                      ...updated,
-                      {
-                        id: (Date.now() + 1).toString(),
-                        role: "assistant",
-                        content: "Stopped processing",
-                        timestamp: new Date(),
-                      },
-                    ];
-                  });
+                  setMessages((prev) =>
+                    finalizeThinkingMessage(
+                      prev,
+                      thinkingMessageId,
+                      "Stopped processing"
+                    )
+                  );
                   break;
               }
             } catch (parseError) {
@@ -364,31 +345,13 @@ export function useCodeGeneration() {
           // Request was aborted - the backend should have sent a 'stopped' event
           // If we didn't receive it, handle it here
           if (thinkingMessageId) {
-            setMessages((prev) => {
-              const updated = prev.map((msg) => {
-                if (msg.id === thinkingMessageId) {
-                  return {
-                    ...msg,
-                    actions: msg.actions?.map((action) => ({
-                      ...action,
-                      status: 'completed' as const,
-                    })),
-                    isComplete: true,
-                  };
-                }
-                return msg;
-              });
-              
-              return [
-                ...updated,
-                {
-                  id: (Date.now() + 1).toString(),
-                  role: "assistant",
-                  content: "Stopped processing",
-                  timestamp: new Date(),
-                },
-              ];
-            });
+            setMessages((prev) =>
+              finalizeThinkingMessage(
+                prev,
+                thinkingMessageId,
+                "Stopped processing"
+              )
+            );
           }
         } else {
           throw error;

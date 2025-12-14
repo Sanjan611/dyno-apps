@@ -10,26 +10,17 @@
 // ============================================================================
 
 /**
- * Working directory inside the Modal sandbox
- * This is where the Expo app is created and files are managed
- */
-export const WORKING_DIR = "/my-app";
-
-/**
  * Repository directory inside the Modal sandbox
  * This is where the GitHub repo is cloned and the agent works
  */
 export const REPO_DIR = "/repo";
 
 /**
- * Root user directory in sandbox
+ * Full path to the working directory inside the Modal sandbox
+ * This is where the Expo app is created and files are managed
+ * Note: The path /my-app is also hardcoded in BAML files (baml_src/coding-agent.baml)
  */
-export const SANDBOX_ROOT = "/root";
-
-/**
- * Full path to the working directory
- */
-export const SANDBOX_WORKING_DIR = `${SANDBOX_ROOT}${WORKING_DIR}`;
+export const SANDBOX_WORKING_DIR = "/root/my-app";
 
 /**
  * Expo web server port
@@ -139,28 +130,10 @@ export const API_ENDPOINTS = {
   PROJECT_SAVE: (id: string) => `/api/projects/${id}/save`,
   PROJECT_LOAD: (id: string) => `/api/projects/${id}/load`,
   PROJECT_CHAT: (id: string) => `/api/projects/${id}/chat`,
-  
+
   // Code generation
   INIT_EXPO: "/api/init-expo",
   PROJECT_SANDBOX_LOGS: (id: string) => `/api/projects/${id}/sandbox/logs`,
-} as const;
-
-// ============================================================================
-// File Patterns
-// ============================================================================
-
-/**
- * Common file patterns for Expo/React Native projects
- */
-export const FILE_PATTERNS = {
-  /** Entry point files */
-  ENTRY_FILES: ["App.js", "App.tsx", "app/index.tsx", "app/_layout.tsx"],
-  
-  /** Config files */
-  CONFIG_FILES: ["app.json", "package.json", "tsconfig.json", "babel.config.js"],
-  
-  /** Directories to ignore in file operations */
-  IGNORE_DIRS: ["node_modules", ".git", ".expo"],
 } as const;
 
 // ============================================================================

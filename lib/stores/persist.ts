@@ -49,38 +49,6 @@ export const localStorageStorage: StateStorage = {
 };
 
 /**
- * sessionStorage-based storage implementation
- * Automatically cleared when browser tab/window closes
- */
-export const sessionStorageStorage: StateStorage = {
-  getItem: (name: string): string | null => {
-    try {
-      if (typeof window === "undefined") return null;
-      return window.sessionStorage.getItem(name);
-    } catch (error) {
-      console.warn(`[persist] Failed to get session item "${name}":`, error);
-      return null;
-    }
-  },
-  setItem: (name: string, value: string): void => {
-    try {
-      if (typeof window === "undefined") return;
-      window.sessionStorage.setItem(name, value);
-    } catch (error) {
-      console.warn(`[persist] Failed to set session item "${name}":`, error);
-    }
-  },
-  removeItem: (name: string): void => {
-    try {
-      if (typeof window === "undefined") return;
-      window.sessionStorage.removeItem(name);
-    } catch (error) {
-      console.warn(`[persist] Failed to remove session item "${name}":`, error);
-    }
-  },
-};
-
-/**
  * Recursively convert ISO date strings back to Date objects
  * Used after deserialization from storage
  */

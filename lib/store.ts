@@ -18,10 +18,9 @@ export { useBuilderStore } from "./stores/builder-store";
 export type { BuilderState, SandboxHealthStatus, ModifiedFile } from "./stores/builder-store";
 
 // Re-export persistence utilities
-export { 
-  STORAGE_KEYS, 
-  localStorageStorage, 
-  sessionStorageStorage,
+export {
+  STORAGE_KEYS,
+  localStorageStorage,
   createStorage,
   clearAllPersistedState,
 } from "./stores/persist";

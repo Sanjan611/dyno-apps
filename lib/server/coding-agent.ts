@@ -38,6 +38,7 @@ import {
 import { REPO_DIR, LOG_PREFIXES } from "@/lib/constants";
 import type { SSEProgressEvent } from "@/types";
 import { getAgentState, setAgentState } from "@/lib/server/agent-state-store";
+import { withRetry } from "@/lib/server/retry-utils";
 
 // ============================================================================
 // Types
@@ -161,74 +162,12 @@ async function callCodingAgentWithRetry(
   maxRetries: number = 3,
   signal?: AbortSignal
 ): Promise<AgentTools | ReplyToUser | ReadFilesTool> {
-  let lastError: BamlValidationError | BamlClientFinishReasonError | null = null;
-  
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await b.CodingAgent(
-        state,
-        workingDir,
-        todoList,
-        { collector, signal }
-      );
-      
-      // Success - return the response
-      if (attempt > 0) {
-        console.log(`${LOG_PREFIXES.CHAT} CodingAgent succeeded on retry attempt ${attempt}`);
-      }
-      return response;
-    } catch (error) {
-      // Only retry on BamlValidationError or BamlClientFinishReasonError
-      if (
-        error instanceof BamlValidationError ||
-        error instanceof BamlClientFinishReasonError
-      ) {
-        lastError = error;
-        
-        if (attempt < maxRetries) {
-          // Calculate exponential backoff delay: 1s, 2s, 4s
-          const delayMs = Math.pow(2, attempt) * 1000;
-          // console.log(
-          //   `${LOG_PREFIXES.CHAT} CodingAgent validation error on attempt ${attempt + 1}/${maxRetries + 1}, retrying in ${delayMs}ms...`
-          // );
-          // console.error(`${LOG_PREFIXES.CHAT} Validation error details:`, error.detailed_message || error.message);
-          if (error.raw_output) {
-            // console.error(`${LOG_PREFIXES.CHAT} Validation error raw output:`, error.raw_output);
-          }
-          // Log state info for debugging
-          // console.error(`${LOG_PREFIXES.CHAT} State length at error:`, state.length);
-          if (state.length > 0) {
-            // console.error(`${LOG_PREFIXES.CHAT} Last message in state:`, JSON.stringify(state[state.length - 1], null, 2));
-          }
-          
-          // Wait before retrying
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-        } else {
-          // All retries exhausted
-          console.error(
-            // `${LOG_PREFIXES.CHAT} CodingAgent failed after ${maxRetries + 1} attempts with validation error`
-          );
-          // console.error(`${LOG_PREFIXES.CHAT} Final validation error details:`, error.detailed_message || error.message);
-          if (error.raw_output) {
-            // console.error(`${LOG_PREFIXES.CHAT} Final validation error raw output:`, error.raw_output);
-          }
-          // Log the state that caused the error (for debugging)
-          // console.error(`${LOG_PREFIXES.CHAT} State at error (last 3 messages):`, JSON.stringify(state.slice(-3), null, 2));
-        }
-      } else {
-        // Non-retryable error (BamlAbortError, network errors, etc.) - throw immediately
-        throw error;
-      }
-    }
-  }
-  
-  // If we get here, all retries were exhausted
-  if (lastError) {
-    throw lastError;
-  }
-  
-  // This should never happen, but TypeScript needs it
-  throw new Error("Unexpected error in retry logic");
+  return withRetry(
+    () => b.CodingAgent(state, workingDir, todoList, { collector, signal }),
+    maxRetries,
+    [BamlValidationError, BamlClientFinishReasonError],
+    LOG_PREFIXES.CHAT + ' CodingAgent'
+  );
 }
 
 // ============================================================================
@@ -630,50 +569,12 @@ async function callAskAgentWithRetry(
   maxRetries: number = 3,
   signal?: AbortSignal
 ): Promise<ListFilesTool | ReadFileTool | ReadFilesTool | ReplyToUser> {
-  let lastError: BamlValidationError | BamlClientFinishReasonError | null = null;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await b.AskAgent(
-        state,
-        workingDir,
-        { collector, signal }
-      );
-
-      // Success - return the response
-      if (attempt > 0) {
-        console.log(`${LOG_PREFIXES.CHAT} AskAgent succeeded on retry attempt ${attempt}`);
-      }
-      return response;
-    } catch (error) {
-      // Only retry on BamlValidationError or BamlClientFinishReasonError
-      if (
-        error instanceof BamlValidationError ||
-        error instanceof BamlClientFinishReasonError
-      ) {
-        lastError = error;
-
-        if (attempt < maxRetries) {
-          // Calculate exponential backoff delay: 1s, 2s, 4s
-          const delayMs = Math.pow(2, attempt) * 1000;
-
-          // Wait before retrying
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
-      } else {
-        // Non-retryable error (BamlAbortError, network errors, etc.) - throw immediately
-        throw error;
-      }
-    }
-  }
-
-  // If we get here, all retries were exhausted
-  if (lastError) {
-    throw lastError;
-  }
-
-  // This should never happen, but TypeScript needs it
-  throw new Error("Unexpected error in retry logic");
+  return withRetry(
+    () => b.AskAgent(state, workingDir, { collector, signal }),
+    maxRetries,
+    [BamlValidationError, BamlClientFinishReasonError],
+    LOG_PREFIXES.CHAT + ' AskAgent'
+  );
 }
 
 /**

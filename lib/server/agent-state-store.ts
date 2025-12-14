@@ -35,10 +35,3 @@ export function clearAgentState(projectId: string): void {
   agentStateStore.delete(projectId);
 }
 
-/**
- * Clear all agent states (useful for cleanup/testing)
- */
-export function clearAllAgentStates(): void {
-  agentStateStore.clear();
-}
-

@@ -71,7 +71,7 @@ Each project runs in an isolated Modal sandbox with smart lifecycle management:
 5. **Port Exposure:** Port 19006 exposed for Expo web preview via tunnel URLs
 
 **Key Constants:** `lib/constants.ts`
-- `WORKING_DIR = "/my-app"` - App directory in sandbox
+- `SANDBOX_WORKING_DIR = "/root/my-app"` - Full path to app directory in sandbox
 - `EXPO_PORT = 19006` - Expo web server port
 - Timeout configurations for tunnel, Expo init, bash commands, etc.
 
