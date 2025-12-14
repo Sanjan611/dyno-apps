@@ -142,28 +142,35 @@ updated_at          TIMESTAMPTZ       -- Auto-updated via trigger
 
 **Zustand Store:** `lib/stores/builder-store.ts`
 
-The builder state persists to SessionStorage (not LocalStorage) and is cleared on logout:
+The builder store holds the current project/sandbox session state. Only user preferences are persisted to localStorage:
 
 ```typescript
+// PERSISTED (user preferences)
+{
+  currentMode: MessageMode  // 'ask' | 'build'
+}
+
+// NOT PERSISTED (set from route/runtime)
 {
   projectName: string
   projectId: string | null
-  messages: StoreMessage[]
-  generatedCode: string
   sandboxId: string | null
   previewUrl: string | null
   sandboxHealthStatus: 'unknown' | 'healthy' | 'unhealthy' | 'not_found'
+  sandboxStarted: boolean
+  messages: StoreMessage[]
   modifiedFiles: ModifiedFile[]
   lastActivity: Date | null
 }
 ```
 
-**Custom Persistence:** `lib/stores/persist.ts` - SessionStorage adapter with Date serialization
+**URL as Source of Truth:** The builder route is `/builder/[projectId]`. The project ID comes from the URL, not from persisted state. This prevents "sticky project" bugs when navigating between projects.
+
+**Custom Persistence:** `lib/stores/persist.ts` - localStorage adapter with Date serialization
 
 **Key Hooks:**
-- `useProjectSession` - Project and sandbox initialization
+- `useSandboxStartup` - Sandbox health check, creation, and Expo initialization
 - `useCodeGeneration` - SSE streaming for AI code generation
-- `useProjectLoader` - Project validation and loading
 
 ### Authentication Flow
 
@@ -230,13 +237,15 @@ When interacting with sandboxes:
 
 The correct sequence for new projects:
 
-1. User sends first message
-2. `initializeProject(message)` creates project in Supabase + GitHub repo
-3. `POST /api/projects/[id]/sandbox` creates sandbox
-4. `POST /api/init-expo` initializes Expo (clones repo, runs create-expo-app)
-5. `POST /api/projects/[id]/chat` streams code generation
+1. User clicks "New Project" in gallery
+2. `POST /api/projects` creates project in Supabase + GitHub repo
+3. Navigate to `/builder/[projectId]` (project ID in URL)
+4. Builder page loads project details from API
+5. `useSandboxStartup` auto-starts: checks health, creates sandbox, inits Expo
+6. User sends first message
+7. `POST /api/projects/[id]/chat` streams code generation
 
-Never skip steps or reorder them - each depends on the previous step completing.
+**Important:** The URL `/builder/[projectId]` is the source of truth for project identity. Projects must exist before navigating to the builder page. Visiting `/builder` without a project ID returns 404.
 
 ### Error Handling
 

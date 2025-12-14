@@ -33,10 +33,7 @@ export default function ChatPanel() {
   const [viewingLogs, setViewingLogs] = useState(false);
   const [logs, setLogs] = useState<any>(null);
   const { 
-    setSandboxId, 
-    setPreviewUrl, 
     sandboxId, 
-    setProjectId, 
     projectId, 
     currentMode, 
     setCurrentMode,
@@ -49,17 +46,18 @@ export default function ChatPanel() {
   const { generateCode } = useCodeGeneration();
   const { startSandbox, isStarting: isStartingSandbox, error: sandboxError, progressMessages, currentProgress } = useSandboxStartup();
 
-  // Auto-trigger sandbox startup on mount
+  // Auto-trigger sandbox startup on mount when projectId is available
   const hasStartedRef = useRef(false);
   useEffect(() => {
-    if (!sandboxStarted && !isStartingSandbox && !hasStartedRef.current) {
+    // Only start sandbox if projectId is set (from route) and sandbox not already started
+    if (projectId && !sandboxStarted && !isStartingSandbox && !hasStartedRef.current) {
       hasStartedRef.current = true;
       startSandbox().catch((error) => {
         console.error("Error auto-starting sandbox:", error);
         hasStartedRef.current = false; // Allow retry on error
       });
     }
-  }, [sandboxStarted, isStartingSandbox, startSandbox]);
+  }, [projectId, sandboxStarted, isStartingSandbox, startSandbox]);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -73,8 +71,8 @@ export default function ChatPanel() {
       const content = rawContent.trim();
       if (!content) return;
 
-      // Don't allow sending messages if sandbox isn't started
-      if (!sandboxStarted) {
+      // Don't allow sending messages if sandbox isn't started or no project
+      if (!sandboxStarted || !projectId) {
         return;
       }
 
@@ -93,46 +91,7 @@ export default function ChatPanel() {
         setHasSentInitialMessage(true);
       }
 
-      if (isFirstMessage) {
-        setIsLoading(true);
-        try {
-          // Project and sandbox should already exist (created when sandbox was started)
-          // Wait for projectId to be set if sandbox is started (handles race condition)
-          let currentProjectId = useBuilderStore.getState().projectId;
-          
-          if (!currentProjectId && sandboxStarted) {
-            // Retry a few times to wait for projectId to be set
-            for (let attempt = 0; attempt < 10; attempt++) {
-              await new Promise(resolve => setTimeout(resolve, 100));
-              currentProjectId = useBuilderStore.getState().projectId;
-              if (currentProjectId) break;
-            }
-          }
-          
-          if (!currentProjectId) {
-            throw new Error("No project available. Please start the sandbox first.");
-          }
-          
-          // Generate code (state is managed server-side)
-          const { promise, abort } = generateCode(newMessage.content, currentProjectId, setMessages, mode);
-          abortRef.current = abort;
-          await promise;
-        } catch (error) {
-          const errorMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            role: "assistant",
-            content: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, errorMessage]);
-        } finally {
-          setIsLoading(false);
-        }
-        return;
-      }
-
-      // Subsequent messages: just call the coding agent
-      // Read projectId from store at call time to avoid stale closure values
+      // Read projectId from store at call time to ensure we have the latest value
       const currentProjectId = useBuilderStore.getState().projectId;
       if (!currentProjectId) {
         const errorMessage: Message = {
@@ -155,7 +114,7 @@ export default function ChatPanel() {
         const errorMessage: Message = {
           id: (Date.now() + 2).toString(),
           role: "assistant",
-          content: `Error updating app: ${error instanceof Error ? error.message : "Unknown error"}`,
+          content: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, errorMessage]);
@@ -169,6 +128,7 @@ export default function ChatPanel() {
       generateCode,
       setMessages,
       sandboxStarted,
+      projectId,
     ]
   );
 

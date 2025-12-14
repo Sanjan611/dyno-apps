@@ -2,20 +2,21 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MoreVertical, PlusCircle, Search, Trash2, ExternalLink, Clock, FolderOpen, Sparkles, Zap } from "lucide-react";
+import { MoreVertical, PlusCircle, Search, Trash2, ExternalLink, Clock, Sparkles, Zap, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import type { ProjectWithMeta } from "@/types";
 
 export default function ProjectGalleryPage() {
+  const router = useRouter();
   const [projects, setProjects] = useState<ProjectWithMeta[]>([]);
   const [filteredProjects, setFilteredProjects] = useState<ProjectWithMeta[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -25,6 +26,7 @@ export default function ProjectGalleryPage() {
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [limitInfo, setLimitInfo] = useState<{ max: number; current: number; canCreate: boolean } | null>(null);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -67,15 +69,45 @@ export default function ProjectGalleryPage() {
     }
   }, [searchQuery, projects]);
 
-  const handleNewProjectClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleCreateNewProject = async () => {
+    // Check limit before creating
     if (limitInfo && !limitInfo.canCreate) {
-      e.preventDefault();
       setActionError(
         `You have reached your project limit (${limitInfo.current}/${limitInfo.max}). Please delete a project to create a new one.`
       );
-      // Clear error after 5 seconds
       setTimeout(() => setActionError(null), 5000);
-      return false;
+      return;
+    }
+
+    setIsCreatingProject(true);
+    setActionError(null);
+
+    try {
+      // Create a new project
+      const response = await fetch("/api/projects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: null,
+          description: null,
+          firstMessage: null,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.project?.id) {
+        // Navigate to the new project's builder page
+        router.push(`/builder/${data.project.id}`);
+      } else {
+        setActionError(data.error || "Failed to create project");
+        setIsCreatingProject(false);
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to create project");
+      setIsCreatingProject(false);
     }
   };
 
@@ -140,15 +172,22 @@ export default function ProjectGalleryPage() {
             <h1 className="text-sm font-medium text-muted-foreground hidden sm:block">Project Gallery</h1>
           </div>
           <Button 
-            asChild 
             className="bg-primary hover:bg-primary/90 shadow-md hover:shadow-lg transition-all"
-            disabled={limitInfo ? !limitInfo.canCreate : false}
+            disabled={isCreatingProject || (limitInfo ? !limitInfo.canCreate : false)}
             title={limitInfo && !limitInfo.canCreate ? `Project limit reached (${limitInfo.current}/${limitInfo.max})` : undefined}
+            onClick={handleCreateNewProject}
           >
-            <Link href="/builder" onClick={handleNewProjectClick}>
-              <PlusCircle className="w-4 h-4 mr-2" />
-              New Project
-            </Link>
+            {isCreatingProject ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              <>
+                <PlusCircle className="w-4 h-4 mr-2" />
+                New Project
+              </>
+            )}
           </Button>
         </div>
       </header>
@@ -209,28 +248,32 @@ export default function ProjectGalleryPage() {
         ) : projects.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Create New Card */}
-            <Link 
-              href="/builder" 
-              className="group"
-              onClick={handleNewProjectClick}
-              style={limitInfo && !limitInfo.canCreate ? { pointerEvents: 'none', opacity: 0.5 } : {}}
+            <button
+              onClick={handleCreateNewProject}
+              disabled={isCreatingProject || (limitInfo ? !limitInfo.canCreate : false)}
+              className="group text-left"
+              style={limitInfo && !limitInfo.canCreate ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
             >
               <Card className="h-full border-2 border-dashed border-primary/30 bg-gradient-to-br from-primary/5 to-secondary/5 hover:border-primary/60 hover:from-primary/10 hover:to-secondary/10 transition-all duration-300 flex flex-col items-center justify-center p-8 cursor-pointer backdrop-blur-sm relative overflow-hidden">
                 {/* Glow effect */}
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/0 to-secondary/0 group-hover:from-primary/10 group-hover:to-secondary/10 transition-all duration-300" />
                 <div className="relative z-10">
                   <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary shadow-lg flex items-center justify-center mb-6 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300">
-                    <PlusCircle className="w-10 h-10 text-white" />
+                    {isCreatingProject ? (
+                      <Loader2 className="w-10 h-10 text-white animate-spin" />
+                    ) : (
+                      <PlusCircle className="w-10 h-10 text-white" />
+                    )}
                   </div>
                   <h3 className="text-xl font-bold text-gray-800 group-hover:text-primary transition-colors mb-2">
-                    Create New Project
+                    {isCreatingProject ? "Creating Project..." : "Create New Project"}
                   </h3>
                   <p className="text-sm text-muted-foreground text-center max-w-[220px]">
                     Start building a new AI-powered mobile app from scratch
                   </p>
                 </div>
               </Card>
-            </Link>
+            </button>
 
             {filteredProjects.map((project) => (
               <Card key={project.id} className="group relative flex flex-col border-0 shadow-lg hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 bg-white/80 backdrop-blur-md overflow-hidden">
@@ -278,9 +321,9 @@ export default function ProjectGalleryPage() {
                   </CardDescription>
                 </CardHeader>
                 
-                <CardContent className="flex-1">
+                <div className="flex-1">
                   {/* Content placeholder if needed */}
-                </CardContent>
+                </div>
 
                 <CardFooter className="pt-0 flex items-center justify-between text-sm text-muted-foreground border-t bg-gray-50/50 p-4">
                   <div className="flex items-center gap-1.5">
@@ -289,7 +332,7 @@ export default function ProjectGalleryPage() {
                   </div>
                   
                   <Button variant="secondary" size="sm" className="group-hover:bg-primary group-hover:text-white transition-colors" asChild>
-                    <Link href={`/builder?projectId=${project.id}`}>
+                    <Link href={`/builder/${project.id}`}>
                       Open Project
                       <ExternalLink className="w-3.5 h-3.5 ml-2 opacity-70" />
                     </Link>
@@ -318,14 +361,21 @@ export default function ProjectGalleryPage() {
                 <Button 
                   size="lg" 
                   className="text-lg px-8 py-6 bg-gradient-to-r from-primary to-secondary hover:opacity-90 shadow-xl hover:shadow-2xl transition-all duration-300 rounded-xl group/btn" 
-                  asChild
-                  disabled={limitInfo ? !limitInfo.canCreate : false}
+                  disabled={isCreatingProject || (limitInfo ? !limitInfo.canCreate : false)}
                   title={limitInfo && !limitInfo.canCreate ? `Project limit reached (${limitInfo.current}/${limitInfo.max})` : undefined}
+                  onClick={handleCreateNewProject}
                 >
-                  <Link href="/builder" onClick={handleNewProjectClick}>
-                    <PlusCircle className="w-5 h-5 mr-2 group-hover/btn:rotate-90 transition-transform duration-300" />
-                    Create Your First Project
-                  </Link>
+                  {isCreatingProject ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Creating Project...
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="w-5 h-5 mr-2 group-hover/btn:rotate-90 transition-transform duration-300" />
+                      Create Your First Project
+                    </>
+                  )}
                 </Button>
               </div>
             </div>

@@ -1,8 +1,12 @@
 /**
  * Builder store
  * 
- * Manages project builder state including messages, code, and sandbox info
- * Uses session-scoped persistence (cleared on logout)
+ * Manages project builder state including messages, code, and sandbox info.
+ * 
+ * IMPORTANT: Only user preferences (like currentMode) are persisted to storage.
+ * Project-scoped state (projectId, sandboxId, previewUrl, etc.) is NOT persisted
+ * to prevent stale state when navigating between projects. The URL is the source
+ * of truth for project identity.
  */
 
 import { create } from "zustand";
@@ -30,26 +34,26 @@ export interface ModifiedFile {
 }
 
 export interface BuilderState {
-  // Project info
+  // Project info (NOT persisted - set from route)
   projectName: string;
   projectId: string | null;
 
-  // Messages and code
+  // Messages and code (NOT persisted)
   messages: StoreMessage[];
   generatedCode: string;
 
-  // Sandbox info
+  // Sandbox info (NOT persisted - ephemeral per session)
   sandboxId: string | null;
   previewUrl: string | null;
   sandboxHealthStatus: SandboxHealthStatus;
   lastHealthCheck: Date | null;
   sandboxStarted: boolean;
 
-  // Session state
+  // Session state (NOT persisted)
   modifiedFiles: ModifiedFile[];
   lastActivity: Date | null;
 
-  // Chat mode
+  // Chat mode (PERSISTED - user preference)
   currentMode: MessageMode;
 
   // Setters
@@ -88,10 +92,11 @@ const initialState = {
 };
 
 /**
- * Builder store with session-scoped persistence
- * State persists during the session but can be cleared on logout
+ * Builder store with minimal persistence
  * 
- * Date objects are automatically serialized/deserialized by the storage adapter
+ * Only user preferences are persisted (e.g., currentMode).
+ * Project-scoped state is NOT persisted - the URL (/builder/<projectId>) 
+ * is the source of truth for project identity.
  */
 export const useBuilderStore = create<BuilderState>()(
   persist(
@@ -163,22 +168,11 @@ export const useBuilderStore = create<BuilderState>()(
     {
       name: STORAGE_KEYS.BUILDER,
       storage: createStorage(),
-      // Persist all state - Date serialization handled by storage adapter
+      // Only persist user preferences - NOT project-scoped state
+      // The URL (/builder/<projectId>) is the source of truth for project identity
       partialize: (state) => ({
-        projectName: state.projectName,
-        projectId: state.projectId,
-        messages: state.messages,
-        generatedCode: state.generatedCode,
-        sandboxId: state.sandboxId,
-        previewUrl: state.previewUrl,
-        sandboxHealthStatus: state.sandboxHealthStatus,
-        lastHealthCheck: state.lastHealthCheck,
-        modifiedFiles: state.modifiedFiles,
-        lastActivity: state.lastActivity,
         currentMode: state.currentMode,
-        sandboxStarted: state.sandboxStarted,
       }),
     }
   )
 );
-
