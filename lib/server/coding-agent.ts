@@ -56,6 +56,7 @@ export interface CodingAgentConfig {
   userPrompt: string;
   sandboxId: string;
   projectId: string;
+  userId: string;
   workingDir?: string;
   maxIterations?: number;
   maxRetries?: number;
@@ -159,11 +160,12 @@ async function callCodingAgentWithRetry(
   workingDir: string,
   todoList: TodoItem[],
   collector: Collector,
+  userId: string,
   maxRetries: number = 3,
   signal?: AbortSignal
 ): Promise<AgentTools | ReplyToUser | ReadFilesTool> {
   return withRetry(
-    () => b.CodingAgent(state, workingDir, todoList, { collector, signal }),
+    () => b.CodingAgent(state, workingDir, todoList, { collector, signal, tags: { userId } }),
     maxRetries,
     [BamlValidationError, BamlClientFinishReasonError],
     LOG_PREFIXES.CHAT + ' CodingAgent'
@@ -239,6 +241,7 @@ export async function runCodingAgent(
     userPrompt,
     sandboxId,
     projectId,
+    userId,
     workingDir = REPO_DIR,
     maxIterations = 50,
     maxRetries = 3,
@@ -345,6 +348,7 @@ export async function runCodingAgent(
         workingDir,
         todoList,
         collector,
+        userId,
         maxRetries,
         signal
       );
@@ -566,11 +570,12 @@ async function callAskAgentWithRetry(
   state: Message[],
   workingDir: string,
   collector: Collector,
+  userId: string,
   maxRetries: number = 3,
   signal?: AbortSignal
 ): Promise<ListFilesTool | ReadFileTool | ReadFilesTool | ReplyToUser> {
   return withRetry(
-    () => b.AskAgent(state, workingDir, { collector, signal }),
+    () => b.AskAgent(state, workingDir, { collector, signal, tags: { userId } }),
     maxRetries,
     [BamlValidationError, BamlClientFinishReasonError],
     LOG_PREFIXES.CHAT + ' AskAgent'
@@ -594,6 +599,7 @@ export async function runAskAgent(
     userPrompt,
     sandboxId,
     projectId,
+    userId,
     workingDir = REPO_DIR,
     maxIterations = 10,  // Lower max iterations for ask mode
     maxRetries = 3,
@@ -694,6 +700,7 @@ export async function runAskAgent(
         state,
         workingDir,
         collector,
+        userId,
         maxRetries,
         signal
       );

@@ -161,6 +161,7 @@ export async function POST(
               userPrompt: userPrompt.trim(),
               sandboxId: project.currentSandboxId,
               projectId: projectId,
+              userId: user.id,
               onProgress: sendProgress,
               signal: request.signal,
             })
@@ -168,6 +169,7 @@ export async function POST(
               userPrompt: userPrompt.trim(),
               sandboxId: project.currentSandboxId,
               projectId: projectId,
+              userId: user.id,
               onProgress: sendProgress,
               signal: request.signal,
             });
