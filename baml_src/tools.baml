@@ -116,7 +116,7 @@ type TodoTools = TodoWriteTool
 
 // Reply class when agent is done
 class ReplyToUser {
-  action "reply_to_user"
+  action "reply_to_user" @description("Use this tool when you need to inform the user that a task is complete, or when you need to communicate a message or request additional input from the user. This is the primary way to send finalized responses or ask for further guidance.")
   message string
 }
 

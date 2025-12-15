@@ -265,6 +265,9 @@ The correct sequence for new projects:
 - `BETA_INVITE_CODES` - Comma-separated invite codes (e.g., "code1,code2")
 - `GITHUB_ORG_NAME` + `GITHUB_PAT` - GitHub org and personal access token
 
+**Optional (Observability):**
+- `BOUNDARY_PROJECT_ID` + `BOUNDARY_SECRET` - Boundary Studio for BAML LLM call tracing (set `BOUNDARY_SECRET` as `BOUNDARY_API_KEY`)
+
 **Important:**
 - Never use Supabase secret key client-side - only use `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `GITHUB_PAT` must have `repo` permissions for the organization

@@ -773,4 +773,16 @@ template_string GoodExampleToolCall #"
       ]
     }
   }
+
+  #### Using reply_to_user tool
+  When you need to reply to the user, you MUST use the reply_to_user tool. Do NOT reply to the user in any other format. A good example is:
+
+  User: "Build an app that is like tinder but for sweaters"
+  ... some code changes ...
+  Assistant: {
+    "tool": "reply_to_user",
+    "args": {
+      "message": "Your app has been built."
+    }
+  }
 "#
