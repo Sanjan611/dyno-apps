@@ -68,10 +68,15 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient();
 
+    // Get the origin from the request to construct the redirect URL
+    const origin = request.headers.get("origin") || "https://dyno-apps.vercel.app";
+    const emailRedirectTo = `${origin}/login`;
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo,
         data: {
           full_name: name || "",
         },
