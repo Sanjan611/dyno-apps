@@ -137,6 +137,32 @@ build
 *.log
 EOF
 
+# Commit and push initial project template (only if this was a fresh initialization)
+if [ "$SKIP_INIT" = false ]; then
+  log "Committing initial Expo project template..."
+
+  # Configure git user for this repository
+  git config user.name "Dyno Apps User" || { log "WARNING: Failed to configure git user.name"; }
+  git config user.email "user@dyno-apps.com" || { log "WARNING: Failed to configure git user.email"; }
+
+  # Stage all files
+  git add . || { log "WARNING: Failed to stage files"; }
+
+  # Check if there are changes to commit
+  if git diff --cached --quiet; then
+    log "No changes to commit (repository may already have initial commit)"
+  else
+    # Commit the template
+    git commit -m "chore: initialize Expo project template" || { log "WARNING: Failed to commit initial template"; }
+    log "Initial template committed successfully"
+
+    # Push to remote GitHub repository
+    log "Pushing initial commit to GitHub..."
+    git push || { log "WARNING: Failed to push initial commit to remote"; }
+    log "Initial template pushed to GitHub successfully"
+  fi
+fi
+
 log "=== Startup script completed ==="
 exit 0
 

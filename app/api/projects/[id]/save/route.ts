@@ -8,6 +8,7 @@ import {
   internalErrorResponse,
 } from "@/lib/server/api-utils";
 import { REPO_DIR, TIMEOUTS, LOG_PREFIXES } from "@/lib/constants";
+import { b } from "@/baml_client";
 
 /**
  * POST /api/projects/[id]/save - Save changes to git repository
@@ -97,12 +98,56 @@ export const POST = withAsyncParams(async (request, user, params) => {
       });
     }
 
-    // Generate commit message with timestamp
-    const now = new Date();
-    const timestamp = now.toISOString().replace('T', ' ').substring(0, 19);
-    const commitMessage = `Save changes - ${timestamp}`;
+    // Get staged diff for commit message generation
+    console.log(`${LOG_PREFIXES.PROJECTS} Getting diff for commit message generation...`);
+    const diffProcess = await sandbox.exec(
+      ["git", "diff", "--cached"],
+      { workdir: REPO_DIR }
+    );
+    const gitDiff = await diffProcess.stdout.readText().catch(() => "");
+    await diffProcess.wait();
 
-    // Commit changes: git commit -m "Save changes - {timestamp}"
+    // Generate commit message via BAML
+    let commitMessage: string;
+    const MAX_DIFF_SIZE = 50_000;
+    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+    if (!gitDiff || gitDiff.trim().length === 0) {
+      // Fallback for empty diff (defensive)
+      console.log(`${LOG_PREFIXES.PROJECTS} Diff is empty, using timestamp fallback`);
+      commitMessage = `Save changes - ${timestamp}`;
+    } else if (gitDiff.length > MAX_DIFF_SIZE) {
+      // Fallback for huge diffs
+      console.log(`${LOG_PREFIXES.PROJECTS} Diff too large (${gitDiff.length} chars), using simple message`);
+      commitMessage = `chore: large batch update`;
+    } else {
+      try {
+        console.log(`${LOG_PREFIXES.PROJECTS} Generating commit message via BAML...`);
+        const result = await b.GenerateCommitMessage(gitDiff);
+
+        // Validate result
+        if (!result.subject || result.subject.trim().length === 0) {
+          throw new Error("Generated commit message subject is empty");
+        }
+        if (result.subject.length > 100) {
+          throw new Error("Generated commit message subject too long");
+        }
+
+        // Format multi-line commit message
+        commitMessage = result.subject;
+        if (result.body && result.body.trim().length > 0) {
+          commitMessage += '\n\n' + result.body;
+        }
+
+        console.log(`${LOG_PREFIXES.PROJECTS} Generated commit message:`, commitMessage);
+      } catch (error) {
+        // Fallback to timestamp on BAML failure
+        console.error(`${LOG_PREFIXES.PROJECTS} Failed to generate commit message:`, error);
+        commitMessage = `Save changes - ${timestamp}`;
+      }
+    }
+
+    // Commit changes with AI-generated message
     console.log(`${LOG_PREFIXES.PROJECTS} Committing changes:`, commitMessage);
     const commitProcess = await sandbox.exec(
       ["git", "commit", "-m", commitMessage],
