@@ -90,8 +90,7 @@ cp .env.local.example .env.local
 # - BETA_INVITE_CODES (comma-separated list of invite codes for beta access, e.g., "code1,code2,code3")
 # - GITHUB_ORG_NAME (the GitHub organization where project repos will be created)
 # - GITHUB_PAT (a GitHub Personal Access Token with repo permissions for that org; keep this server-side only)
-# - BOUNDARY_PROJECT_ID (Boundary Studio project ID for BAML observability - optional)
-# - BOUNDARY_SECRET (Boundary Studio secret key, used as BOUNDARY_API_KEY - optional)
+# - BOUNDARY_API_KEY (Boundary Studio API key for BAML LLM call tracing - optional)
 ```
 
 4. Set up Supabase database:
@@ -151,8 +150,7 @@ This application is configured for deployment on Vercel. The build process autom
    - `GITHUB_PAT` - GitHub Personal Access Token with repo permissions for the organization
    
    **Optional (Observability):**
-   - `BOUNDARY_PROJECT_ID` - Boundary Studio project ID for LLM call tracing
-   - `BOUNDARY_SECRET` - Boundary Studio secret (set as `BOUNDARY_API_KEY`)
+   - `BOUNDARY_API_KEY` - Boundary Studio API key for BAML LLM call tracing
    
    **Important Notes:**
    - Variables prefixed with `NEXT_PUBLIC_` are exposed to the browser

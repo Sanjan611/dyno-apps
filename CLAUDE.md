@@ -266,7 +266,7 @@ The correct sequence for new projects:
 - `GITHUB_ORG_NAME` + `GITHUB_PAT` - GitHub org and personal access token
 
 **Optional (Observability):**
-- `BOUNDARY_PROJECT_ID` + `BOUNDARY_SECRET` - Boundary Studio for BAML LLM call tracing (set `BOUNDARY_SECRET` as `BOUNDARY_API_KEY`)
+- `BOUNDARY_API_KEY` - Boundary Studio for BAML LLM call tracing
 
 **Important:**
 - Never use Supabase secret key client-side - only use `NEXT_PUBLIC_SUPABASE_ANON_KEY`
