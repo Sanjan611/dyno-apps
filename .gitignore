@@ -48,3 +48,6 @@ baml_client/
 
 # Supabase
 supabase/.temp/
+
+# Trigger.dev
+.trigger/

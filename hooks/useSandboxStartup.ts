@@ -28,7 +28,7 @@ export function useSandboxStartup() {
     try {
       // Project must already exist - projectId should be set by the route
       const currentProjectId = projectId;
-      
+
       if (!currentProjectId) {
         throw new Error("Project ID is required. Please ensure you're on a valid project page.");
       }
@@ -56,6 +56,13 @@ export function useSandboxStartup() {
         // Continue with creation flow
       }
       setCurrentProgress(null);
+
+      // Guard: Check if another concurrent call already succeeded (React Strict Mode race condition)
+      // Read fresh state from the store to handle concurrent startSandbox calls
+      if (useBuilderStore.getState().sandboxStarted) {
+        console.log("[useSandboxStartup] Another call already completed, skipping");
+        return;
+      }
 
       // Step 2: Terminate any existing unhealthy sandbox before creating new one
       try {

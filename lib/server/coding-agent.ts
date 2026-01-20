@@ -299,14 +299,14 @@ export async function runCodingAgent(
   let todoList: TodoItem[] = [];
 
   // Load previous state from storage, or start fresh
-  let state: Message[] = getAgentState(projectId) || [];
-  
+  let state: Message[] = (await getAgentState(projectId)) || [];
+
   // Append the new user message to the state
   state.push({
     role: "user",
     message: userPrompt,
   });
-  
+
   if (state.length > 1) {
     console.log(`${LOG_PREFIXES.CHAT} Using previous agent state with ${state.length - 1} previous messages`);
   } else {
@@ -321,7 +321,7 @@ export async function runCodingAgent(
       console.log(`${LOG_PREFIXES.CHAT} Coding agent stopped by user request`);
       
       // Save current state before stopping
-      setAgentState(projectId, state);
+      await setAgentState(projectId, state);
       console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
       
       if (onProgress) {
@@ -364,7 +364,7 @@ export async function runCodingAgent(
         console.log(`${LOG_PREFIXES.CHAT} Coding agent stopped by user request (BAML abort)`);
         
         // Save current state before stopping
-        setAgentState(projectId, state);
+        await setAgentState(projectId, state);
         console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
         
         if (onProgress) {
@@ -411,7 +411,7 @@ export async function runCodingAgent(
       });
       
       // Save the final state to storage
-      setAgentState(projectId, state);
+      await setAgentState(projectId, state);
       console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages`);
       
       // Log cumulative token usage and latency
@@ -492,7 +492,7 @@ export async function runCodingAgent(
       console.log(`${LOG_PREFIXES.CHAT} Coding agent stopped by user request after tool execution`);
       
       // Save current state before stopping
-      setAgentState(projectId, state);
+      await setAgentState(projectId, state);
       console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
       
       if (onProgress) {
@@ -552,7 +552,7 @@ export async function runCodingAgent(
   const error = 'Coding agent exceeded maximum iterations. Please try again with a simpler request.';
   
   // Save current state even on error (so user can continue from where it failed)
-  setAgentState(projectId, state);
+  await setAgentState(projectId, state);
   
   if (onProgress) {
     await onProgress({
@@ -652,7 +652,7 @@ export async function runAskAgent(
   const collector = new Collector("ask-mode");
 
   // Load previous state from storage, or start fresh
-  let state: Message[] = getAgentState(projectId) || [];
+  let state: Message[] = (await getAgentState(projectId)) || [];
 
   // Append the new user message to the state
   state.push({
@@ -674,7 +674,7 @@ export async function runAskAgent(
       console.log(`${LOG_PREFIXES.CHAT} Ask agent stopped by user request`);
 
       // Save current state before stopping
-      setAgentState(projectId, state);
+      await setAgentState(projectId, state);
       console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
 
       if (onProgress) {
@@ -716,7 +716,7 @@ export async function runAskAgent(
         console.log(`${LOG_PREFIXES.CHAT} Ask agent stopped by user request (BAML abort)`);
         
         // Save current state before stopping
-        setAgentState(projectId, state);
+        await setAgentState(projectId, state);
         console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
         
         if (onProgress) {
@@ -757,7 +757,7 @@ export async function runAskAgent(
       });
 
       // Save the final state to storage
-      setAgentState(projectId, state);
+      await setAgentState(projectId, state);
       console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages`);
 
       // Log cumulative token usage and latency
@@ -819,7 +819,7 @@ export async function runAskAgent(
       console.log(`${LOG_PREFIXES.CHAT} Ask agent stopped by user request after tool execution`);
 
       // Save current state before stopping
-      setAgentState(projectId, state);
+      await setAgentState(projectId, state);
       console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
 
       if (onProgress) {
@@ -852,7 +852,7 @@ export async function runAskAgent(
   const error = 'Ask agent exceeded maximum iterations. Please try again with a simpler question.';
 
   // Save current state even on error (so user can continue from where it failed)
-  setAgentState(projectId, state);
+  await setAgentState(projectId, state);
 
   if (onProgress) {
     await onProgress({
