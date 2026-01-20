@@ -187,6 +187,23 @@ The builder store holds the current project/sandbox session state. Only user pre
 - Client: `lib/supabase/client.ts` (browser)
 - Server: `lib/supabase/server.ts` (server-side with cookie handling)
 
+### Email & Feedback System
+
+**Location:** `lib/server/email.ts`
+
+User feedback is collected via a floating button and sent via Resend:
+
+- **Floating Button:** `components/feedback/FeedbackButton.tsx` - Only visible to authenticated users
+- **Modal Form:** `components/feedback/FeedbackModal.tsx` - Collects email, feedback type (bug/feature/general), and message
+- **API Endpoint:** `POST /api/feedback` - Protected by `withAuth` middleware
+- **Email Service:** Uses Resend API with lazy client initialization (to avoid build-time errors)
+
+**Resend Setup:**
+1. Sign up at https://resend.com
+2. Verify your domain OR use their free testing domain (`onboarding@resend.dev` as sender)
+3. Generate API key with "Send access"
+4. Set `RESEND_API_KEY` and `FEEDBACK_EMAIL` environment variables
+
 ## Key Patterns to Follow
 
 ### BAML Agent Development
@@ -265,6 +282,10 @@ The correct sequence for new projects:
 - `BETA_INVITE_CODES` - Comma-separated invite codes (e.g., "code1,code2")
 - `GITHUB_ORG_NAME` + `GITHUB_PAT` - GitHub org and personal access token
 
+**Optional (Email/Feedback):**
+- `RESEND_API_KEY` - Resend API key for sending feedback emails
+- `FEEDBACK_EMAIL` - Email address to receive user feedback
+
 **Optional (Observability):**
 - `BOUNDARY_API_KEY` - Boundary Studio for BAML LLM call tracing
 
@@ -272,6 +293,7 @@ The correct sequence for new projects:
 - Never use Supabase secret key client-side - only use `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `GITHUB_PAT` must have `repo` permissions for the organization
 - Keep server-only vars (`MODAL_TOKEN_SECRET`, `GITHUB_PAT`, `ANTHROPIC_API_KEY`) out of client code
+- **When adding/changing environment variables, always update `.env.local.example`** to keep it in sync
 
 ## Common Troubleshooting
 

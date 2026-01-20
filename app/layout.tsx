@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import FeedbackButton from "@/components/feedback/FeedbackButton";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -54,6 +55,7 @@ export default function RootLayout({
         </div>
 
         {children}
+        <FeedbackButton />
         <Analytics />
       </body>
     </html>
