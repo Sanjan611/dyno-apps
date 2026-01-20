@@ -1,7 +1,10 @@
-import { useCallback } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
+import { useRealtimeRun } from "@trigger.dev/react-hooks";
 import type { Message, AgentAction, AgentActionType, SSEProgressEvent, MessageMode } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { useBuilderStore } from "@/lib/store";
+import type { codingAgentTask } from "@/trigger/coding-agent";
+import type { AgentMetadata } from "@/trigger/coding-agent";
 
 /**
  * Finalizes a thinking message and adds a final assistant message
@@ -104,7 +107,7 @@ function parseSSEEvents(chunk: string): string[] {
   const events: string[] = [];
   const lines = chunk.split('\n');
   let currentEvent = '';
-  
+
   for (const line of lines) {
     if (line.startsWith('data: ')) {
       if (currentEvent) {
@@ -118,22 +121,181 @@ function parseSSEEvents(chunk: string): string[] {
       currentEvent += '\n' + line;
     }
   }
-  
+
   if (currentEvent) {
     events.push(currentEvent);
   }
-  
+
   return events;
 }
 
+// Helper function to map Trigger.dev metadata status to action type
+function getActionTypeFromTriggerStatus(metadata: AgentMetadata): AgentActionType {
+  if (!metadata.currentTool) return 'status';
+
+  const tool = metadata.currentTool;
+  if (tool === 'list_files') return 'list_files';
+  if (tool === 'read_file') return 'read_file';
+  if (tool === 'read_files') return 'parallel_read';
+  if (tool === 'write_file') return 'write_file';
+  if (tool === 'edit_file') return 'write_file';
+  if (tool === 'todo_write') return 'todo';
+  return 'status';
+}
+
+// Helper to create description from Trigger.dev metadata
+function createDescriptionFromMetadata(metadata: AgentMetadata): string {
+  if (metadata.toolDescription) {
+    return metadata.toolDescription;
+  }
+  if (metadata.statusMessage) {
+    return metadata.statusMessage;
+  }
+  if (metadata.status === 'thinking') {
+    return `Thinking... (iteration ${metadata.iteration}/${metadata.maxIterations})`;
+  }
+  return 'Processing...';
+}
+
 /**
- * Hook for handling code generation via SSE streaming
+ * Hook for handling code generation via SSE streaming or Trigger.dev
  * Manages the streaming connection and updates messages with agent actions
- * 
+ *
+ * Supports two modes:
+ * - SSE streaming (default): Traditional server-sent events
+ * - Trigger.dev (when USE_TRIGGER_DEV=true on server): Real-time updates via Trigger.dev
+ *
  * Note: Conversation state is now managed server-side, so we don't need to
  * pass conversation history from the frontend.
  */
 export function useCodeGeneration() {
+  // Trigger.dev state
+  const [triggerRunId, setTriggerRunId] = useState<string | null>(null);
+  const [triggerAccessToken, setTriggerAccessToken] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Refs to track state across renders for Trigger.dev updates
+  const thinkingMessageIdRef = useRef<string | null>(null);
+  const setMessagesRef = useRef<React.Dispatch<React.SetStateAction<Message[]>> | null>(null);
+  const lastMetadataRef = useRef<string | null>(null);
+  const projectIdRef = useRef<string | null>(null);
+
+  // Subscribe to Trigger.dev run updates (only active when triggerRunId is set)
+  const { run, error: triggerError } = useRealtimeRun<typeof codingAgentTask>(triggerRunId ?? undefined, {
+    accessToken: triggerAccessToken ?? undefined,
+    enabled: !!triggerRunId && !!triggerAccessToken,
+  });
+
+  // Handle Trigger.dev run updates
+  useEffect(() => {
+    if (!run || !setMessagesRef.current) return;
+
+    const setMessages = setMessagesRef.current;
+    const metadata = run.metadata as AgentMetadata | undefined;
+
+    // Skip if metadata hasn't changed
+    const metadataKey = JSON.stringify(metadata);
+    if (metadataKey === lastMetadataRef.current) return;
+    lastMetadataRef.current = metadataKey;
+
+    if (!metadata) return;
+
+    // Create thinking message if it doesn't exist
+    if (!thinkingMessageIdRef.current && metadata.status !== 'complete' && metadata.status !== 'error') {
+      thinkingMessageIdRef.current = Date.now().toString();
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: thinkingMessageIdRef.current!,
+          role: "thinking",
+          content: "",
+          timestamp: new Date(),
+          actions: [],
+          isComplete: false,
+        },
+      ]);
+    }
+
+    // Handle status updates
+    if (metadata.status === 'thinking' || metadata.status === 'executing_tool') {
+      const actionType = getActionTypeFromTriggerStatus(metadata);
+      const description = createDescriptionFromMetadata(metadata);
+
+      if (thinkingMessageIdRef.current) {
+        setMessages((prev) =>
+          prev.map((msg) => {
+            if (msg.id !== thinkingMessageIdRef.current) return msg;
+
+            const existingActions = msg.actions || [];
+
+            // Check for duplicate
+            const duplicateAction = existingActions.find(
+              (action) => action.description === description && action.status === 'in_progress'
+            );
+            if (duplicateAction) return msg;
+
+            // Mark previous in_progress actions as completed
+            const updatedActions = existingActions.map((action) =>
+              action.status === 'in_progress'
+                ? { ...action, status: 'completed' as const }
+                : action
+            );
+
+            const newAction: AgentAction = {
+              id: `${Date.now()}-${Math.random()}`,
+              type: actionType,
+              description,
+              timestamp: new Date(),
+              status: 'in_progress',
+            };
+
+            return {
+              ...msg,
+              actions: [...updatedActions, newAction],
+            };
+          })
+        );
+      }
+    }
+
+    // Handle completion
+    if (run.status === 'COMPLETED' && run.output) {
+      const output = run.output as { success: boolean; message?: string; error?: string };
+      const finalMessage = output.success
+        ? output.message || "App updated successfully! The changes should be visible in the preview."
+        : `Error: ${output.error || "Unknown error"}`;
+
+      setMessages((prev) =>
+        finalizeThinkingMessage(prev, thinkingMessageIdRef.current, finalMessage)
+      );
+
+      // Reset Trigger.dev state
+      setTriggerRunId(null);
+      setTriggerAccessToken(null);
+      setIsGenerating(false);
+      thinkingMessageIdRef.current = null;
+      lastMetadataRef.current = null;
+    }
+
+    // Handle failure
+    if (run.status === 'FAILED' || run.status === 'CANCELED') {
+      const errorMessage = run.status === 'CANCELED'
+        ? "Stopped processing"
+        : `Error: ${triggerError?.message || "Task failed"}`;
+
+      setMessages((prev) =>
+        finalizeThinkingMessage(prev, thinkingMessageIdRef.current, errorMessage)
+      );
+
+      // Reset Trigger.dev state
+      setTriggerRunId(null);
+      setTriggerAccessToken(null);
+      setIsGenerating(false);
+      thinkingMessageIdRef.current = null;
+      lastMetadataRef.current = null;
+    }
+  }, [run, triggerError]);
+
   const generateCode = useCallback(
     (
       userPrompt: string,
@@ -146,226 +308,320 @@ export function useCodeGeneration() {
         throw new Error("Project ID is required");
       }
 
+      // Store refs for Trigger.dev updates and cancellation
+      setMessagesRef.current = setMessages;
+      projectIdRef.current = projectId;
+
       // Create new AbortController if one wasn't provided
       const controller = abortController || new AbortController();
       const abort = () => controller.abort();
 
       const promise = (async () => {
+        setIsGenerating(true);
 
-      const response = await fetch(API_ENDPOINTS.PROJECT_CHAT(projectId), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userPrompt,
-          mode,
-        }),
-        signal: controller.signal,
-      });
+        const response = await fetch(API_ENDPOINTS.PROJECT_CHAT(projectId), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userPrompt,
+            mode,
+          }),
+          signal: controller.signal,
+        });
 
-      if (!response.ok || !response.body) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      
-      let thinkingMessageId: string | null = null;
-      let buffer = '';
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          
-          if (done) break;
-          
-          // Check if request was aborted
-          if (controller.signal.aborted) {
-            reader.cancel();
-            break;
+        if (!response.ok) {
+          // Try to parse error from JSON response
+          const contentType = response.headers.get("content-type");
+          if (contentType?.includes("application/json")) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
           }
-          
-          buffer += decoder.decode(value, { stream: true });
-          
-          // Try to parse complete SSE events
-          const events = parseSSEEvents(buffer);
-          
-          // Keep incomplete events in buffer
-          const lastNewlineIndex = buffer.lastIndexOf('\n\n');
-          if (lastNewlineIndex !== -1) {
-            buffer = buffer.substring(lastNewlineIndex + 2);
-          } else {
-            // Check if we have a partial event
-            const lastDataIndex = buffer.lastIndexOf('data: ');
-            if (lastDataIndex !== -1) {
-              buffer = buffer.substring(lastDataIndex);
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        // Check if this is a Trigger.dev response (JSON) or SSE stream
+        const contentType = response.headers.get("content-type");
+
+        if (contentType?.includes("application/json")) {
+          // ============================================================
+          // Trigger.dev Path - Subscribe to real-time updates
+          // ============================================================
+          const data = await response.json();
+
+          if (data.runId && data.publicAccessToken) {
+            console.log("[useCodeGeneration] Trigger.dev response, subscribing to run:", data.runId);
+
+            // Handle generated title if present
+            if (data.generatedTitle) {
+              useBuilderStore.getState().setProjectName(data.generatedTitle);
             }
+
+            // Set Trigger.dev state to start subscription
+            setTriggerRunId(data.runId);
+            setTriggerAccessToken(data.publicAccessToken);
+
+            // The useRealtimeRun hook will handle updates via the useEffect above
+            // We return here - the promise resolves but updates continue via the hook
+            return;
+          } else {
+            throw new Error("Invalid Trigger.dev response: missing runId or publicAccessToken");
           }
-          
-          for (const eventData of events) {
-            if (!eventData.trim()) continue;
-            
-            try {
-              const event: SSEProgressEvent = JSON.parse(eventData);
-              
-              switch (event.type) {
-                case 'status':
-                  if (event.message) {
-                    // Skip backend infrastructure status messages - these are not agent actions
-                    const infrastructureMessages = [
-                      'Initializing sandbox connection...',
-                    ];
-                    
-                    if (infrastructureMessages.includes(event.message)) {
-                      break; 
+        }
+
+        // ============================================================
+        // SSE Path - Original implementation
+        // ============================================================
+        if (!response.body) {
+          throw new Error("No response body");
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        let thinkingMessageId: string | null = null;
+        let buffer = '';
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) break;
+
+            // Check if request was aborted
+            if (controller.signal.aborted) {
+              reader.cancel();
+              break;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+
+            // Try to parse complete SSE events
+            const events = parseSSEEvents(buffer);
+
+            // Keep incomplete events in buffer
+            const lastNewlineIndex = buffer.lastIndexOf('\n\n');
+            if (lastNewlineIndex !== -1) {
+              buffer = buffer.substring(lastNewlineIndex + 2);
+            } else {
+              // Check if we have a partial event
+              const lastDataIndex = buffer.lastIndexOf('data: ');
+              if (lastDataIndex !== -1) {
+                buffer = buffer.substring(lastDataIndex);
+              }
+            }
+
+            for (const eventData of events) {
+              if (!eventData.trim()) continue;
+
+              try {
+                const event: SSEProgressEvent = JSON.parse(eventData);
+
+                switch (event.type) {
+                  case 'status':
+                    if (event.message) {
+                      // Skip backend infrastructure status messages - these are not agent actions
+                      const infrastructureMessages = [
+                        'Initializing sandbox connection...',
+                      ];
+
+                      if (infrastructureMessages.includes(event.message)) {
+                        break;
+                      }
+                      break;
                     }
                     break;
-                  }
-                  break;
-                  
-                case 'coding_iteration':
-                  if (event.todo || event.tool) {
-                    // Skip invalid actions
-                    if (event.tool?.includes('parallel_read') && event.tool.includes('(0 files)')) {
-                      break;
+
+                  case 'coding_iteration':
+                    if (event.todo || event.tool) {
+                      // Skip invalid actions
+                      if (event.tool?.includes('parallel_read') && event.tool.includes('(0 files)')) {
+                        break;
+                      }
+
+                      // Create thinking message if it doesn't exist
+                      if (!thinkingMessageId) {
+                        thinkingMessageId = Date.now().toString();
+                        setMessages((prev) => [
+                          ...prev,
+                          {
+                            id: thinkingMessageId!,
+                            role: "thinking",
+                            content: "",
+                            timestamp: new Date(),
+                            actions: [],
+                            isComplete: false,
+                          },
+                        ]);
+                      }
+
+                      const actionType = getActionTypeFromTool(event.tool || '');
+                      const description = createActionDescription(event, actionType);
+
+                      if (description.includes('0 files')) {
+                        break;
+                      }
+
+                      if ((description === 'Reading file...' || description === 'Writing file...') && !event.todo) {
+                        break;
+                      }
+
+                      setMessages((prev) =>
+                        prev.map((msg) => {
+                          if (msg.id !== thinkingMessageId) return msg;
+
+                          const existingActions = msg.actions || [];
+
+                          const duplicateAction = existingActions.find(
+                            (action) => action.description === description && action.status === 'in_progress'
+                          );
+                          if (duplicateAction) {
+                            return msg;
+                          }
+
+                          const updatedActions = existingActions.map((action) =>
+                            action.status === 'in_progress'
+                              ? { ...action, status: 'completed' as const }
+                              : action
+                          );
+
+                          const newAction: AgentAction = {
+                            id: `${Date.now()}-${Math.random()}`,
+                            type: actionType,
+                            description,
+                            timestamp: new Date(),
+                            status: 'in_progress',
+                          };
+
+                          return {
+                            ...msg,
+                            actions: [...updatedActions, newAction],
+                          };
+                        })
+                      );
                     }
-                    
-                    // Create thinking message if it doesn't exist
-                    if (!thinkingMessageId) {
-                      thinkingMessageId = Date.now().toString();
-                      setMessages((prev) => [
-                        ...prev,
-                        {
-                          id: thinkingMessageId!,
-                          role: "thinking",
-                          content: "",
-                          timestamp: new Date(),
-                          actions: [],
-                          isComplete: false,
-                        },
-                      ]);
+                    break;
+
+                  case 'todo_update':
+                    break;
+
+                  case 'title_updated':
+                    if (event.title) {
+                      // Update project name in Zustand store
+                      useBuilderStore.getState().setProjectName(event.title);
                     }
-                    
-                    const actionType = getActionTypeFromTool(event.tool || '');
-                    const description = createActionDescription(event, actionType);
-                    
-                    if (description.includes('0 files')) {
-                      break;
-                    }
-                    
-                    if ((description === 'Reading file...' || description === 'Writing file...') && !event.todo) {
-                      break;
-                    }
-                    
+                    break;
+
+                  case 'complete':
                     setMessages((prev) =>
-                      prev.map((msg) => {
-                        if (msg.id !== thinkingMessageId) return msg;
-                        
-                        const existingActions = msg.actions || [];
-                        
-                        const duplicateAction = existingActions.find(
-                          (action) => action.description === description && action.status === 'in_progress'
-                        );
-                        if (duplicateAction) {
-                          return msg;
-                        }
-                        
-                        const updatedActions = existingActions.map((action) =>
-                          action.status === 'in_progress'
-                            ? { ...action, status: 'completed' as const }
-                            : action
-                        );
-                        
-                        const newAction: AgentAction = {
-                          id: `${Date.now()}-${Math.random()}`,
-                          type: actionType,
-                          description,
-                          timestamp: new Date(),
-                          status: 'in_progress',
-                        };
-                        
-                        return {
-                          ...msg,
-                          actions: [...updatedActions, newAction],
-                        };
-                      })
+                      finalizeThinkingMessage(
+                        prev,
+                        thinkingMessageId,
+                        event.message || "App updated successfully! The changes should be visible in the preview."
+                      )
                     );
-                  }
-                  break;
-                  
-                case 'todo_update':
-                  break;
-                  
-                case 'title_updated':
-                  if (event.title) {
-                    // Update project name in Zustand store
-                    useBuilderStore.getState().setProjectName(event.title);
-                  }
-                  break;
-                  
-                case 'complete':
-                  setMessages((prev) =>
-                    finalizeThinkingMessage(
-                      prev,
-                      thinkingMessageId,
-                      event.message || "App updated successfully! The changes should be visible in the preview."
-                    )
-                  );
-                  break;
-                  
-                case 'error':
-                  setMessages((prev) =>
-                    finalizeThinkingMessage(
-                      prev,
-                      thinkingMessageId,
-                      `Error: ${event.error || "Unknown error"}`
-                    )
-                  );
-                  break;
-                  
-                case 'stopped':
-                  setMessages((prev) =>
-                    finalizeThinkingMessage(
-                      prev,
-                      thinkingMessageId,
-                      "Stopped processing"
-                    )
-                  );
-                  break;
+                    break;
+
+                  case 'error':
+                    setMessages((prev) =>
+                      finalizeThinkingMessage(
+                        prev,
+                        thinkingMessageId,
+                        `Error: ${event.error || "Unknown error"}`
+                      )
+                    );
+                    break;
+
+                  case 'stopped':
+                    setMessages((prev) =>
+                      finalizeThinkingMessage(
+                        prev,
+                        thinkingMessageId,
+                        "Stopped processing"
+                      )
+                    );
+                    break;
+                }
+              } catch (parseError) {
+                console.error("Error parsing SSE event:", parseError, "Event data:", eventData);
               }
-            } catch (parseError) {
-              console.error("Error parsing SSE event:", parseError, "Event data:", eventData);
             }
           }
-        }
-      } catch (error) {
-        // Handle abort errors
-        if (error instanceof Error && error.name === 'AbortError') {
-          // Request was aborted - the backend should have sent a 'stopped' event
-          // If we didn't receive it, handle it here
-          if (thinkingMessageId) {
-            setMessages((prev) =>
-              finalizeThinkingMessage(
-                prev,
-                thinkingMessageId,
-                "Stopped processing"
-              )
-            );
+        } catch (error) {
+          // Handle abort errors
+          if (error instanceof Error && error.name === 'AbortError') {
+            // Request was aborted - the backend should have sent a 'stopped' event
+            // If we didn't receive it, handle it here
+            if (thinkingMessageId) {
+              setMessages((prev) =>
+                finalizeThinkingMessage(
+                  prev,
+                  thinkingMessageId,
+                  "Stopped processing"
+                )
+              );
+            }
+          } else {
+            throw error;
           }
-        } else {
-          throw error;
+        } finally {
+          reader.releaseLock();
+          setIsGenerating(false);
         }
-      } finally {
-        reader.releaseLock();
-      }
       })();
-      
+
       return { promise, abort };
     },
     []
   );
 
-  return { generateCode };
+  // Cancel a Trigger.dev run
+  const cancelGeneration = useCallback(async () => {
+    if (!triggerRunId || !projectIdRef.current) {
+      console.log("[useCodeGeneration] No active Trigger.dev run to cancel");
+      return;
+    }
+
+    console.log("[useCodeGeneration] Cancelling Trigger.dev run:", triggerRunId);
+
+    try {
+      const response = await fetch(
+        API_ENDPOINTS.PROJECT_CHAT_CANCEL(projectIdRef.current),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ runId: triggerRunId }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("[useCodeGeneration] Failed to cancel run:", errorData);
+      } else {
+        console.log("[useCodeGeneration] Successfully cancelled, updating UI");
+
+        // Immediately update UI - don't wait for real-time subscription
+        if (setMessagesRef.current) {
+          setMessagesRef.current((prev) =>
+            finalizeThinkingMessage(prev, thinkingMessageIdRef.current, "Stopped processing")
+          );
+        }
+
+        // Reset Trigger.dev state
+        setTriggerRunId(null);
+        setTriggerAccessToken(null);
+        setIsGenerating(false);
+        thinkingMessageIdRef.current = null;
+        lastMetadataRef.current = null;
+      }
+    } catch (error) {
+      console.error("[useCodeGeneration] Error cancelling run:", error);
+    }
+  }, [triggerRunId]);
+
+  return { generateCode, cancelGeneration, isGenerating, triggerRunId };
 }
 

@@ -43,7 +43,7 @@ export default function ChatPanel() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<(() => void) | null>(null);
 
-  const { generateCode } = useCodeGeneration();
+  const { generateCode, cancelGeneration, isGenerating } = useCodeGeneration();
   const { startSandbox, isStarting: isStartingSandbox, error: sandboxError, progressMessages, currentProgress } = useSandboxStartup();
 
   // Auto-trigger sandbox startup on mount when projectId is available
@@ -141,10 +141,15 @@ export default function ChatPanel() {
   };
 
   const handleStop = () => {
+    // Handle SSE abort
     if (abortRef.current) {
       abortRef.current();
       abortRef.current = null;
       setIsLoading(false);
+    }
+    // Handle Trigger.dev cancellation
+    if (isGenerating) {
+      cancelGeneration();
     }
   };
 
@@ -224,7 +229,7 @@ export default function ChatPanel() {
           </div>
         )}
 
-        <MessageList messages={messages} isLoading={isLoading} />
+        <MessageList messages={messages} isLoading={isLoading || isGenerating} />
       </div>
 
       {/* Setting Up Environment Overlay */}
@@ -269,7 +274,7 @@ export default function ChatPanel() {
         setInput={setInput}
         onSend={handleSend}
         onStop={handleStop}
-        isLoading={isLoading}
+        isLoading={isLoading || isGenerating}
         currentMode={currentMode}
         onModeChange={setCurrentMode}
         disabled={!sandboxStarted}

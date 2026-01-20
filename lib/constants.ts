@@ -130,6 +130,7 @@ export const API_ENDPOINTS = {
   PROJECT_SAVE: (id: string) => `/api/projects/${id}/save`,
   PROJECT_LOAD: (id: string) => `/api/projects/${id}/load`,
   PROJECT_CHAT: (id: string) => `/api/projects/${id}/chat`,
+  PROJECT_CHAT_CANCEL: (id: string) => `/api/projects/${id}/chat/cancel`,
 
   // Code generation
   INIT_EXPO: "/api/init-expo",
