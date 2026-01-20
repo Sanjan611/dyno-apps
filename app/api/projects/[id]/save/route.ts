@@ -9,6 +9,10 @@ import {
 } from "@/lib/server/api-utils";
 import { REPO_DIR, TIMEOUTS, LOG_PREFIXES } from "@/lib/constants";
 import { b } from "@/baml_client";
+import {
+  saveConversationHistory,
+  ConversationMessage,
+} from "@/lib/server/conversation-history-store";
 
 /**
  * POST /api/projects/[id]/save - Save changes to git repository
@@ -22,6 +26,29 @@ export const POST = withAsyncParams(async (request, user, params) => {
     }
     const projectId = typeof params.id === 'string' ? params.id : await params.id;
     console.log(`${LOG_PREFIXES.PROJECTS} Save request for project:`, projectId, "user:", user.id);
+
+    // Parse messages from request body (optional)
+    let messagesToSave: ConversationMessage[] | null = null;
+    try {
+      const body = await request.json();
+      if (body.messages && Array.isArray(body.messages)) {
+        // Filter to only user and assistant messages (exclude system, thinking)
+        const filteredMessages = body.messages
+          .filter((m: { role: string }) => m.role === "user" || m.role === "assistant")
+          .map((m: { id: string; role: string; content: string; timestamp: string | Date; mode?: string }) => ({
+            id: m.id,
+            role: m.role as "user" | "assistant",
+            content: m.content,
+            timestamp: typeof m.timestamp === "string" ? m.timestamp : new Date(m.timestamp).toISOString(),
+            mode: m.mode as "ask" | "build" | undefined,
+          }));
+        messagesToSave = filteredMessages;
+        console.log(`${LOG_PREFIXES.PROJECTS} Received ${filteredMessages.length} messages to save`);
+      }
+    } catch {
+      // No body or invalid JSON - continue without messages
+      console.log(`${LOG_PREFIXES.PROJECTS} No messages in request body`);
+    }
 
     const project = await getProject(projectId, user.id);
 
@@ -201,6 +228,17 @@ export const POST = withAsyncParams(async (request, user, params) => {
     }
 
     console.log(`${LOG_PREFIXES.PROJECTS} Successfully saved and pushed changes for project:`, projectId);
+
+    // Save conversation history if messages were provided
+    if (messagesToSave && messagesToSave.length > 0) {
+      try {
+        await saveConversationHistory(projectId, messagesToSave);
+        console.log(`${LOG_PREFIXES.PROJECTS} Conversation history saved for project:`, projectId);
+      } catch (historyError) {
+        // Log but don't fail the save operation
+        console.error(`${LOG_PREFIXES.PROJECTS} Failed to save conversation history:`, historyError);
+      }
+    }
 
     return successResponse({
       message: "Changes saved and pushed successfully",

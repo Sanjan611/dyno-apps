@@ -38,7 +38,7 @@ export type MessageMode = 'ask' | 'build';
  */
 export interface Message {
   id: string;
-  role: "user" | "assistant" | "thinking";
+  role: "user" | "assistant" | "thinking" | "system";
   content: string;
   timestamp: Date;
   actions?: AgentAction[];
@@ -52,7 +52,7 @@ export interface Message {
  */
 export interface StoreMessage {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
   timestamp: Date;
   mode?: MessageMode;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import { Terminal, RefreshCw, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,16 +18,35 @@ import ChatInput from "./ChatInput";
 import type { Message } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 
-export default function ChatPanel() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      role: "assistant",
-      content:
-        "Hello! I'm your AI assistant. Describe the mobile app you'd like to build, and I'll help you create it.",
-      timestamp: new Date(),
-    },
-  ]);
+export interface ChatPanelRef {
+  addSaveMarker: () => void;
+  getMessages: () => Message[];
+}
+
+interface ChatPanelProps {
+  initialMessages?: Message[];
+}
+
+const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatPanel({ initialMessages }, ref) {
+  const [messages, setMessages] = useState<Message[]>(() => {
+    if (initialMessages && initialMessages.length > 0) {
+      // Convert ISO timestamp strings to Date objects if needed
+      return initialMessages.map((m) => ({
+        ...m,
+        timestamp: typeof m.timestamp === "string" ? new Date(m.timestamp) : m.timestamp,
+      }));
+    }
+    // Default welcome message for new projects
+    return [
+      {
+        id: "1",
+        role: "assistant",
+        content:
+          "Hello! I'm your AI assistant. Describe the mobile app you'd like to build, and I'll help you create it.",
+        timestamp: new Date(),
+      },
+    ];
+  });
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [viewingLogs, setViewingLogs] = useState(false);
@@ -45,6 +64,20 @@ export default function ChatPanel() {
 
   const { generateCode, cancelGeneration, isGenerating } = useCodeGeneration();
   const { startSandbox, isStarting: isStartingSandbox, error: sandboxError, progressMessages, currentProgress } = useSandboxStartup();
+
+  // Expose methods via ref
+  useImperativeHandle(ref, () => ({
+    addSaveMarker: () => {
+      const saveMarker: Message = {
+        id: `save-${Date.now()}`,
+        role: "system",
+        content: "Project saved",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, saveMarker]);
+    },
+    getMessages: () => messages,
+  }), [messages]);
 
   // Auto-trigger sandbox startup on mount when projectId is available
   const hasStartedRef = useRef(false);
@@ -281,4 +314,6 @@ export default function ChatPanel() {
       />
     </div>
   );
-}
+});
+
+export default ChatPanel;
