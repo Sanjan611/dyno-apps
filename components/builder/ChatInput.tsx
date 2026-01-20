@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import type { MessageMode } from "@/types";
 import { useRef, useEffect } from "react";
+import { cn } from "@/lib/utils";
 
 interface ChatInputProps {
   input: string;
@@ -56,80 +57,89 @@ export default function ChatInput({
   };
 
   return (
-    <div className="p-4 border-t bg-white mt-auto relative z-10">
-      {/* Mode Toggle */}
-      <div className="flex items-center justify-center gap-2 mb-3">
-        <button
-          onClick={() => onModeChange('ask')}
-          disabled={isLoading || disabled}
-          className={`
-            flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
-            ${currentMode === 'ask'
-              ? 'bg-blue-100 text-blue-700 border-2 border-blue-300'
-              : 'bg-slate-100 text-slate-600 border-2 border-transparent hover:bg-slate-200'
-            }
-            ${isLoading || disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-          `}
-        >
-          <MessageCircle className="w-4 h-4" />
-          <span>Ask</span>
-        </button>
-        <button
-          onClick={() => onModeChange('build')}
-          disabled={isLoading || disabled}
-          className={`
-            flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
-            ${currentMode === 'build'
-              ? 'bg-primary/10 text-primary border-2 border-primary/30'
-              : 'bg-slate-100 text-slate-600 border-2 border-transparent hover:bg-slate-200'
-            }
-            ${isLoading || disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-          `}
-        >
-          <Hammer className="w-4 h-4" />
-          <span>Build</span>
-        </button>
+    <div className="p-6 bg-transparent mt-auto relative z-10 w-full max-w-4xl mx-auto">
+      <div className={cn(
+        "rounded-3xl border shadow-xl transition-all duration-300 overflow-hidden",
+        "bg-white/80 backdrop-blur-xl border-white/20",
+        isLoading ? "ring-2 ring-primary/10" : "focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/30"
+      )}>
+        {/* Mode Toggle & Input Container */}
+        <div className="flex flex-col gap-2 p-2">
+          
+          {/* Input Area */}
+          <div className="flex items-end gap-2 pl-3 pr-2 py-1">
+            <Textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !isLoading && !disabled) {
+                  e.preventDefault();
+                  onSend();
+                }
+              }}
+              placeholder={disabled ? "Start sandbox to begin..." : (currentMode === 'ask' ? "Ask a question..." : "Describe your app update...")}
+              className="min-h-[40px] max-h-[200px] border-0 bg-transparent px-0 py-2.5 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 resize-none overflow-y-auto text-base placeholder:text-muted-foreground/70"
+              disabled={isLoading || disabled}
+              rows={1}
+            />
+            
+            <div className="flex items-center gap-2 pb-1.5">
+               {/* Mode Switcher (Mini) */}
+              <div className="flex bg-slate-100/80 rounded-lg p-0.5 border border-slate-200/50">
+                <button
+                  onClick={() => onModeChange('ask')}
+                  disabled={isLoading || disabled}
+                  title="Ask Mode"
+                  className={cn(
+                    "p-1.5 rounded-md transition-all",
+                    currentMode === 'ask' 
+                      ? "bg-white text-blue-600 shadow-sm" 
+                      : "text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
+                  )}
+                >
+                  <MessageCircle className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => onModeChange('build')}
+                  disabled={isLoading || disabled}
+                  title="Build Mode"
+                  className={cn(
+                    "p-1.5 rounded-md transition-all",
+                    currentMode === 'build' 
+                      ? "bg-white text-primary shadow-sm" 
+                      : "text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
+                  )}
+                >
+                  <Hammer className="w-4 h-4" />
+                </button>
+              </div>
+
+              <Button
+                onClick={handleButtonClick}
+                size="icon"
+                disabled={disabled || (!isLoading && !input.trim())}
+                className={cn(
+                  "h-9 w-9 rounded-full transition-all shadow-md flex-shrink-0",
+                  isLoading
+                    ? "bg-slate-900 hover:bg-slate-800"
+                    : "bg-gradient-to-br from-primary to-secondary hover:opacity-90 hover:scale-105 hover:shadow-lg"
+                )}
+              >
+                {isLoading ? <Square className="w-3.5 h-3.5 text-white fill-white" /> : <Send className="w-4 h-4 text-white ml-0.5" />}
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Input Field */}
-      <div className="flex items-end gap-2 px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 focus-within:bg-white focus-within:border-primary/30 focus-within:ring-1 focus-within:ring-primary/20 shadow-inner transition-all">
-        <Textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !isLoading && !disabled) {
-              e.preventDefault();
-              onSend();
-            }
-          }}
-          placeholder={disabled ? "Start sandbox to begin..." : (currentMode === 'ask' ? "Ask a question..." : "Type your message...")}
-          className="min-h-0 border-0 bg-transparent px-0 py-1 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 resize-none overflow-y-auto"
-          disabled={isLoading || disabled}
-          rows={1}
-        />
-        <Button
-          onClick={handleButtonClick}
-          size="icon"
-          disabled={disabled || (!isLoading && !input.trim())}
-          className={`h-9 w-9 rounded-full transition-all shadow-sm flex-shrink-0 ${
-            isLoading
-              ? "bg-black hover:bg-black/90"
-              : "bg-primary hover:bg-primary/90"
-          }`}
-        >
-          {isLoading ? <Square className="w-4 h-4 text-white" /> : <Send className="w-4 h-4" />}
-        </Button>
-      </div>
-
-      {/* Disclaimer */}
-      <div className="text-xs text-center text-muted-foreground mt-2">
+      {/* Disclaimer / Mode Indicator */}
+      <div className="text-[10px] text-center text-muted-foreground/60 mt-2 font-medium tracking-wide uppercase">
         {currentMode === 'ask'
-          ? "Ask mode: Discuss and plan features without making changes"
-          : "Build mode: AI will implement your requests"
+          ? "Ask Mode: Planning & Discussion"
+          : "Build Mode: Code Generation Active"
         }
       </div>
     </div>
   );
 }
-

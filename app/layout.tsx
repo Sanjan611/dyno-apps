@@ -7,7 +7,21 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Dyno Apps - AI-Powered Mobile App Builder",
-  description: "Build mobile applications using natural language with AI",
+  description: "Build mobile applications using natural language with AI. Turn your ideas into fully functional apps instantly.",
+  keywords: ["AI app builder", "mobile app development", "no-code", "React Native", "Expo", "AI coding assistant"],
+  authors: [{ name: "Dyno Apps Team" }],
+  openGraph: {
+    title: "Dyno Apps - AI-Powered Mobile App Builder",
+    description: "Build mobile applications using natural language with AI. Turn your ideas into fully functional apps instantly.",
+    type: "website",
+    locale: "en_US",
+    siteName: "Dyno Apps",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Dyno Apps - AI-Powered Mobile App Builder",
+    description: "Build mobile applications using natural language with AI. Turn your ideas into fully functional apps instantly.",
+  },
 };
 
 export default function RootLayout({
@@ -17,7 +31,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} antialiased bg-slate-50 relative min-h-screen overflow-x-hidden`}>
+      <body className={`${inter.className} antialiased bg-slate-50 relative min-h-screen overflow-x-hidden selection:bg-primary/20 selection:text-primary`}>
         {/* Global Background Layer */}
         <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none">
            {/* Base Gradient */}
