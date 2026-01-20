@@ -12,6 +12,13 @@ interface ProjectHeaderProps {
   projectId: string | null;
   onProjectNameChange: (name: string) => void;
   onSaveSuccess?: () => void;
+  getMessagesForSave?: () => Array<{
+    id: string;
+    role: string;
+    content: string;
+    timestamp: Date;
+    mode?: string;
+  }>;
 }
 
 /**
@@ -23,6 +30,7 @@ export default function ProjectHeader({
   projectId,
   onProjectNameChange,
   onSaveSuccess,
+  getMessagesForSave,
 }: ProjectHeaderProps) {
   const [editingName, setEditingName] = useState("");
   const [isSavingName, setIsSavingName] = useState(false);
@@ -112,11 +120,15 @@ export default function ProjectHeader({
 
     setIsSaving(true);
     try {
+      // Get messages from chat panel if available
+      const messages = getMessagesForSave?.() ?? [];
+
       const response = await fetch(API_ENDPOINTS.PROJECT_SAVE(projectId), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        body: JSON.stringify({ messages }),
       });
 
       const data = await response.json();

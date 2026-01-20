@@ -18,6 +18,7 @@ import {
 import { AlertCircle } from "lucide-react";
 import { useBuilderStore } from "@/lib/store";
 import { PANEL_CONSTRAINTS, API_ENDPOINTS, DEFAULT_PROJECT_NAME } from "@/lib/constants";
+import type { Message } from "@/types";
 
 // Loading fallback
 function BuilderLoading() {
@@ -65,6 +66,7 @@ export default function BuilderPage() {
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [projectNotFound, setProjectNotFound] = useState(false);
+  const [initialMessages, setInitialMessages] = useState<Message[] | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const chatPanelRef = useRef<ChatPanelRef>(null);
   const router = useRouter();
@@ -97,6 +99,7 @@ export default function BuilderPage() {
         setPreviewUrl(null);
         setSandboxStarted(false);
         setSandboxHealthStatus("unknown");
+        setInitialMessages(undefined);
 
         // Fetch project details
         const response = await fetch(`${API_ENDPOINTS.PROJECTS}?projectId=${projectIdFromRoute}`);
@@ -106,6 +109,19 @@ export default function BuilderPage() {
           setProjectId(data.project.id);
           const projectTitle = data.project.title ?? data.project.name ?? DEFAULT_PROJECT_NAME;
           setProjectName(projectTitle);
+
+          // Fetch conversation history
+          try {
+            const historyRes = await fetch(API_ENDPOINTS.PROJECT_HISTORY(data.project.id));
+            const historyData = await historyRes.json();
+            if (historyData.success && historyData.messages?.length > 0) {
+              setInitialMessages(historyData.messages);
+            }
+          } catch (historyError) {
+            console.error("Error loading conversation history:", historyError);
+            // Continue without history - not a fatal error
+          }
+
           setIsLoading(false);
         } else {
           // Project not found or error
@@ -261,12 +277,13 @@ export default function BuilderPage() {
         projectId={projectId}
         onProjectNameChange={setProjectName}
         onSaveSuccess={handleSaveSuccess}
+        getMessagesForSave={() => chatPanelRef.current?.getMessages() ?? []}
       />
 
       <div ref={containerRef} className="flex-1 flex overflow-hidden relative">
         {/* Left Panel (Chat) */}
         <div className="h-full overflow-hidden bg-white z-10 shadow-xl shadow-slate-200/50" style={{ width: `${leftWidth}%` }}>
-          <ChatPanel ref={chatPanelRef} />
+          <ChatPanel ref={chatPanelRef} initialMessages={initialMessages} />
         </div>
 
         {/* Resizer */}

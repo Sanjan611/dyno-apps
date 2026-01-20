@@ -20,18 +20,33 @@ import { API_ENDPOINTS } from "@/lib/constants";
 
 export interface ChatPanelRef {
   addSaveMarker: () => void;
+  getMessages: () => Message[];
 }
 
-const ChatPanel = forwardRef<ChatPanelRef>(function ChatPanel(_props, ref) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      role: "assistant",
-      content:
-        "Hello! I'm your AI assistant. Describe the mobile app you'd like to build, and I'll help you create it.",
-      timestamp: new Date(),
-    },
-  ]);
+interface ChatPanelProps {
+  initialMessages?: Message[];
+}
+
+const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatPanel({ initialMessages }, ref) {
+  const [messages, setMessages] = useState<Message[]>(() => {
+    if (initialMessages && initialMessages.length > 0) {
+      // Convert ISO timestamp strings to Date objects if needed
+      return initialMessages.map((m) => ({
+        ...m,
+        timestamp: typeof m.timestamp === "string" ? new Date(m.timestamp) : m.timestamp,
+      }));
+    }
+    // Default welcome message for new projects
+    return [
+      {
+        id: "1",
+        role: "assistant",
+        content:
+          "Hello! I'm your AI assistant. Describe the mobile app you'd like to build, and I'll help you create it.",
+        timestamp: new Date(),
+      },
+    ];
+  });
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [viewingLogs, setViewingLogs] = useState(false);
@@ -50,7 +65,7 @@ const ChatPanel = forwardRef<ChatPanelRef>(function ChatPanel(_props, ref) {
   const { generateCode, cancelGeneration, isGenerating } = useCodeGeneration();
   const { startSandbox, isStarting: isStartingSandbox, error: sandboxError, progressMessages, currentProgress } = useSandboxStartup();
 
-  // Expose addSaveMarker method via ref
+  // Expose methods via ref
   useImperativeHandle(ref, () => ({
     addSaveMarker: () => {
       const saveMarker: Message = {
@@ -61,7 +76,8 @@ const ChatPanel = forwardRef<ChatPanelRef>(function ChatPanel(_props, ref) {
       };
       setMessages((prev) => [...prev, saveMarker]);
     },
-  }));
+    getMessages: () => messages,
+  }), [messages]);
 
   // Auto-trigger sandbox startup on mount when projectId is available
   const hasStartedRef = useRef(false);
