@@ -136,6 +136,10 @@ export const API_ENDPOINTS = {
   // Code generation
   INIT_EXPO: "/api/init-expo",
   PROJECT_SANDBOX_LOGS: (id: string) => `/api/projects/${id}/sandbox/logs`,
+
+  // File browser
+  PROJECT_FILES: (id: string) => `/api/projects/${id}/files`,
+  PROJECT_FILE: (id: string, path: string) => `/api/projects/${id}/files/${path}`,
 } as const;
 
 // ============================================================================

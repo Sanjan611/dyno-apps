@@ -269,6 +269,9 @@ export function useCodeGeneration() {
         finalizeThinkingMessage(prev, thinkingMessageIdRef.current, finalMessage)
       );
 
+      // Invalidate code viewer cache since agent may have modified files
+      useBuilderStore.getState().clearCodeViewerCache();
+
       // Reset Trigger.dev state
       setTriggerRunId(null);
       setTriggerAccessToken(null);
@@ -521,6 +524,8 @@ export function useCodeGeneration() {
                         event.message || "App updated successfully! The changes should be visible in the preview."
                       )
                     );
+                    // Invalidate code viewer cache since agent may have modified files
+                    useBuilderStore.getState().clearCodeViewerCache();
                     break;
 
                   case 'error':

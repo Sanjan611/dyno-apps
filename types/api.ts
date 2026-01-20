@@ -286,4 +286,48 @@ export interface SandboxLogsResponse {
   error?: string;
 }
 
+// ============================================================================
+// File Browser API Types
+// ============================================================================
+
+/**
+ * File tree node structure for file browser
+ */
+export interface FileNode {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  children?: FileNode[];
+}
+
+/**
+ * GET /api/projects/[id]/files - List files response
+ */
+export interface ListFilesResponse {
+  success: boolean;
+  tree?: FileNode[];
+  error?: string;
+}
+
+/**
+ * GET /api/projects/[id]/files/[...path] - Read file response
+ */
+export interface ReadFileResponse {
+  success: boolean;
+  path?: string;
+  content?: string;
+  language?: string;
+  truncated?: boolean;
+  error?: string;
+}
+
+/**
+ * PUT /api/projects/[id]/files/[...path] - Write file response
+ */
+export interface WriteFileResponse {
+  success: boolean;
+  path?: string;
+  error?: string;
+}
+
 

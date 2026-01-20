@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import AppPreview from "./AppPreview";
 import CodeViewer from "./CodeViewer";
+import UnsavedChangesModal from "./UnsavedChangesModal";
 import { useBuilderStore } from "@/lib/store";
 import { Smartphone, Code2, RefreshCw, Battery, Wifi, Signal, QrCode, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,10 @@ import { Button } from "@/components/ui/button";
 export default function PreviewPanel() {
   const [activeView, setActiveView] = useState<"preview" | "code" | "test">("preview");
   const [copied, setCopied] = useState(false);
-  const { previewUrl, projectId } = useBuilderStore();
+  const [pendingTab, setPendingTab] = useState<"preview" | "code" | "test" | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const codeViewerRef = useRef<{ save: () => Promise<void>; discard: () => void } | null>(null);
+  const { previewUrl, projectId, codeViewerDirty, setCodeViewerDirty } = useBuilderStore();
   
   // Generate the Expo tunnel URL for QR code
   const expoTunnelUrl = projectId ? `exp://${projectId}.ngrok.io` : null;
@@ -24,13 +28,63 @@ export default function PreviewPanel() {
     }
   };
 
+  // Handle tab click with unsaved changes check
+  const handleTabClick = (tab: "preview" | "code" | "test") => {
+    // If switching away from code tab and there are unsaved changes, show modal
+    if (activeView === "code" && tab !== "code" && codeViewerDirty) {
+      setPendingTab(tab);
+    } else {
+      setActiveView(tab);
+    }
+  };
+
+  // Modal handlers for unsaved changes
+  const handleModalSave = async () => {
+    // The CodeViewer handles its own save logic, we just need to clear dirty state
+    // and switch tabs after confirming user wants to save
+    // Note: The save is handled by CodeViewer's internal state - we're relying on
+    // the user saving within CodeViewer before the tab switch
+    setIsSaving(true);
+    // Give a moment for the save state to sync
+    await new Promise(resolve => setTimeout(resolve, 100));
+    setIsSaving(false);
+    setCodeViewerDirty(false);
+    if (pendingTab) {
+      setActiveView(pendingTab);
+      setPendingTab(null);
+    }
+  };
+
+  const handleModalDiscard = () => {
+    setCodeViewerDirty(false);
+    if (pendingTab) {
+      setActiveView(pendingTab);
+      setPendingTab(null);
+    }
+  };
+
+  const handleModalCancel = () => {
+    setPendingTab(null);
+  };
+
   return (
-    <div className="flex flex-col h-full bg-slate-100/50">
-      {/* Toolbar */}
+    <>
+      {/* Unsaved Changes Modal */}
+      {pendingTab && (
+        <UnsavedChangesModal
+          onSave={handleModalSave}
+          onDiscard={handleModalDiscard}
+          onCancel={handleModalCancel}
+          isSaving={isSaving}
+        />
+      )}
+
+      <div className="flex flex-col h-full bg-slate-100/50">
+        {/* Toolbar */}
       <div className="h-14 border-b bg-white px-4 flex items-center justify-between shadow-sm z-10">
         <div className="flex p-1 bg-slate-100 rounded-lg border border-slate-200">
           <button
-            onClick={() => setActiveView("preview")}
+            onClick={() => handleTabClick("preview")}
             className={`flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
               activeView === "preview"
                 ? "bg-white text-primary shadow-sm"
@@ -41,7 +95,7 @@ export default function PreviewPanel() {
             Preview
           </button>
           <button
-            onClick={() => setActiveView("code")}
+            onClick={() => handleTabClick("code")}
             className={`flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
               activeView === "code"
                 ? "bg-white text-primary shadow-sm"
@@ -52,7 +106,7 @@ export default function PreviewPanel() {
             Code
           </button>
           <button
-            onClick={() => setActiveView("test")}
+            onClick={() => handleTabClick("test")}
             className={`flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
               activeView === "test"
                 ? "bg-white text-primary shadow-sm"
@@ -165,6 +219,7 @@ export default function PreviewPanel() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }

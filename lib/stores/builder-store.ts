@@ -12,6 +12,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { StoreMessage, MessageMode } from "@/types";
+import type { FileNode } from "@/types/api";
 import { DEFAULT_PROJECT_NAME } from "@/lib/constants";
 import { createStorage, STORAGE_KEYS } from "./persist";
 
@@ -31,6 +32,14 @@ export interface ModifiedFile {
   path: string;
   lastModified: Date;
   content?: string; // Optional: store content for quick access
+}
+
+/**
+ * Cached file content for code viewer
+ */
+export interface CachedFile {
+  content: string;
+  language: string;
 }
 
 export interface BuilderState {
@@ -53,6 +62,15 @@ export interface BuilderState {
   modifiedFiles: ModifiedFile[];
   lastActivity: Date | null;
 
+  // Code viewer state (NOT persisted)
+  codeViewerDirty: boolean;
+  codeViewerFileTree: FileNode[] | null;
+  codeViewerSelectedPath: string | null;
+  codeViewerFileContent: string;
+  codeViewerOriginalContent: string;
+  codeViewerFileLanguage: string;
+  codeViewerFileCache: Record<string, CachedFile>;
+
   // Chat mode (PERSISTED - user preference)
   currentMode: MessageMode;
 
@@ -71,6 +89,11 @@ export interface BuilderState {
   clearModifiedFiles: () => void;
   updateLastActivity: () => void;
   setCurrentMode: (mode: MessageMode) => void;
+  setCodeViewerDirty: (dirty: boolean) => void;
+  setCodeViewerFileTree: (tree: FileNode[] | null) => void;
+  setCodeViewerSelectedFile: (path: string | null, content: string, originalContent: string, language: string) => void;
+  cacheCodeViewerFile: (path: string, content: string, language: string) => void;
+  clearCodeViewerCache: () => void;
 
   // Reset
   reset: () => void;
@@ -87,6 +110,13 @@ const initialState = {
   lastHealthCheck: null,
   modifiedFiles: [],
   lastActivity: null,
+  codeViewerDirty: false,
+  codeViewerFileTree: null as FileNode[] | null,
+  codeViewerSelectedPath: null as string | null,
+  codeViewerFileContent: "",
+  codeViewerOriginalContent: "",
+  codeViewerFileLanguage: "plaintext",
+  codeViewerFileCache: {} as Record<string, CachedFile>,
   currentMode: "build" as MessageMode, // Default to build mode
   sandboxStarted: false,
 };
@@ -162,6 +192,36 @@ export const useBuilderStore = create<BuilderState>()(
       updateLastActivity: () => set({ lastActivity: new Date() }),
 
       setCurrentMode: (mode) => set({ currentMode: mode }),
+
+      setCodeViewerDirty: (dirty) => set({ codeViewerDirty: dirty }),
+
+      setCodeViewerFileTree: (tree) => set({ codeViewerFileTree: tree }),
+
+      setCodeViewerSelectedFile: (path, content, originalContent, language) =>
+        set({
+          codeViewerSelectedPath: path,
+          codeViewerFileContent: content,
+          codeViewerOriginalContent: originalContent,
+          codeViewerFileLanguage: language,
+        }),
+
+      cacheCodeViewerFile: (path, content, language) =>
+        set((state) => ({
+          codeViewerFileCache: {
+            ...state.codeViewerFileCache,
+            [path]: { content, language },
+          },
+        })),
+
+      clearCodeViewerCache: () =>
+        set({
+          codeViewerFileTree: null,
+          codeViewerSelectedPath: null,
+          codeViewerFileContent: "",
+          codeViewerOriginalContent: "",
+          codeViewerFileLanguage: "plaintext",
+          codeViewerFileCache: {},
+        }),
 
       reset: () => set(initialState),
     }),
