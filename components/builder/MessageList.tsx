@@ -18,6 +18,16 @@ export default function MessageList({ messages, isLoading }: MessageListProps) {
   return (
     <>
       {messages.map((message) => {
+        if (message.role === "system") {
+          return (
+            <div key={message.id} className="flex items-center gap-3 py-3 animate-in fade-in relative z-10">
+              <div className="flex-1 h-px bg-slate-200" />
+              <span className="text-xs text-slate-400 font-medium">{message.content}</span>
+              <div className="flex-1 h-px bg-slate-200" />
+            </div>
+          );
+        }
+
         if (message.role === "thinking") {
           return (
             <div key={message.id} className="flex justify-start animate-in fade-in slide-in-from-left-2 relative z-10">
@@ -33,7 +43,7 @@ export default function MessageList({ messages, isLoading }: MessageListProps) {
             </div>
           );
         }
-        
+
         const isUser = message.role === "user";
         
         return (

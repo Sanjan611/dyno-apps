@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import ChatPanel from "@/components/builder/ChatPanel";
+import ChatPanel, { ChatPanelRef } from "@/components/builder/ChatPanel";
 import PreviewPanel from "@/components/builder/PreviewPanel";
 import ProjectHeader from "@/components/builder/ProjectHeader";
 import NavigationWarningModal from "@/components/builder/NavigationWarningModal";
@@ -66,6 +66,7 @@ export default function BuilderPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [projectNotFound, setProjectNotFound] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const chatPanelRef = useRef<ChatPanelRef>(null);
   const router = useRouter();
   const pathname = usePathname();
   
@@ -197,6 +198,10 @@ export default function BuilderPage() {
     }
   };
 
+  const handleSaveSuccess = () => {
+    chatPanelRef.current?.addSaveMarker();
+  };
+
   const handleMouseDown = () => {
     setIsDragging(true);
   };
@@ -255,12 +260,13 @@ export default function BuilderPage() {
         projectName={projectName}
         projectId={projectId}
         onProjectNameChange={setProjectName}
+        onSaveSuccess={handleSaveSuccess}
       />
 
       <div ref={containerRef} className="flex-1 flex overflow-hidden relative">
         {/* Left Panel (Chat) */}
         <div className="h-full overflow-hidden bg-white z-10 shadow-xl shadow-slate-200/50" style={{ width: `${leftWidth}%` }}>
-          <ChatPanel />
+          <ChatPanel ref={chatPanelRef} />
         </div>
 
         {/* Resizer */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import { Terminal, RefreshCw, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +18,11 @@ import ChatInput from "./ChatInput";
 import type { Message } from "@/types";
 import { API_ENDPOINTS } from "@/lib/constants";
 
-export default function ChatPanel() {
+export interface ChatPanelRef {
+  addSaveMarker: () => void;
+}
+
+const ChatPanel = forwardRef<ChatPanelRef>(function ChatPanel(_props, ref) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -45,6 +49,19 @@ export default function ChatPanel() {
 
   const { generateCode, cancelGeneration, isGenerating } = useCodeGeneration();
   const { startSandbox, isStarting: isStartingSandbox, error: sandboxError, progressMessages, currentProgress } = useSandboxStartup();
+
+  // Expose addSaveMarker method via ref
+  useImperativeHandle(ref, () => ({
+    addSaveMarker: () => {
+      const saveMarker: Message = {
+        id: `save-${Date.now()}`,
+        role: "system",
+        content: "Project saved",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, saveMarker]);
+    },
+  }));
 
   // Auto-trigger sandbox startup on mount when projectId is available
   const hasStartedRef = useRef(false);
@@ -281,4 +298,6 @@ export default function ChatPanel() {
       />
     </div>
   );
-}
+});
+
+export default ChatPanel;
