@@ -39,6 +39,8 @@ import {
 import { REPO_DIR, LOG_PREFIXES } from "@/lib/constants";
 import { getAgentState, setAgentState } from "@/lib/server/agent-state-store";
 import { withRetry } from "@/lib/server/retry-utils";
+import { extractBamlMetrics } from "@/lib/server/coding-agent";
+import { recordTokenUsageBatch, TokenUsageRecord } from "@/lib/server/clickhouse";
 
 // ============================================================================
 // Types
@@ -229,6 +231,9 @@ export const codingAgentTask = task({
     // Create collector to track token usage and latency
     const collector = new Collector("code-generation");
 
+    // Initialize array for token usage records (batch inserted to ClickHouse at end)
+    const tokenUsageRecords: TokenUsageRecord[] = [];
+
     // Initialize empty todo list - the coding agent will create todos using todo_write
     let todoList: TodoItem[] = [];
 
@@ -253,167 +258,191 @@ export const codingAgentTask = task({
 
     let iterations = 0;
 
-    while (iterations < maxIterations) {
-      iterations++;
-      console.log(`${LOG_PREFIXES.CHAT} Iteration ${iterations}/${maxIterations}`);
+    // Wrap in try-finally to ensure metrics are always sent, even on cancellation
+    try {
+      while (iterations < maxIterations) {
+        iterations++;
+        console.log(`${LOG_PREFIXES.CHAT} Iteration ${iterations}/${maxIterations}`);
 
-      // Update metadata for thinking phase
-      await metadata.set("iteration", iterations);
-      await metadata.set("status", "thinking");
-      await metadata.set("statusMessage", `Iteration ${iterations}/${maxIterations}`);
+        // Update metadata for thinking phase
+        await metadata.set("iteration", iterations);
+        await metadata.set("status", "thinking");
+        await metadata.set("statusMessage", `Iteration ${iterations}/${maxIterations}`);
 
-      let response;
-      try {
-        response = await callCodingAgentWithRetry(
-          state,
-          workingDir,
-          todoList,
-          collector,
-          userId,
-          3
-        );
-      } catch (error) {
-        // Handle errors
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        console.error(`${LOG_PREFIXES.CHAT} CodingAgent error:`, errorMessage);
+        let response;
+        try {
+          response = await callCodingAgentWithRetry(
+            state,
+            workingDir,
+            todoList,
+            collector,
+            userId,
+            3
+          );
 
-        // Save state before erroring
-        await setAgentState(projectId, state);
+          // Log token usage and latency for this iteration
+          if (collector.last) {
+            const metrics = extractBamlMetrics(collector, false);
+            console.log(`${LOG_PREFIXES.CHAT} CodingAgent iteration ${iterations} usage:`, metrics);
 
-        await metadata.set("status", "error");
-        await metadata.set("statusMessage", errorMessage);
+            // Accumulate for batch insert to ClickHouse
+            tokenUsageRecords.push({
+              userId,
+              projectId,
+              iteration: iterations,
+              inputTokens: metrics.inputTokens ?? 0,
+              outputTokens: metrics.outputTokens ?? 0,
+              cachedInputTokens: metrics.cachedInputTokens ?? 0,
+              model: metrics.model ?? "unknown",
+            });
+          }
+        } catch (error) {
+          // Handle errors
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          console.error(`${LOG_PREFIXES.CHAT} CodingAgent error:`, errorMessage);
 
-        return {
-          success: false,
-          error: errorMessage,
-          iterations,
-        };
-      }
+          // Save state before erroring
+          await setAgentState(projectId, state);
 
-      // Check if coding agent is replying (done)
-      if (
-        response &&
-        "action" in response &&
-        response.action === "reply_to_user"
-      ) {
-        // Extract all modified files
-        const allFiles =
-          Object.keys(modifiedFiles).length > 0
-            ? modifiedFiles
-            : extractFilesFromState(state);
+          await metadata.set("status", "error");
+          await metadata.set("statusMessage", errorMessage);
 
-        const replyMessage = "message" in response ? response.message : "";
+          return {
+            success: false,
+            error: errorMessage,
+            iterations,
+          };
+        }
+
+        // Check if coding agent is replying (done)
+        if (
+          response &&
+          "action" in response &&
+          response.action === "reply_to_user"
+        ) {
+          // Extract all modified files
+          const allFiles =
+            Object.keys(modifiedFiles).length > 0
+              ? modifiedFiles
+              : extractFilesFromState(state);
+
+          const replyMessage = "message" in response ? response.message : "";
+          console.log(
+            `${LOG_PREFIXES.CHAT} Coding agent completed with reply:`,
+            replyMessage
+          );
+
+          // Add the final reply to state
+          state.push({
+            role: "assistant",
+            message: response,
+          });
+
+          // Save the final state to storage
+          await setAgentState(projectId, state);
+          console.log(
+            `${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages`
+          );
+
+          // Update metadata to complete
+          await metadata.set("status", "complete");
+          await metadata.set("statusMessage", replyMessage);
+          await metadata.set("modifiedFiles", Object.keys(allFiles));
+
+          return {
+            success: true,
+            message: replyMessage,
+            files: allFiles,
+            iterations,
+          };
+        }
+
+        // Execute the tool
+        const tool = response as FileTools | TodoTools | ReadFilesTool;
+        const toolDescription = getToolDescription(tool);
+
+        // Update metadata for tool execution
+        await metadata.set("status", "executing_tool");
+        await metadata.set("currentTool", tool.action);
+        await metadata.set("toolDescription", toolDescription);
+
+        // Log tool parameters (excluding content for WriteFileTool)
         console.log(
-          `${LOG_PREFIXES.CHAT} Coding agent completed with reply:`,
-          replyMessage
+          `${LOG_PREFIXES.CHAT} Tool call parameters:`,
+          extractToolParams(tool)
         );
 
-        // Add the final reply to state
+        console.log(`${LOG_PREFIXES.CHAT} Executing ${tool.action} tool...`);
+        const execResult = await executeSingleTool(
+          sandbox,
+          tool,
+          workingDir,
+          todoList
+        );
+        const result = execResult.result;
+
+        // Handle side effects
+        if (tool.action === "write_file" && !result.startsWith("Error")) {
+          const writeTool = tool as WriteFileTool;
+          modifiedFiles[writeTool.filePath] = writeTool.content;
+          modifiedFilePaths.push(writeTool.filePath);
+          await metadata.set("modifiedFiles", modifiedFilePaths);
+        } else if (tool.action === "todo_write" && execResult.updatedTodoList) {
+          todoList = execResult.updatedTodoList;
+          console.log(`${LOG_PREFIXES.CHAT} Todo list updated:`, todoList);
+
+          // Update metadata with todos
+          await metadata.set(
+            "todos",
+            todoList.map((t) => ({
+              content: t.content,
+              activeForm: t.activeForm || "",
+              status: t.status,
+            }))
+          );
+
+          // Check if all todos are completed
+          if (areAllTodosCompleted(todoList)) {
+            console.log(
+              `${LOG_PREFIXES.CHAT} All todos completed, agent should reply to user`
+            );
+          }
+        }
+
+        // Add tool execution to state
         state.push({
           role: "assistant",
-          message: response,
+          message: tool as AgentTools,
         });
-
-        // Save the final state to storage
-        await setAgentState(projectId, state);
-        console.log(
-          `${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages`
-        );
-
-        // Update metadata to complete
-        await metadata.set("status", "complete");
-        await metadata.set("statusMessage", replyMessage);
-        await metadata.set("modifiedFiles", Object.keys(allFiles));
-
-        return {
-          success: true,
-          message: replyMessage,
-          files: allFiles,
-          iterations,
-        };
+        state.push({
+          role: "tool",
+          message: result,
+        });
       }
 
-      // Execute the tool
-      const tool = response as FileTools | TodoTools | ReadFilesTool;
-      const toolDescription = getToolDescription(tool);
-
-      // Update metadata for tool execution
-      await metadata.set("status", "executing_tool");
-      await metadata.set("currentTool", tool.action);
-      await metadata.set("toolDescription", toolDescription);
-
-      // Log tool parameters (excluding content for WriteFileTool)
-      console.log(
-        `${LOG_PREFIXES.CHAT} Tool call parameters:`,
-        extractToolParams(tool)
+      // Handle timeout if loop exceeds max iterations
+      console.error(
+        `${LOG_PREFIXES.CHAT} Coding agent exceeded maximum iterations`
       );
+      const error =
+        "Coding agent exceeded maximum iterations. Please try again with a simpler request.";
 
-      console.log(`${LOG_PREFIXES.CHAT} Executing ${tool.action} tool...`);
-      const execResult = await executeSingleTool(
-        sandbox,
-        tool,
-        workingDir,
-        todoList
-      );
-      const result = execResult.result;
+      // Save current state even on error
+      await setAgentState(projectId, state);
 
-      // Handle side effects
-      if (tool.action === "write_file" && !result.startsWith("Error")) {
-        const writeTool = tool as WriteFileTool;
-        modifiedFiles[writeTool.filePath] = writeTool.content;
-        modifiedFilePaths.push(writeTool.filePath);
-        await metadata.set("modifiedFiles", modifiedFilePaths);
-      } else if (tool.action === "todo_write" && execResult.updatedTodoList) {
-        todoList = execResult.updatedTodoList;
-        console.log(`${LOG_PREFIXES.CHAT} Todo list updated:`, todoList);
+      await metadata.set("status", "error");
+      await metadata.set("statusMessage", error);
 
-        // Update metadata with todos
-        await metadata.set(
-          "todos",
-          todoList.map((t) => ({
-            content: t.content,
-            activeForm: t.activeForm || "",
-            status: t.status,
-          }))
-        );
-
-        // Check if all todos are completed
-        if (areAllTodosCompleted(todoList)) {
-          console.log(
-            `${LOG_PREFIXES.CHAT} All todos completed, agent should reply to user`
-          );
-        }
-      }
-
-      // Add tool execution to state
-      state.push({
-        role: "assistant",
-        message: tool as AgentTools,
-      });
-      state.push({
-        role: "tool",
-        message: result,
-      });
+      return {
+        success: false,
+        error,
+        iterations: maxIterations,
+      };
+    } finally {
+      // Always send token usage to ClickHouse, even on cancellation
+      console.log(`${LOG_PREFIXES.CHAT} Sending ${tokenUsageRecords.length} token usage records to ClickHouse...`);
+      await recordTokenUsageBatch(tokenUsageRecords);
     }
-
-    // Handle timeout if loop exceeds max iterations
-    console.error(
-      `${LOG_PREFIXES.CHAT} Coding agent exceeded maximum iterations`
-    );
-    const error =
-      "Coding agent exceeded maximum iterations. Please try again with a simpler request.";
-
-    // Save current state even on error
-    await setAgentState(projectId, state);
-
-    await metadata.set("status", "error");
-    await metadata.set("statusMessage", error);
-
-    return {
-      success: false,
-      error,
-      iterations: maxIterations,
-    };
   },
 });
