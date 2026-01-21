@@ -39,6 +39,7 @@ import { REPO_DIR, LOG_PREFIXES } from "@/lib/constants";
 import type { SSEProgressEvent } from "@/types";
 import { getAgentState, setAgentState } from "@/lib/server/agent-state-store";
 import { withRetry } from "@/lib/server/retry-utils";
+import { recordTokenUsageBatch, TokenUsageRecord } from "@/lib/server/clickhouse";
 
 // ============================================================================
 // Types
@@ -86,6 +87,7 @@ export interface CodingAgentResult {
 interface BamlMetrics {
   clientName?: string | null;
   provider?: string | null;
+  model?: string | null;
   inputTokens?: number | null;
   outputTokens?: number | null;
   cachedInputTokens?: number | null;
@@ -99,11 +101,12 @@ interface CumulativeBamlMetrics extends BamlMetrics {
 /**
  * Extracts BAML metrics from a Collector for logging
  */
-function extractBamlMetrics(collector: Collector, isCumulative: boolean = false): BamlMetrics | CumulativeBamlMetrics {
+export function extractBamlMetrics(collector: Collector, isCumulative: boolean = false): BamlMetrics | CumulativeBamlMetrics {
   if (isCumulative) {
     return {
       clientName: null, // Not applicable for cumulative
       provider: null, // Not applicable for cumulative
+      model: null, // Not applicable for cumulative
       inputTokens: collector.usage?.inputTokens ?? null,
       outputTokens: collector.usage?.outputTokens ?? null,
       cachedInputTokens: collector.usage?.cachedInputTokens ?? null,
@@ -111,36 +114,49 @@ function extractBamlMetrics(collector: Collector, isCumulative: boolean = false)
       totalCalls: collector.logs.length,
     };
   }
-  
+
   if (!collector.last) {
     return {
       clientName: null,
       provider: null,
+      model: null,
       inputTokens: null,
       outputTokens: null,
       cachedInputTokens: null,
       durationMs: null,
     };
   }
-  
+
   // Get client info from the calls array (per BAML docs: LLMCall has clientName and provider)
   // Only use the selected call for metrics
   let clientName: string | null = null;
   let provider: string | null = null;
-  
+  let model: string | null = null;
+
   if (collector.last.calls && collector.last.calls.length > 0) {
     // Find the selected call (the one that was actually used)
     const selectedCall = collector.last.calls.find((call: any) => call.selected === true);
-    
+
     if (selectedCall) {
       clientName = selectedCall.clientName ?? null;
       provider = selectedCall.provider ?? null;
+
+      // Extract model from HTTP request body (where LLM APIs expect it)
+      try {
+        const requestBody = selectedCall.httpRequest?.body?.json();
+        if (requestBody && typeof requestBody.model === "string") {
+          model = requestBody.model;
+        }
+      } catch {
+        // Ignore JSON parsing errors
+      }
     }
   }
-  
+
   return {
     clientName,
     provider,
+    model,
     inputTokens: collector.last.usage?.inputTokens ?? null,
     outputTokens: collector.last.usage?.outputTokens ?? null,
     cachedInputTokens: collector.last.usage?.cachedInputTokens ?? null,
@@ -294,7 +310,10 @@ export async function runCodingAgent(
   
   // Create collector to track token usage and latency
   const collector = new Collector("code-generation");
-  
+
+  // Initialize array for token usage records (batch inserted to ClickHouse at end)
+  const tokenUsageRecords: TokenUsageRecord[] = [];
+
   // Initialize empty todo list - the coding agent will create todos using todo_write
   let todoList: TodoItem[] = [];
 
@@ -319,18 +338,21 @@ export async function runCodingAgent(
     // Check if request was aborted before starting next iteration
     if (signal?.aborted) {
       console.log(`${LOG_PREFIXES.CHAT} Coding agent stopped by user request`);
-      
+
       // Save current state before stopping
       await setAgentState(projectId, state);
       console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
-      
+
+      // Batch send partial token usage to ClickHouse
+      await recordTokenUsageBatch(tokenUsageRecords);
+
       if (onProgress) {
         await onProgress({
           type: 'stopped',
           message: 'Processing stopped by user',
         });
       }
-      
+
       return {
         success: false,
         error: 'Processing stopped by user',
@@ -357,32 +379,50 @@ export async function runCodingAgent(
       if (collector.last) {
         const metrics = extractBamlMetrics(collector, false);
         console.log(`${LOG_PREFIXES.CHAT} CodingAgent iteration ${iterations} usage:`, metrics);
+
+        // Accumulate for batch insert to ClickHouse
+        tokenUsageRecords.push({
+          userId,
+          projectId,
+          iteration: iterations,
+          inputTokens: metrics.inputTokens ?? 0,
+          outputTokens: metrics.outputTokens ?? 0,
+          cachedInputTokens: metrics.cachedInputTokens ?? 0,
+          model: metrics.model ?? "unknown",
+        });
       }
     } catch (error) {
       // Handle BamlAbortError as a clean cancellation (not an error)
       if (error instanceof BamlAbortError) {
         console.log(`${LOG_PREFIXES.CHAT} Coding agent stopped by user request (BAML abort)`);
-        
+
         // Save current state before stopping
         await setAgentState(projectId, state);
         console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
-        
+
+        // Batch send partial token usage to ClickHouse
+        await recordTokenUsageBatch(tokenUsageRecords);
+
         if (onProgress) {
           await onProgress({
             type: 'stopped',
             message: 'Processing stopped by user',
           });
         }
-        
+
         return {
           success: false,
           error: 'Processing stopped by user',
           state: state,
         };
       }
-      
+
       // Handle other errors normally
       const errorEvent = formatErrorForStream(error, "Coding agent");
+
+      // Batch send partial token usage to ClickHouse
+      await recordTokenUsageBatch(tokenUsageRecords);
+
       if (onProgress) {
         await onProgress(errorEvent);
       }
@@ -417,7 +457,10 @@ export async function runCodingAgent(
       // Log cumulative token usage and latency
       const cumulativeMetrics = extractBamlMetrics(collector, true);
       console.log(`${LOG_PREFIXES.CHAT} CodingAgent complete - cumulative usage:`, cumulativeMetrics);
-      
+
+      // Batch send token usage to ClickHouse
+      await recordTokenUsageBatch(tokenUsageRecords);
+
       if (onProgress) {
         await onProgress({
           type: 'complete',
@@ -425,7 +468,7 @@ export async function runCodingAgent(
           files: allFiles,
         });
       }
-      
+
       return {
         success: true,
         message: replyMessage,
@@ -490,18 +533,21 @@ export async function runCodingAgent(
     // Check if request was aborted after tool execution (before next iteration)
     if (signal?.aborted) {
       console.log(`${LOG_PREFIXES.CHAT} Coding agent stopped by user request after tool execution`);
-      
+
       // Save current state before stopping
       await setAgentState(projectId, state);
       console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
-      
+
+      // Batch send partial token usage to ClickHouse
+      await recordTokenUsageBatch(tokenUsageRecords);
+
       if (onProgress) {
         await onProgress({
           type: 'stopped',
           message: 'Processing stopped by user',
         });
       }
-      
+
       return {
         success: false,
         error: 'Processing stopped by user',
@@ -550,10 +596,13 @@ export async function runCodingAgent(
   // Handle timeout if loop exceeds max iterations
   console.error(`${LOG_PREFIXES.CHAT} Coding agent exceeded maximum iterations`);
   const error = 'Coding agent exceeded maximum iterations. Please try again with a simpler request.';
-  
+
   // Save current state even on error (so user can continue from where it failed)
   await setAgentState(projectId, state);
-  
+
+  // Batch send partial token usage to ClickHouse
+  await recordTokenUsageBatch(tokenUsageRecords);
+
   if (onProgress) {
     await onProgress({
       type: 'error',
@@ -651,6 +700,9 @@ export async function runAskAgent(
   // Create collector to track token usage and latency
   const collector = new Collector("ask-mode");
 
+  // Initialize array for token usage records (batch inserted to ClickHouse at end)
+  const tokenUsageRecords: TokenUsageRecord[] = [];
+
   // Load previous state from storage, or start fresh
   let state: Message[] = (await getAgentState(projectId)) || [];
 
@@ -676,6 +728,9 @@ export async function runAskAgent(
       // Save current state before stopping
       await setAgentState(projectId, state);
       console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
+
+      // Batch send partial token usage to ClickHouse
+      await recordTokenUsageBatch(tokenUsageRecords);
 
       if (onProgress) {
         await onProgress({
@@ -709,32 +764,50 @@ export async function runAskAgent(
       if (collector.last) {
         const metrics = extractBamlMetrics(collector, false);
         console.log(`${LOG_PREFIXES.CHAT} AskAgent iteration ${iterations} usage:`, metrics);
+
+        // Accumulate for batch insert to ClickHouse
+        tokenUsageRecords.push({
+          userId,
+          projectId,
+          iteration: iterations,
+          inputTokens: metrics.inputTokens ?? 0,
+          outputTokens: metrics.outputTokens ?? 0,
+          cachedInputTokens: metrics.cachedInputTokens ?? 0,
+          model: metrics.model ?? "unknown",
+        });
       }
     } catch (error) {
       // Handle BamlAbortError as a clean cancellation (not an error)
       if (error instanceof BamlAbortError) {
         console.log(`${LOG_PREFIXES.CHAT} Ask agent stopped by user request (BAML abort)`);
-        
+
         // Save current state before stopping
         await setAgentState(projectId, state);
         console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
-        
+
+        // Batch send partial token usage to ClickHouse
+        await recordTokenUsageBatch(tokenUsageRecords);
+
         if (onProgress) {
           await onProgress({
             type: 'stopped',
             message: 'Conversation stopped by user',
           });
         }
-        
+
         return {
           success: false,
           error: 'Conversation stopped by user',
           state: state,
         };
       }
-      
+
       // Handle other errors normally
       const errorEvent = formatErrorForStream(error, "Ask agent");
+
+      // Batch send partial token usage to ClickHouse
+      await recordTokenUsageBatch(tokenUsageRecords);
+
       if (onProgress) {
         await onProgress(errorEvent);
       }
@@ -763,6 +836,9 @@ export async function runAskAgent(
       // Log cumulative token usage and latency
       const cumulativeMetrics = extractBamlMetrics(collector, true);
       console.log(`${LOG_PREFIXES.CHAT} AskAgent complete - cumulative usage:`, cumulativeMetrics);
+
+      // Batch send token usage to ClickHouse
+      await recordTokenUsageBatch(tokenUsageRecords);
 
       if (onProgress) {
         await onProgress({
@@ -822,6 +898,9 @@ export async function runAskAgent(
       await setAgentState(projectId, state);
       console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
 
+      // Batch send partial token usage to ClickHouse
+      await recordTokenUsageBatch(tokenUsageRecords);
+
       if (onProgress) {
         await onProgress({
           type: 'stopped',
@@ -853,6 +932,9 @@ export async function runAskAgent(
 
   // Save current state even on error (so user can continue from where it failed)
   await setAgentState(projectId, state);
+
+  // Batch send partial token usage to ClickHouse
+  await recordTokenUsageBatch(tokenUsageRecords);
 
   if (onProgress) {
     await onProgress({
