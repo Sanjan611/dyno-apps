@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { TypingAnimation } from "@/components/ui/typing-animation";
 import { useAuthStore } from "@/lib/store";
+import { WaitlistForm } from "@/components/waitlist-form";
 import {
   Card,
   CardContent,
@@ -120,18 +121,34 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {/* Get Started Button */}
+            {/* CTA Section */}
             <div className="mt-12 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-150">
-              <Button
-                asChild
-                size="lg"
-                className="text-lg px-8 py-6 bg-gradient-to-r from-primary to-secondary hover:opacity-90 shadow-[0_0_20px_rgba(124,58,237,0.3)] hover:shadow-[0_0_30px_rgba(124,58,237,0.5)] transition-all duration-300 rounded-xl group/btn"
-              >
-                <Link href={user ? "/project-gallery" : "/signup"}>
-                  {user ? "Go to Dashboard" : "Start Building Free"}
-                  <ArrowRight className="w-5 h-5 ml-2 group-hover/btn:translate-x-1 transition-transform" />
-                </Link>
-              </Button>
+              {user ? (
+                <>
+                  <Button
+                    asChild
+                    size="lg"
+                    className="text-lg px-8 py-6 bg-gradient-to-r from-primary to-secondary hover:opacity-90 shadow-[0_0_20px_rgba(124,58,237,0.3)] hover:shadow-[0_0_30px_rgba(124,58,237,0.5)] transition-all duration-300 rounded-xl group/btn"
+                  >
+                    <Link href="/project-gallery">
+                      Go to Dashboard
+                      <ArrowRight className="w-5 h-5 ml-2 group-hover/btn:translate-x-1 transition-transform" />
+                    </Link>
+                  </Button>
+                </>
+              ) : (
+                <Card className="max-w-md mx-auto glass-card border-primary/20">
+                  <CardHeader className="text-center pb-2">
+                    <CardTitle className="text-xl">Request Beta Access</CardTitle>
+                    <CardDescription>
+                      Join the waitlist and we&apos;ll send you an invite
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <WaitlistForm />
+                  </CardContent>
+                </Card>
+              )}
               <p className="mt-4 text-sm text-muted-foreground">
                 No credit card required · Free during beta
               </p>
@@ -233,8 +250,13 @@ export default function LandingPage() {
                 </CardContent>
                 <CardFooter>
                   <Button className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90" asChild>
-                    <Link href={user ? "/project-gallery" : "/signup"}>
-                      Start Building
+                    <Link href={user ? "/project-gallery" : "#"} onClick={(e) => {
+                      if (!user) {
+                        e.preventDefault();
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }
+                    }}>
+                      {user ? "Start Building" : "Request Access"}
                     </Link>
                   </Button>
                 </CardFooter>

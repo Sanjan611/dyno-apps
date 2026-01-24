@@ -9,11 +9,13 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public routes that don't require authentication
-  const publicRoutes = ["/", "/login", "/signup"];
-  const isPublicRoute = publicRoutes.includes(pathname);
+  const publicRoutes = ["/", "/login", "/signup", "/api/waitlist"];
+  const isPublicRoute =
+    publicRoutes.includes(pathname) ||
+    pathname.startsWith("/auth/callback");
 
   // Protected routes
-  const protectedRoutes = ["/builder", "/project-gallery"];
+  const protectedRoutes = ["/builder", "/project-gallery", "/admin"];
   const isProtectedRoute = protectedRoutes.some((route) =>
     pathname.startsWith(route)
   );
@@ -55,6 +57,23 @@ export async function middleware(request: NextRequest) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Admin route protection - check if user is in ADMIN_EMAILS
+  if (pathname.startsWith("/admin") && user) {
+    const adminEmails = process.env.ADMIN_EMAILS?.split(",").map((e) =>
+      e.trim().toLowerCase()
+    );
+
+    if (
+      !adminEmails ||
+      adminEmails.length === 0 ||
+      !user.email ||
+      !adminEmails.includes(user.email.toLowerCase())
+    ) {
+      // Not an admin - redirect to home
+      return NextResponse.redirect(new URL("/", request.url));
+    }
   }
 
   // If authenticated user tries to access login/signup, redirect to home
