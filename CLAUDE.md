@@ -200,9 +200,14 @@ User feedback is collected via a floating button and sent via Resend:
 
 **Resend Setup:**
 1. Sign up at https://resend.com
-2. Verify your domain OR use their free testing domain (`onboarding@resend.dev` as sender)
+2. Verify your domain at https://resend.com/domains (required to send emails to users)
 3. Generate API key with "Send access"
-4. Set `RESEND_API_KEY` and `FEEDBACK_EMAIL` environment variables
+4. Set environment variables:
+   - `RESEND_API_KEY` - Your API key
+   - `EMAIL_FROM` - e.g., "Dyno Apps <hello@yourdomain.com>" (must use verified domain)
+   - `FEEDBACK_EMAIL` - Email to receive user feedback
+
+Note: The testing domain (`onboarding@resend.dev`) only allows sending to your own email address.
 
 ## Key Patterns to Follow
 
@@ -285,6 +290,7 @@ The correct sequence for new projects:
 **Optional (Email/Feedback):**
 - `RESEND_API_KEY` - Resend API key for sending feedback emails
 - `FEEDBACK_EMAIL` - Email address to receive user feedback
+- `EMAIL_FROM` - Sender address for emails (e.g., "Dyno Apps <hello@yourdomain.com>"). **Required for sending to non-owner emails** - must use a verified domain from https://resend.com/domains
 
 **Optional (Observability):**
 - `BOUNDARY_API_KEY` - Boundary Studio for BAML LLM call tracing

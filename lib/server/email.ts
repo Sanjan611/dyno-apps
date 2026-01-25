@@ -32,6 +32,9 @@ const feedbackTypeLabels: Record<FeedbackType, string> = {
 
 /**
  * Sends a feedback email to the configured feedback email address
+ *
+ * Requires EMAIL_FROM env var to be set to a verified domain email
+ * (e.g., "Dyno Apps <hello@yourdomain.com>")
  */
 export async function sendFeedbackEmail({
   email,
@@ -40,17 +43,27 @@ export async function sendFeedbackEmail({
   userId,
 }: SendFeedbackEmailParams): Promise<{ success: boolean; error?: string }> {
   const feedbackEmail = process.env.FEEDBACK_EMAIL;
+  const fromEmail = process.env.EMAIL_FROM;
 
   if (!feedbackEmail) {
     console.error("[email] FEEDBACK_EMAIL environment variable not set");
     return { success: false, error: "Feedback email not configured" };
   }
 
+  if (!fromEmail) {
+    console.error("[email] EMAIL_FROM environment variable not set");
+    return {
+      success: false,
+      error:
+        "Email sender not configured. Set EMAIL_FROM to a verified domain email.",
+    };
+  }
+
   const typeLabel = feedbackTypeLabels[type];
 
   try {
     const { error } = await getResendClient().emails.send({
-      from: "Dyno Apps <onboarding@resend.dev>",
+      from: fromEmail,
       to: feedbackEmail,
       replyTo: email,
       subject: `[${typeLabel}] New feedback from Dyno Apps`,

@@ -23,17 +23,34 @@ interface SendInviteEmailParams {
 
 /**
  * Sends a beta access invite email
+ *
+ * Requires EMAIL_FROM env var to be set to a verified domain email
+ * (e.g., "Dyno Apps <hello@yourdomain.com>")
+ *
+ * The testing domain (onboarding@resend.dev) only allows sending to your own email.
+ * To send to other recipients, verify a domain at https://resend.com/domains
  */
 export async function sendInviteEmail({
   email,
   name,
   inviteLink,
 }: SendInviteEmailParams): Promise<{ success: boolean; error?: string }> {
+  const fromEmail = process.env.EMAIL_FROM;
+
+  if (!fromEmail) {
+    console.error("[invite-email] EMAIL_FROM environment variable not set");
+    return {
+      success: false,
+      error:
+        "Email sender not configured. Set EMAIL_FROM to a verified domain email.",
+    };
+  }
+
   const displayName = name || "there";
 
   try {
     const { error } = await getResendClient().emails.send({
-      from: "Dyno Apps <onboarding@resend.dev>",
+      from: fromEmail,
       to: email,
       subject: "You're invited to Dyno Apps Beta!",
       html: `
