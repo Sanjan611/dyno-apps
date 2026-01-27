@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
  * 2. Google OAuth callback
  *
  * Exchanges the code for a session and redirects to the app.
+ * For invited users who haven't set a password, redirects to /set-password.
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -45,7 +46,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // Successfully authenticated - redirect to the app
+    // Check if this is an invited user who needs to set a password
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      const passwordSet = user.user_metadata?.password_set === true;
+
+      // If user hasn't set a password yet, redirect to set-password page
+      if (!passwordSet) {
+        const setPasswordUrl = new URL("/set-password", origin);
+        return NextResponse.redirect(setPasswordUrl);
+      }
+    }
+
+    // Successfully authenticated with password set - redirect to the app
     const redirectUrl = new URL(next, origin);
     return NextResponse.redirect(redirectUrl);
   }
