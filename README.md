@@ -11,9 +11,13 @@ An AI-powered no-code mobile app builder platform. Build mobile applications usi
 - **Icons**: Lucide React
 - **State Management**: Zustand
 - **AI Framework**: BAML (Boundary ML)
-- **AI Model**: Anthropic Claude Sonnet 4.5
-- **Sandbox**: Modal
+- **AI Models**: Configurable via BAML clients (supports fallback chains)
+- **Sandbox**: Modal (isolated cloud containers)
 - **Mobile**: Expo/React Native
+- **Background Tasks**: Trigger.dev (optional, bypasses Vercel timeout)
+- **Analytics**: ClickHouse (optional, token usage tracking)
+- **Database**: Supabase (PostgreSQL + Auth)
+- **Version Control**: GitHub (automatic repo per project)
 
 ## Features
 
@@ -44,13 +48,17 @@ The system uses a single AI agent architecture:
 - **Health Checks**: Comprehensive sandbox health monitoring (process status, port listening)
 - **Smart Sandbox Reuse**: Reuses healthy existing sandboxes instead of creating new ones
 - **Project Persistence**: Supabase database with Row Level Security (RLS) for user-scoped projects
-- **GitHub Repository Integration**: 
+- **Conversation State**: Full agent conversation history persisted per project
+- **GitHub Repository Integration**:
   - Automatic private repository creation for each project
   - Repository cloning support in sandboxes
   - Repository URL tracking and management
-- **AI Code Generation**: Streaming code generation via `/api/projects/[id]/chat` using BAML + Claude Sonnet 4.5
+- **AI Code Generation**: Streaming code generation via `/api/projects/[id]/chat` using BAML
+- **Dual Execution Modes**:
+  - **SSE Streaming**: Default mode with real-time progress events
+  - **Trigger.dev**: Optional background tasks for long-running operations (bypasses Vercel timeout)
+- **Token Usage Analytics**: Optional ClickHouse integration for tracking AI model usage
 - **Expo Initialization**: Automated Expo app setup within sandboxes with repository cloning support
-- **Streaming Responses**: Server-Sent Events (SSE) for real-time progress updates during code generation
 
 ### Coming Soon
 
@@ -62,7 +70,8 @@ The system uses a single AI agent architecture:
 ### Prerequisites
 
 - Node.js 18+ or Node.js 20+
-- pnpm (recommended) or npm
+- pnpm for package management
+- bun for running scripts (preferred over npx for speed)
 
 ### Installation
 
@@ -80,17 +89,18 @@ pnpm install
 3. Set up environment variables:
 ```bash
 cp .env.local.example .env.local
-# Add required API keys:
-# - ANTHROPIC_API_KEY (for AI code generation)
+# Add required API keys (see .env.local.example for full list):
+# - ANTHROPIC_API_KEY (for AI models)
+# - OPENROUTER_API_KEY (for AI models via OpenRouter)
 # - MODAL_TOKEN_ID and MODAL_TOKEN_SECRET (for sandboxes)
-# - NEXT_PUBLIC_SUPABASE_URL (your Supabase project URL)
-# - NEXT_PUBLIC_SUPABASE_ANON_KEY (your Supabase publishable key - sb_publishable_...)
-#   Note: This should be your publishable key from the Supabase dashboard.
-#   It's safe to expose in client-side code. Never use the secret key here!
-# - BETA_INVITE_CODES (comma-separated list of invite codes for beta access, e.g., "code1,code2,code3")
-# - GITHUB_ORG_NAME (the GitHub organization where project repos will be created)
-# - GITHUB_PAT (a GitHub Personal Access Token with repo permissions for that org; keep this server-side only)
-# - BOUNDARY_API_KEY (Boundary Studio API key for BAML LLM call tracing - optional)
+# - NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (database)
+# - BETA_INVITE_CODES (comma-separated invite codes for beta access)
+# - GITHUB_ORG_NAME and GITHUB_PAT (for project repositories)
+#
+# Optional:
+# - TRIGGER_* variables (for Trigger.dev background tasks)
+# - CLICKHOUSE_* variables (for token usage analytics)
+# - RESEND_API_KEY and EMAIL_FROM (for feedback emails)
 ```
 
 4. Set up Supabase database:
@@ -136,27 +146,40 @@ This application is configured for deployment on Vercel. The build process autom
    - Install Command: `pnpm install` (or `npm install`)
 
 3. **Add Environment Variables:**
-   
+
    In the Vercel project settings, go to "Environment Variables" and add the following:
-   
+
    **Required Variables:**
-   - `ANTHROPIC_API_KEY` - For AI code generation (Claude Sonnet 4.5)
+   - `ANTHROPIC_API_KEY` - For AI code generation
+   - `OPENROUTER_API_KEY` - For AI models via OpenRouter
    - `MODAL_TOKEN_ID` - Modal sandbox authentication token ID
    - `MODAL_TOKEN_SECRET` - Modal sandbox authentication token secret
    - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase publishable key (sb_publishable_...)
-   - `BETA_INVITE_CODES` - Comma-separated list of invite codes for beta access (e.g., `beta2024,friend1,friend2`)
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase publishable key
+   - `BETA_INVITE_CODES` - Comma-separated list of invite codes for beta access
    - `GITHUB_ORG_NAME` - GitHub organization name where project repositories will be created
    - `GITHUB_PAT` - GitHub Personal Access Token with repo permissions for the organization
-   
+
+   **Optional (Trigger.dev):**
+   - `TRIGGER_SECRET_KEY` - Trigger.dev API key
+   - `TRIGGER_PROJECT_ID` - Trigger.dev project ID
+   - `NEXT_PUBLIC_TRIGGER_PUBLIC_KEY` - Trigger.dev public key for frontend
+   - `USE_TRIGGER_DEV` - Set to "true" to enable Trigger.dev mode
+   - `SUPABASE_SECRET_KEY` - Service key for background tasks (bypasses RLS)
+
+   **Optional (Analytics):**
+   - `CLICKHOUSE_HOST` - ClickHouse Cloud URL
+   - `CLICKHOUSE_USER` - ClickHouse username
+   - `CLICKHOUSE_PASSWORD` - ClickHouse password
+
    **Optional (Observability):**
    - `BOUNDARY_API_KEY` - Boundary Studio API key for BAML LLM call tracing
-   
+
    **Important Notes:**
    - Variables prefixed with `NEXT_PUBLIC_` are exposed to the browser
-   - Only use the Supabase publishable key (`sb_publishable_...`), never the secret key
-   - `GITHUB_PAT` should never be exposed to the browser (server-side only)
+   - `GITHUB_PAT` and `SUPABASE_SECRET_KEY` should never be exposed to the browser
    - Apply variables to all environments (Production, Preview, Development)
+   - See `.env.local.example` for the complete list with descriptions
 
 4. **Deploy:**
    - Click "Deploy"
@@ -168,8 +191,10 @@ This application is configured for deployment on Vercel. The build process autom
 After deployment, verify:
 - Application loads at the Vercel URL
 - Authentication works (Supabase connection)
-- AI code generation works (Anthropic API)
+- AI code generation works (API keys)
 - Sandbox creation works (Modal API)
+- (If enabled) Trigger.dev tasks execute successfully
+- (If enabled) ClickHouse metrics are recorded
 
 #### Notes
 
@@ -188,6 +213,12 @@ After deployment, verify:
 - `pnpm baml:check` - Validate BAML definitions
 - `pnpm baml:test` - Run BAML tests
 
+### Trigger.dev (optional)
+
+If using Trigger.dev for background tasks:
+- `bunx trigger.dev@latest dev --project-ref <TRIGGER_PROJECT_ID>` - Run Trigger.dev dev server locally
+- `bunx trigger.dev@latest deploy --project-ref <TRIGGER_PROJECT_ID>` - Deploy tasks to Trigger.dev Cloud
+
 ## Builder Interface
 
 The builder features a split-panel layout:
@@ -203,26 +234,24 @@ The builder features a split-panel layout:
 
 ## Architecture
 
-### BAML Agent System
+For detailed architecture documentation, see [PROJECT_ARCHITECTURE.md](./PROJECT_ARCHITECTURE.md).
 
-The AI agent is defined using BAML (Boundary ML):
+### Overview
 
-- **Coding Agent** (`coding-agent.baml`): Explores the codebase, understands user requests, creates todos based on its understanding, and implements file changes while managing progress
-- **Tools** (`tools.baml`): Shared tool definitions including file operations and todo management
+- **AI Agent**: BAML-defined coding agent with file operations and progress tracking
+- **Sandboxes**: Isolated Modal containers with in-memory storage and Expo runtime
+- **State Persistence**: Conversation history stored in Supabase per project
+- **Background Tasks**: Optional Trigger.dev integration for long-running operations
 
-### Modal Sandboxes
+### Key Components
 
-Each project runs in an isolated Modal sandbox with smart lifecycle management:
-
-- **On-Demand Creation**: Sandboxes are created when a project is opened, not at project creation
-- **In-Memory Storage**: Sandboxes use fast in-memory file storage for code execution
-- **Health Monitoring**: `/api/projects/[id]/sandbox/health` checks sandbox status, Expo process, and port availability
-- **Smart Reuse**: When opening a project, existing healthy sandboxes are reused instead of creating new ones
-- **Separate Lifecycles**: Projects and sandboxes have independent lifecycles
-  - Delete sandbox only: `DELETE /api/projects/[id]/sandbox` (keeps project)
-  - Delete project: `DELETE /api/projects/[id]` (also terminates sandbox and GitHub repo)
-- **Live Preview**: Sandboxes provide tunnel URLs for live Expo preview
-- **Repository Support**: Sandboxes can clone and work with GitHub repositories
+| Component | Purpose |
+|-----------|---------|
+| `baml_src/` | AI agent definitions and tool schemas |
+| `trigger/` | Trigger.dev background task definitions |
+| `lib/server/` | Server-side orchestration and integrations |
+| `app/api/` | Next.js API routes |
+| `hooks/` | React hooks for frontend state |
 
 ## License
 
