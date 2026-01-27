@@ -164,11 +164,12 @@ export interface SandboxInfo {
 /**
  * SSE event types for code generation streaming
  */
-export type SSEEventType = 
-  | 'status' 
-  | 'coding_iteration' 
-  | 'todo_update' 
-  | 'complete' 
+export type SSEEventType =
+  | 'status'
+  | 'agent_started'
+  | 'coding_iteration'
+  | 'todo_update'
+  | 'complete'
   | 'error'
   | 'stopped'
   | 'title_updated';
@@ -211,7 +212,7 @@ export type FileContentsMap = Record<string, string>;
  * Function to check if a value is a specific SSE event type
  */
 export function isSSEEventType(type: string): type is SSEEventType {
-  return ['status', 'coding_iteration', 'todo_update', 'complete', 'error', 'stopped', 'title_updated'].includes(type);
+  return ['status', 'agent_started', 'coding_iteration', 'todo_update', 'complete', 'error', 'stopped', 'title_updated'].includes(type);
 }
 
 /**

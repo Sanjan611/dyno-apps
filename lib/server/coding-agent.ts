@@ -306,8 +306,10 @@ export async function runCodingAgent(
   console.log(`${LOG_PREFIXES.CHAT} Starting code generation...`);
   if (onProgress) {
     await onProgress({ type: 'status', message: 'Starting code generation...' });
+    // Send agent_started event to show thinking box immediately
+    await onProgress({ type: 'agent_started', message: 'Analyzing your request...' });
   }
-  
+
   // Create collector to track token usage and latency
   const collector = new Collector("code-generation");
 
@@ -695,6 +697,8 @@ export async function runAskAgent(
   console.log(`${LOG_PREFIXES.CHAT} Starting ask mode conversation...`);
   if (onProgress) {
     await onProgress({ type: 'status', message: 'Starting conversation...' });
+    // Send agent_started event to show thinking box immediately
+    await onProgress({ type: 'agent_started', message: 'Analyzing your request...' });
   }
 
   // Create collector to track token usage and latency
