@@ -80,28 +80,42 @@ export default function PreviewPanel() {
       {/* Content Area */}
       <div className="flex-1 overflow-hidden relative flex items-center justify-center bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]">
         {activeView === "preview" ? (
-          <div className="relative w-full h-full max-w-[375px] max-h-[812px] flex flex-col shadow-2xl rounded-[3rem] border-[8px] border-gray-900 bg-black overflow-hidden my-4 mx-auto transform transition-transform hover:scale-[1.01]">
-            {/* Notch */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 h-[30px] w-[150px] bg-black rounded-b-2xl z-20 flex items-center justify-center">
-               <div className="w-16 h-1.5 bg-gray-800 rounded-full mb-1" />
-            </div>
-            
-            {/* Status Bar */}
-            <div className="h-[44px] bg-white w-full z-10 relative flex items-center justify-between px-6 pt-2 select-none">
-              <span className="text-xs font-semibold ml-2">9:41</span>
-              <div className="flex items-center gap-1.5 mr-1">
-                <Signal className="w-3.5 h-3.5" />
-                <Wifi className="w-3.5 h-3.5" />
-                <Battery className="w-4 h-4" />
+          <div className="flex flex-col items-center justify-center h-full py-4">
+            <div className="relative w-full max-w-[375px] max-h-[812px] flex-1 flex flex-col shadow-2xl rounded-[3rem] border-[8px] border-gray-900 bg-black overflow-hidden transform transition-transform hover:scale-[1.01]">
+              {/* Notch */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 h-[30px] w-[150px] bg-black rounded-b-2xl z-20 flex items-center justify-center">
+                <div className="w-16 h-1.5 bg-gray-800 rounded-full mb-1" />
               </div>
+
+              {/* Status Bar */}
+              <div className="h-[44px] bg-white w-full z-10 relative flex items-center justify-between px-6 pt-2 select-none">
+                <span className="text-xs font-semibold ml-2">9:41</span>
+                <div className="flex items-center gap-1.5 mr-1">
+                  <Signal className="w-3.5 h-3.5" />
+                  <Wifi className="w-3.5 h-3.5" />
+                  <Battery className="w-4 h-4" />
+                </div>
+              </div>
+
+              <div className="flex-1 bg-white relative overflow-hidden rounded-b-[2.5rem]">
+                <AppPreview previewUrl={previewUrl} />
+              </div>
+
+              {/* Home Indicator */}
+              <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-[120px] h-1 bg-gray-100 rounded-full opacity-50 z-20" />
             </div>
 
-            <div className="flex-1 bg-white relative overflow-hidden rounded-b-[2.5rem]">
-               <AppPreview previewUrl={previewUrl} />
-            </div>
-            
-            {/* Home Indicator */}
-            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-[120px] h-1 bg-gray-100 rounded-full opacity-50 z-20" />
+            {/* Preview Disclaimer */}
+            <p className="mt-3 text-xs text-slate-400">
+              Web preview may differ from device.{" "}
+              <button
+                onClick={() => setActiveView("test")}
+                className="text-primary hover:underline"
+              >
+                Test on device
+              </button>
+              {" "}for accuracy.
+            </p>
           </div>
         ) : activeView === "code" ? (
           <div className="w-full h-full overflow-auto bg-[#1e1e1e] p-0">
