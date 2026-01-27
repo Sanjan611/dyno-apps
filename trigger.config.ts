@@ -1,5 +1,8 @@
 import { defineConfig } from "@trigger.dev/sdk/v3";
 import { syncVercelEnvVars } from "@trigger.dev/build/extensions/core";
+import { esbuildPlugin } from "@trigger.dev/build";
+import { tsconfigPathsPlugin } from "esbuild-plugin-tsconfig-paths";
+import { execSync } from "child_process";
 
 export default defineConfig({
   project: process.env.TRIGGER_PROJECT_ID!,
@@ -14,6 +17,28 @@ export default defineConfig({
   build: {
     // BAML uses native bindings that conflict with esbuild bundling
     external: ["@boundaryml/baml"],
-    extensions: [syncVercelEnvVars()],
+    extensions: [
+      syncVercelEnvVars(),
+      // Generate BAML client before build
+      {
+        name: "baml-generate",
+        onBuildStart: async (context) => {
+          if (context.target === "deploy") {
+            console.log("Generating BAML client...");
+            execSync("npx baml generate", { stdio: "inherit" });
+            console.log("BAML client generated successfully");
+          }
+        },
+      },
+      // Resolve tsconfig path aliases (e.g., @/*)
+      esbuildPlugin(tsconfigPathsPlugin({ tsconfig: "./tsconfig.json" }), {
+        placement: "first",
+        target: "dev",
+      }),
+      esbuildPlugin(tsconfigPathsPlugin({ tsconfig: "./tsconfig.json" }), {
+        placement: "first",
+        target: "deploy",
+      }),
+    ],
   },
 });
