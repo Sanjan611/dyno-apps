@@ -203,19 +203,6 @@ export const codingAgentTask = task({
       };
     }
 
-    // Validate Anthropic API key (required by BAML)
-    if (!process.env.ANTHROPIC_API_KEY) {
-      await metadata.set("status", "error");
-      await metadata.set(
-        "statusMessage",
-        "ANTHROPIC_API_KEY environment variable is not configured"
-      );
-      return {
-        success: false,
-        error: "ANTHROPIC_API_KEY environment variable is not configured",
-      };
-    }
-
     // Initialize Modal client
     console.log(`${LOG_PREFIXES.CHAT} Getting sandbox reference...`);
     const modal = createModalClient();

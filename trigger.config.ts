@@ -1,4 +1,5 @@
 import { defineConfig } from "@trigger.dev/sdk/v3";
+import { syncVercelEnvVars } from "@trigger.dev/build/extensions/core";
 
 export default defineConfig({
   project: process.env.TRIGGER_PROJECT_ID!,
@@ -13,5 +14,6 @@ export default defineConfig({
   build: {
     // BAML uses native bindings that conflict with esbuild bundling
     external: ["@boundaryml/baml"],
+    extensions: [syncVercelEnvVars()],
   },
 });
