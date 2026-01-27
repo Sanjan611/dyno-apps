@@ -95,6 +95,44 @@ export interface AgentMetadata {
 // ============================================================================
 
 /**
+ * Formats an error into a user-friendly message
+ * Technical details are logged but not exposed to users
+ */
+function formatUserFriendlyError(error: unknown): string {
+  // Log the full technical error for debugging
+  console.error(`${LOG_PREFIXES.CHAT} Technical error details:`, error);
+
+  // For BAML errors, return a generic user-friendly message
+  if (error instanceof BamlValidationError || error instanceof BamlClientFinishReasonError) {
+    return "An error occurred while processing your request. Please try again.";
+  }
+
+  // For other errors, check if they contain sensitive technical details
+  const errorMessage = error instanceof Error ? error.message : String(error);
+
+  // List of patterns that indicate technical errors that shouldn't be shown to users
+  const technicalPatterns = [
+    /BamlError/i,
+    /Failed to parse/i,
+    /Failed to coerce/i,
+    /ParsingError/i,
+    /ValidationError/i,
+    /ECONNREFUSED/i,
+    /ETIMEDOUT/i,
+    /socket hang up/i,
+  ];
+
+  for (const pattern of technicalPatterns) {
+    if (pattern.test(errorMessage)) {
+      return "An error occurred while processing your request. Please try again.";
+    }
+  }
+
+  // For generic errors that are already user-friendly, return as-is
+  return errorMessage;
+}
+
+/**
  * Creates a configured Modal client instance
  */
 function createModalClient(): ModalClient {
@@ -284,20 +322,19 @@ export const codingAgentTask = task({
             });
           }
         } catch (error) {
-          // Handle errors
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          console.error(`${LOG_PREFIXES.CHAT} CodingAgent error:`, errorMessage);
+          // Handle errors - format for user-friendly display
+          const userFriendlyError = formatUserFriendlyError(error);
+          console.error(`${LOG_PREFIXES.CHAT} CodingAgent error (user-friendly):`, userFriendlyError);
 
           // Save state before erroring
           await setAgentState(projectId, state);
 
           await metadata.set("status", "error");
-          await metadata.set("statusMessage", errorMessage);
+          await metadata.set("statusMessage", userFriendlyError);
 
           return {
             success: false,
-            error: errorMessage,
+            error: userFriendlyError,
             iterations,
           };
         }

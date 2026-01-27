@@ -193,7 +193,46 @@ export function useCodeGeneration() {
     const setMessages = setMessagesRef.current;
     const metadata = run.metadata as AgentMetadata | undefined;
 
-    // Skip if metadata hasn't changed
+    // Handle terminal states FIRST (before metadata early-return)
+    // This ensures completion/failure is always handled even if metadata doesn't change
+    if (run.status === 'COMPLETED' && run.output) {
+      const output = run.output as { success: boolean; message?: string; error?: string };
+      const finalMessage = output.success
+        ? output.message || "App updated successfully! The changes should be visible in the preview."
+        : `Error: ${output.error || "Unknown error"}`;
+
+      setMessages((prev) =>
+        finalizeThinkingMessage(prev, thinkingMessageIdRef.current, finalMessage)
+      );
+
+      // Reset Trigger.dev state
+      setTriggerRunId(null);
+      setTriggerAccessToken(null);
+      setIsGenerating(false);
+      thinkingMessageIdRef.current = null;
+      lastMetadataRef.current = null;
+      return;
+    }
+
+    if (run.status === 'FAILED' || run.status === 'CANCELED') {
+      const errorMessage = run.status === 'CANCELED'
+        ? "Stopped processing"
+        : `Error: ${triggerError?.message || "Task failed"}`;
+
+      setMessages((prev) =>
+        finalizeThinkingMessage(prev, thinkingMessageIdRef.current, errorMessage)
+      );
+
+      // Reset Trigger.dev state
+      setTriggerRunId(null);
+      setTriggerAccessToken(null);
+      setIsGenerating(false);
+      thinkingMessageIdRef.current = null;
+      lastMetadataRef.current = null;
+      return;
+    }
+
+    // For non-terminal states, skip if metadata hasn't changed
     const metadataKey = JSON.stringify(metadata);
     if (metadataKey === lastMetadataRef.current) return;
     lastMetadataRef.current = metadataKey;
@@ -256,43 +295,6 @@ export function useCodeGeneration() {
           })
         );
       }
-    }
-
-    // Handle completion
-    if (run.status === 'COMPLETED' && run.output) {
-      const output = run.output as { success: boolean; message?: string; error?: string };
-      const finalMessage = output.success
-        ? output.message || "App updated successfully! The changes should be visible in the preview."
-        : `Error: ${output.error || "Unknown error"}`;
-
-      setMessages((prev) =>
-        finalizeThinkingMessage(prev, thinkingMessageIdRef.current, finalMessage)
-      );
-
-      // Reset Trigger.dev state
-      setTriggerRunId(null);
-      setTriggerAccessToken(null);
-      setIsGenerating(false);
-      thinkingMessageIdRef.current = null;
-      lastMetadataRef.current = null;
-    }
-
-    // Handle failure
-    if (run.status === 'FAILED' || run.status === 'CANCELED') {
-      const errorMessage = run.status === 'CANCELED'
-        ? "Stopped processing"
-        : `Error: ${triggerError?.message || "Task failed"}`;
-
-      setMessages((prev) =>
-        finalizeThinkingMessage(prev, thinkingMessageIdRef.current, errorMessage)
-      );
-
-      // Reset Trigger.dev state
-      setTriggerRunId(null);
-      setTriggerAccessToken(null);
-      setIsGenerating(false);
-      thinkingMessageIdRef.current = null;
-      lastMetadataRef.current = null;
     }
   }, [run, triggerError]);
 
@@ -430,6 +432,30 @@ export function useCodeGeneration() {
                         break;
                       }
                       break;
+                    }
+                    break;
+
+                  case 'agent_started':
+                    // Show thinking box immediately when agent starts
+                    if (!thinkingMessageId) {
+                      thinkingMessageId = Date.now().toString();
+                      setMessages((prev) => [
+                        ...prev,
+                        {
+                          id: thinkingMessageId!,
+                          role: "thinking",
+                          content: "",
+                          timestamp: new Date(),
+                          actions: [{
+                            id: `${Date.now()}-initial`,
+                            type: 'status' as AgentActionType,
+                            description: event.message || 'Analyzing your request...',
+                            timestamp: new Date(),
+                            status: 'in_progress',
+                          }],
+                          isComplete: false,
+                        },
+                      ]);
                     }
                     break;
 

@@ -209,23 +209,38 @@ export function formatErrorForStream(
     console.error(`${LOG_PREFIXES.CHAT} ${errorMessage}:`, error.message);
     console.error(`${LOG_PREFIXES.CHAT} Cancellation reason:`, error.reason);
   } else if (error instanceof BamlValidationError || error instanceof BamlClientFinishReasonError) {
-    errorMessage = `${contextPrefix}encountered a BAML error`;
+    // User-friendly message for BAML errors - don't expose technical details
+    errorMessage = "An error occurred while processing your request. Please try again.";
     errorDetails = error.detailed_message || error.message;
-    console.error(`${LOG_PREFIXES.CHAT} ${errorMessage}:`, error.message);
+    console.error(`${LOG_PREFIXES.CHAT} BAML error:`, error.message);
     console.error(`${LOG_PREFIXES.CHAT} BAML error detailed message:`, error.detailed_message);
     if (error.raw_output) {
       console.error(`${LOG_PREFIXES.CHAT} BAML error raw output:`, error.raw_output);
     }
   } else {
-    errorMessage = error instanceof Error ? error.message : String(error);
-    if (errorMessage.includes("BamlError:")) {
-      console.error(`${LOG_PREFIXES.CHAT} ${contextPrefix}BAML error:`, errorMessage);
+    const rawMessage = error instanceof Error ? error.message : String(error);
+
+    // Check if this looks like a technical error that shouldn't be shown to users
+    const technicalPatterns = [
+      /BamlError/i,
+      /Failed to parse/i,
+      /Failed to coerce/i,
+      /ParsingError/i,
+    ];
+
+    const isTechnicalError = technicalPatterns.some(pattern => pattern.test(rawMessage));
+
+    if (isTechnicalError) {
+      errorMessage = "An error occurred while processing your request. Please try again.";
+      console.error(`${LOG_PREFIXES.CHAT} ${contextPrefix}Technical error:`, rawMessage);
     } else {
-      console.error(`${LOG_PREFIXES.CHAT} ${contextPrefix}Error:`, errorMessage);
-      if (error instanceof Error) {
-        console.error(`${LOG_PREFIXES.CHAT} Error stack:`, error.stack);
-        errorDetails = error.stack;
-      }
+      errorMessage = rawMessage;
+      console.error(`${LOG_PREFIXES.CHAT} ${contextPrefix}Error:`, rawMessage);
+    }
+
+    if (error instanceof Error) {
+      console.error(`${LOG_PREFIXES.CHAT} Error stack:`, error.stack);
+      errorDetails = error.stack;
     }
   }
 
@@ -306,8 +321,10 @@ export async function runCodingAgent(
   console.log(`${LOG_PREFIXES.CHAT} Starting code generation...`);
   if (onProgress) {
     await onProgress({ type: 'status', message: 'Starting code generation...' });
+    // Send agent_started event to show thinking box immediately
+    await onProgress({ type: 'agent_started', message: 'Analyzing your request...' });
   }
-  
+
   // Create collector to track token usage and latency
   const collector = new Collector("code-generation");
 
@@ -695,6 +712,8 @@ export async function runAskAgent(
   console.log(`${LOG_PREFIXES.CHAT} Starting ask mode conversation...`);
   if (onProgress) {
     await onProgress({ type: 'status', message: 'Starting conversation...' });
+    // Send agent_started event to show thinking box immediately
+    await onProgress({ type: 'agent_started', message: 'Analyzing your request...' });
   }
 
   // Create collector to track token usage and latency
