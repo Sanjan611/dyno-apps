@@ -180,8 +180,8 @@ The builder store holds the current project/sandbox session state. Only user pre
 - Redirects authenticated users away from `/login` and `/signup`
 
 **Beta Access:** `app/api/auth/signup/route.ts`
-- Requires invite code from `BETA_INVITE_CODES` environment variable (comma-separated)
-- Returns 403 for invalid codes
+- Requires approval via waitlist system (users must be approved before signing up)
+- Returns 403 for unapproved or pending emails
 
 **Supabase Integration:**
 - Client: `lib/supabase/client.ts` (browser)
@@ -284,7 +284,7 @@ The correct sequence for new projects:
 - `OPENROUTER_API_KEY` - GLM 4.6 primary model
 - `MODAL_TOKEN_ID` + `MODAL_TOKEN_SECRET` - Modal sandbox API
 - `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase
-- `BETA_INVITE_CODES` - Comma-separated invite codes (e.g., "code1,code2")
+- `ADMIN_EMAILS` - Comma-separated admin emails for waitlist management
 - `GITHUB_ORG_NAME` + `GITHUB_PAT` - GitHub org and personal access token
 
 **Optional (Email/Feedback):**

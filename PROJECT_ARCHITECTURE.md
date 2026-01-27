@@ -305,7 +305,7 @@ User Request
 
 #### Beta Access
 
-Sign-up requires invite code from `BETA_INVITE_CODES` environment variable.
+Sign-up requires approval via the waitlist system. Users join the waitlist, admins approve them, then users can create accounts.
 
 ### 9. API Route Structure
 
@@ -443,7 +443,7 @@ See [.env.local.example](./.env.local.example) for the complete list with descri
 | `MODAL_TOKEN_SECRET` | Modal sandbox auth |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase public key |
-| `BETA_INVITE_CODES` | Comma-separated invite codes |
+| `ADMIN_EMAILS` | Comma-separated admin emails |
 | `GITHUB_ORG_NAME` | GitHub org for repos |
 | `GITHUB_PAT` | GitHub personal access token |
 

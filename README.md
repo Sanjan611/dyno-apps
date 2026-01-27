@@ -60,6 +60,30 @@ The system uses a single AI agent architecture:
 - **Token Usage Analytics**: Optional ClickHouse integration for tracking AI model usage
 - **Expo Initialization**: Automated Expo app setup within sandboxes with repository cloning support
 
+### Beta Access & Waitlist
+
+The application uses a waitlist system for controlled beta access:
+
+**User Flow:**
+1. **Join Waitlist**: Users visit the landing page and submit the waitlist form with their email (name and use case are optional)
+2. **Pending Review**: Submissions are stored with "pending" status in the database
+3. **Admin Approval**: Admins review requests at `/admin` and click "Approve & Notify"
+4. **Email Notification**: Approved users receive an email with a link to create their account
+5. **Sign Up**: Users create an account at `/signup` using their approved email
+6. **Access Granted**: Account is created and user can log in to start building
+
+**Admin Dashboard (`/admin`):**
+- View all waitlist entries with stats (total, pending, approved, rejected)
+- Filter entries by status
+- Review user-submitted use cases
+- Approve users and send notification emails
+- Resend invitations if needed
+
+**Configuration:**
+- `ADMIN_EMAILS` - Comma-separated list of emails that can access the admin dashboard
+- `RESEND_API_KEY` - Required for sending approval notification emails
+- `EMAIL_FROM` - Sender address (must be from a verified Resend domain)
+
 ### Coming Soon
 
 - Export functionality for generated apps
@@ -94,7 +118,7 @@ cp .env.local.example .env.local
 # - OPENROUTER_API_KEY (for AI models via OpenRouter)
 # - MODAL_TOKEN_ID and MODAL_TOKEN_SECRET (for sandboxes)
 # - NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (database)
-# - BETA_INVITE_CODES (comma-separated invite codes for beta access)
+# - ADMIN_EMAILS (comma-separated admin emails for waitlist management)
 # - GITHUB_ORG_NAME and GITHUB_PAT (for project repositories)
 #
 # Optional:
@@ -156,7 +180,7 @@ This application is configured for deployment on Vercel. The build process autom
    - `MODAL_TOKEN_SECRET` - Modal sandbox authentication token secret
    - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase publishable key
-   - `BETA_INVITE_CODES` - Comma-separated list of invite codes for beta access
+   - `ADMIN_EMAILS` - Comma-separated list of admin emails for waitlist management
    - `GITHUB_ORG_NAME` - GitHub organization name where project repositories will be created
    - `GITHUB_PAT` - GitHub Personal Access Token with repo permissions for the organization
 
