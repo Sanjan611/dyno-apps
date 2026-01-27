@@ -314,6 +314,23 @@ export default function AdminPage() {
                             )}
                           </Button>
                         )}
+                        {entry.status === "approved" && entry.invited_at && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => sendInvite(entry.id)}
+                            disabled={sendingInvite === entry.id}
+                          >
+                            {sendingInvite === entry.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <>
+                                <Mail className="w-4 h-4 mr-2" />
+                                Resend Invite
+                              </>
+                            )}
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

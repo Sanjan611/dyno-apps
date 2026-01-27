@@ -57,13 +57,6 @@ export async function POST(
       );
     }
 
-    if (entry.status === "approved" && entry.invited_at) {
-      return NextResponse.json(
-        { success: false, error: "User has already been invited" },
-        { status: 400 }
-      );
-    }
-
     // Generate invite link using Supabase admin API
     const serviceClient = createServiceClient();
 
