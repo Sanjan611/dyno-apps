@@ -1,7 +1,5 @@
 import { defineConfig } from "@trigger.dev/sdk/v3";
 import { syncVercelEnvVars } from "@trigger.dev/build/extensions/core";
-import { esbuildPlugin } from "@trigger.dev/build";
-import { tsconfigPathsPlugin } from "esbuild-plugin-tsconfig-paths";
 import { execSync } from "child_process";
 
 export default defineConfig({
@@ -30,15 +28,6 @@ export default defineConfig({
           }
         },
       },
-      // Resolve tsconfig path aliases (e.g., @/*)
-      esbuildPlugin(tsconfigPathsPlugin({ tsconfig: "./tsconfig.json" }), {
-        placement: "first",
-        target: "dev",
-      }),
-      esbuildPlugin(tsconfigPathsPlugin({ tsconfig: "./tsconfig.json" }), {
-        placement: "first",
-        target: "deploy",
-      }),
     ],
   },
 });

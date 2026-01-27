@@ -10,7 +10,7 @@
 
 import { task, metadata } from "@trigger.dev/sdk/v3";
 import { ModalClient } from "modal";
-import { b } from "@/baml_client";
+import { b } from "../baml_client";
 import {
   BamlValidationError,
   BamlClientFinishReasonError,
@@ -29,18 +29,18 @@ import type {
   TodoWriteTool,
   TodoTools,
   AgentTools,
-} from "@/baml_client/types";
+} from "../baml_client/types";
 import {
   executeSingleTool,
   extractFilesFromState,
   areAllTodosCompleted,
   extractToolParams,
-} from "@/lib/server/tool-executors";
-import { REPO_DIR, LOG_PREFIXES } from "@/lib/constants";
-import { getAgentState, setAgentState } from "@/lib/server/agent-state-store";
-import { withRetry } from "@/lib/server/retry-utils";
-import { extractBamlMetrics } from "@/lib/server/coding-agent";
-import { recordTokenUsageBatch, TokenUsageRecord } from "@/lib/server/clickhouse";
+} from "../lib/server/tool-executors";
+import { REPO_DIR, LOG_PREFIXES } from "../lib/constants";
+import { getAgentState, setAgentState } from "../lib/server/agent-state-store";
+import { withRetry } from "../lib/server/retry-utils";
+import { extractBamlMetrics } from "../lib/server/coding-agent";
+import { recordTokenUsageBatch, TokenUsageRecord } from "../lib/server/clickhouse";
 
 // ============================================================================
 // Types
