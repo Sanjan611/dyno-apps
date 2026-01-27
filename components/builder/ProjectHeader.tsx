@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
-import { Home, FolderOpen, Save, MoreVertical } from "lucide-react";
+import { Home, FolderOpen, Save, MoreVertical, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DEFAULT_PROJECT_NAME, API_ENDPOINTS } from "@/lib/constants";
@@ -156,16 +156,17 @@ export default function ProjectHeader({
   };
 
   return (
-    <header className="h-14 border-b bg-white/80 backdrop-blur-md flex items-center justify-between px-4 z-50">
+    <header className="h-14 border-b bg-white/80 backdrop-blur-md grid grid-cols-3 items-center px-4 z-50">
+      {/* Left section */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild className="hover:bg-slate-100 text-muted-foreground">
           <Link href="/">
             <Home className="w-5 h-5" />
           </Link>
         </Button>
-        
+
         <div className="h-6 w-[1px] bg-slate-200" />
-        
+
         <div>
           <div className="flex items-center gap-2">
             <Input
@@ -185,15 +186,26 @@ export default function ProjectHeader({
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      {/* Center section */}
+      <div className="flex items-center justify-center gap-2">
+        <div className="w-7 h-7 rounded-md bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+          <Zap className="w-4 h-4 text-white" fill="white" />
+        </div>
+        <span className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary">
+          Dyno Apps
+        </span>
+      </div>
+
+      {/* Right section */}
+      <div className="flex items-center gap-2 justify-end">
         <Button variant="outline" size="sm" asChild className="hidden sm:flex gap-2 bg-white hover:bg-slate-50">
           <Link href="/project-gallery">
             <FolderOpen className="w-4 h-4" />
             My Projects
           </Link>
         </Button>
-        <Button 
-          size="sm" 
+        <Button
+          size="sm"
           className="bg-primary hover:bg-primary/90 text-white shadow-sm"
           onClick={handleSave}
           disabled={isSaving || !projectId}
