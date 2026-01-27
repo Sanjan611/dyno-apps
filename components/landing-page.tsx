@@ -76,13 +76,22 @@ export default function LandingPage() {
                 </Button>
               </div>
             ) : (
-              <Button
-                variant="default"
-                asChild
-                className="bg-black hover:bg-gray-800 text-white shadow-lg hover:shadow-xl transition-all"
-              >
-                <Link href="/login">Login</Link>
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  asChild
+                  className="shadow-sm hover:shadow-md transition-all"
+                >
+                  <Link href="/signup">Sign Up</Link>
+                </Button>
+                <Button
+                  variant="default"
+                  asChild
+                  className="bg-black hover:bg-gray-800 text-white shadow-lg hover:shadow-xl transition-all"
+                >
+                  <Link href="/login">Login</Link>
+                </Button>
+              </div>
             )}
           </div>
         </div>
@@ -241,6 +250,7 @@ export default function LandingPage() {
               <h3 className="font-semibold mb-3">Product</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><Link href="#features" className="hover:text-foreground">Features</Link></li>
+                <li><Link href="/signup" className="hover:text-foreground">Sign Up</Link></li>
                 <li><Link href="/login" className="hover:text-foreground">Login</Link></li>
               </ul>
             </div>

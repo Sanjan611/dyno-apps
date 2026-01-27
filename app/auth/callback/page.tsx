@@ -8,13 +8,9 @@ import { Loader2 } from "lucide-react";
 /**
  * Auth Callback Page (Client-Side)
  *
- * Handles both:
- * 1. Invite link redemption (tokens in URL hash fragment)
- * 2. OAuth callback (code in query params)
- *
- * Must be client-side because Supabase invite links put tokens in the
- * URL hash fragment (e.g., #access_token=...), which is never sent to
- * the server - only accessible via window.location.hash in the browser.
+ * Handles OAuth callback (code exchange).
+ * Must be client-side because some auth flows put tokens in the
+ * URL hash fragment, which is only accessible via window.location.hash.
  */
 export default function AuthCallbackPage() {
   const router = useRouter();
@@ -24,7 +20,7 @@ export default function AuthCallbackPage() {
     const handleAuthCallback = async () => {
       const supabase = createClient();
 
-      // Check for error in URL hash (from invite links)
+      // Check for error in URL hash
       const hashParams = new URLSearchParams(
         window.location.hash.substring(1)
       );
@@ -66,7 +62,7 @@ export default function AuthCallbackPage() {
         }
       }
 
-      // Get user to check metadata
+      // Get user to verify auth succeeded
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -76,19 +72,10 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      // Check if user needs to set password (invited users only)
-      const isInvitedUser = user.user_metadata?.invited === true;
-      const passwordSet = user.user_metadata?.password_set === true;
-      const needsPasswordSetup = isInvitedUser && !passwordSet;
-
-      if (needsPasswordSetup) {
-        router.push("/set-password");
-      } else {
-        // Get redirect destination from query params or default
-        const searchParams = new URLSearchParams(window.location.search);
-        const next = searchParams.get("next") || "/project-gallery";
-        router.push(next);
-      }
+      // Get redirect destination from query params or default
+      const searchParams = new URLSearchParams(window.location.search);
+      const next = searchParams.get("next") || "/project-gallery";
+      router.push(next);
     };
 
     handleAuthCallback();

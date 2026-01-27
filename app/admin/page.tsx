@@ -292,7 +292,7 @@ export default function AdminPage() {
                             ) : (
                               <>
                                 <Mail className="w-4 h-4 mr-2" />
-                                Send Invite
+                                Approve & Notify
                               </>
                             )}
                           </Button>
@@ -309,7 +309,7 @@ export default function AdminPage() {
                             ) : (
                               <>
                                 <Mail className="w-4 h-4 mr-2" />
-                                Send Invite
+                                Send Notification
                               </>
                             )}
                           </Button>
@@ -326,7 +326,7 @@ export default function AdminPage() {
                             ) : (
                               <>
                                 <Mail className="w-4 h-4 mr-2" />
-                                Resend Invite
+                                Resend Notification
                               </>
                             )}
                           </Button>

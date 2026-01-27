@@ -150,3 +150,29 @@ export async function markAsInvited(
 
   return { success: true };
 }
+
+/**
+ * Get waitlist entry by email
+ */
+export async function getWaitlistEntryByEmail(
+  email: string
+): Promise<WaitlistEntry | null> {
+  const supabase = createServiceClient();
+
+  const { data, error } = await supabase
+    .from("waitlist")
+    .select("*")
+    .eq("email", email.toLowerCase().trim())
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      // No rows returned
+      return null;
+    }
+    console.error("[waitlistStore] Failed to get waitlist entry by email:", error);
+    return null;
+  }
+
+  return data as WaitlistEntry;
+}

@@ -1,7 +1,7 @@
 /**
- * Invite Email Template
+ * Approval Email Template
  *
- * Sends beta access invite emails via Resend
+ * Sends beta access approval notification emails via Resend
  */
 
 import { Resend } from "resend";
@@ -15,14 +15,14 @@ function getResendClient(): Resend {
   return resendClient;
 }
 
-interface SendInviteEmailParams {
+interface SendApprovalEmailParams {
   email: string;
   name?: string | null;
-  inviteLink: string;
+  signupUrl: string;
 }
 
 /**
- * Sends a beta access invite email
+ * Sends a beta access approval notification email
  *
  * Requires EMAIL_FROM env var to be set to a verified domain email
  * (e.g., "Dyno Apps <hello@yourdomain.com>")
@@ -30,15 +30,15 @@ interface SendInviteEmailParams {
  * The testing domain (onboarding@resend.dev) only allows sending to your own email.
  * To send to other recipients, verify a domain at https://resend.com/domains
  */
-export async function sendInviteEmail({
+export async function sendApprovalEmail({
   email,
   name,
-  inviteLink,
-}: SendInviteEmailParams): Promise<{ success: boolean; error?: string }> {
+  signupUrl,
+}: SendApprovalEmailParams): Promise<{ success: boolean; error?: string }> {
   const fromEmail = process.env.EMAIL_FROM;
 
   if (!fromEmail) {
-    console.error("[invite-email] EMAIL_FROM environment variable not set");
+    console.error("[approval-email] EMAIL_FROM environment variable not set");
     return {
       success: false,
       error:
@@ -52,7 +52,7 @@ export async function sendInviteEmail({
     const { error } = await getResendClient().emails.send({
       from: fromEmail,
       to: email,
-      subject: "You're invited to Dyno Apps Beta!",
+      subject: "You've been approved for Dyno Apps Beta!",
       html: `
         <!DOCTYPE html>
         <html>
@@ -66,7 +66,7 @@ export async function sendInviteEmail({
                 Welcome to Dyno Apps!
               </h1>
               <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0; font-size: 16px;">
-                Your beta access is ready
+                Your beta access has been approved
               </p>
             </div>
 
@@ -77,13 +77,13 @@ export async function sendInviteEmail({
 
               <p style="margin: 0 0 24px 0; font-size: 16px; color: #4b5563;">
                 Great news! You've been approved for beta access to Dyno Apps.
-                Click the button below to set up your account and start building.
+                Click the button below to create your account and start building.
               </p>
 
               <div style="text-align: center; margin: 32px 0;">
-                <a href="${inviteLink}"
+                <a href="${signupUrl}"
                    style="display: inline-block; background: linear-gradient(135deg, #7c3aed 0%, #db2777 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
-                  Accept Invite & Get Started
+                  Create Your Account
                 </a>
               </div>
 
@@ -91,7 +91,7 @@ export async function sendInviteEmail({
                 If the button doesn't work, copy and paste this link into your browser:
               </p>
               <p style="margin: 8px 0 0 0; font-size: 12px; color: #9ca3af; word-break: break-all;">
-                ${inviteLink}
+                ${signupUrl}
               </p>
 
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;">
@@ -117,13 +117,13 @@ export async function sendInviteEmail({
     });
 
     if (error) {
-      console.error("[invite-email] Failed to send invite:", error);
+      console.error("[approval-email] Failed to send approval email:", error);
       return { success: false, error: error.message };
     }
 
     return { success: true };
   } catch (error) {
-    console.error("[invite-email] Exception sending invite:", error);
+    console.error("[approval-email] Exception sending approval email:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",

@@ -14,9 +14,6 @@ export async function middleware(request: NextRequest) {
     publicRoutes.includes(pathname) ||
     pathname.startsWith("/auth/callback");
 
-  // Set-password route (requires auth but is special case)
-  const isSetPasswordRoute = pathname === "/set-password";
-
   // Protected routes
   const protectedRoutes = ["/builder", "/project-gallery", "/admin"];
   const isProtectedRoute = protectedRoutes.some((route) =>
@@ -55,35 +52,11 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Check if user needs password setup (invited users only)
-  const isInvitedUser = user?.user_metadata?.invited === true;
-  const passwordSet = user?.user_metadata?.password_set === true;
-  const needsPasswordSetup = isInvitedUser && !passwordSet;
-
-  // Handle /set-password route
-  if (isSetPasswordRoute) {
-    if (!user) {
-      // No user - redirect to login
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
-    if (!needsPasswordSetup) {
-      // User doesn't need password setup - redirect to home
-      return NextResponse.redirect(new URL("/", request.url));
-    }
-    // User needs password setup - allow access
-    return supabaseResponse;
-  }
-
   // If accessing a protected route and not authenticated, redirect to login
   if (isProtectedRoute && !user) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
-  }
-
-  // If authenticated but needs password setup, redirect to set-password
-  if (isProtectedRoute && user && needsPasswordSetup) {
-    return NextResponse.redirect(new URL("/set-password", request.url));
   }
 
   // Admin route protection - check if user is in ADMIN_EMAILS
@@ -103,12 +76,8 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // If authenticated user tries to access login/signup, redirect appropriately
+  // If authenticated user tries to access login/signup, redirect to home
   if ((pathname === "/login" || pathname === "/signup") && user) {
-    // If user needs password setup, redirect to set-password
-    if (needsPasswordSetup) {
-      return NextResponse.redirect(new URL("/set-password", request.url));
-    }
     return NextResponse.redirect(new URL("/", request.url));
   }
 
@@ -127,4 +96,3 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
-

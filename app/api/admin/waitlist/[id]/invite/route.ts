@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createServiceClient } from "@/lib/supabase/service";
 import {
   getWaitlistEntryById,
   markAsInvited,
 } from "@/lib/server/waitlistStore";
-import { sendInviteEmail } from "@/lib/server/invite-email";
+import { sendApprovalEmail } from "@/lib/server/approval-email";
 
 /**
  * Check if the current user is an admin
@@ -57,41 +56,16 @@ export async function POST(
       );
     }
 
-    // Generate invite link using Supabase admin API
-    const serviceClient = createServiceClient();
-
+    // Build the signup URL
     const origin =
       request.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "";
-    const redirectTo = `${origin}/auth/callback`;
+    const signupUrl = `${origin}/signup`;
 
-    const { data: inviteData, error: inviteError } =
-      await serviceClient.auth.admin.generateLink({
-        type: "invite",
-        email: entry.email,
-        options: {
-          redirectTo,
-          data: { invited: true },
-        },
-      });
-
-    if (inviteError || !inviteData?.properties?.action_link) {
-      console.error("[admin/invite] Failed to generate invite link:", inviteError);
-      return NextResponse.json(
-        {
-          success: false,
-          error: inviteError?.message || "Failed to generate invite link",
-        },
-        { status: 500 }
-      );
-    }
-
-    const inviteLink = inviteData.properties.action_link;
-
-    // Send the invite email
-    const emailResult = await sendInviteEmail({
+    // Send the approval notification email
+    const emailResult = await sendApprovalEmail({
       email: entry.email,
       name: entry.name,
-      inviteLink,
+      signupUrl,
     });
 
     if (!emailResult.success) {
@@ -102,7 +76,7 @@ export async function POST(
       );
     }
 
-    // Mark as invited in the database
+    // Mark as approved in the database
     const updateResult = await markAsInvited(id);
 
     if (!updateResult.success) {
@@ -115,14 +89,14 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: `Invite sent to ${entry.email}`,
+      message: `Approval notification sent to ${entry.email}`,
     });
   } catch (error) {
     console.error("[admin/invite] Error:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to send invite",
+        error: error instanceof Error ? error.message : "Failed to send notification",
       },
       { status: 500 }
     );
