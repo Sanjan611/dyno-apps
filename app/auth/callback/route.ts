@@ -45,6 +45,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
+    // Check if user needs to set password (invited users only)
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const isInvitedUser = user?.user_metadata?.invited === true;
+    const passwordSet = user?.user_metadata?.password_set === true;
+    const needsPasswordSetup = isInvitedUser && !passwordSet;
+
+    if (needsPasswordSetup) {
+      const setPasswordUrl = new URL("/set-password", origin);
+      return NextResponse.redirect(setPasswordUrl);
+    }
+
     // Successfully authenticated - redirect to the app
     const redirectUrl = new URL(next, origin);
     return NextResponse.redirect(redirectUrl);

@@ -77,6 +77,7 @@ export async function POST(
         email: entry.email,
         options: {
           redirectTo,
+          data: { invited: true },
         },
       });
 
