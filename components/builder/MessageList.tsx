@@ -45,12 +45,12 @@ export default function MessageList({ messages, isLoading }: MessageListProps) {
         }
 
         const isUser = message.role === "user";
-        
+
         return (
           <div
             key={message.id}
             className={cn(
-              "flex items-end gap-3 animate-in fade-in slide-in-from-bottom-2 relative z-10 group",
+              "flex items-end gap-3 animate-in fade-in slide-in-from-bottom-2 relative z-10 group pb-5",
               isUser ? "justify-end pr-2" : "justify-start pl-2"
             )}
           >
@@ -59,35 +59,35 @@ export default function MessageList({ messages, isLoading }: MessageListProps) {
                 <Bot className="w-5 h-5" />
               </div>
             )}
-            
+
             <div
               className={cn(
-                "max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-sm relative transition-all duration-200",
+                "rounded-2xl px-5 py-3.5 text-sm shadow-sm relative transition-all duration-200",
                 isUser
-                  ? "bg-gradient-to-br from-primary to-secondary text-white rounded-br-sm shadow-primary/20 hover:shadow-primary/30 border border-white/10"
-                  : "bg-white border border-slate-100 text-slate-700 rounded-bl-sm hover:shadow-md"
+                  ? "max-w-[85%] ml-12 bg-gradient-to-br from-primary to-secondary text-white rounded-br-sm shadow-primary/20 hover:shadow-primary/30 border border-white/10"
+                  : "max-w-[70%] bg-white border border-slate-100 text-slate-700 rounded-bl-sm hover:shadow-md"
               )}
             >
               <div className={cn(
                 "prose prose-sm max-w-none break-words whitespace-pre-wrap leading-relaxed",
-                isUser ? "dark:prose-invert text-white/95" : "text-slate-700"
+                isUser ? "dark:prose-invert text-white/95 selection:bg-white/30 selection:text-white" : "text-slate-700"
               )}>
                 {message.content}
-              </div>
-              <div className={cn(
-                "text-[10px] mt-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity",
-                isUser ? "text-white/60 justify-end" : "text-slate-400"
-              )}>
-                <span>{message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                {isUser && <span className="text-[9px] uppercase tracking-wider opacity-80 border border-white/20 px-1 rounded-[3px] ml-1">{message.mode || 'ask'}</span>}
               </div>
             </div>
 
             {isUser && (
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-slate-600 shadow-sm flex-shrink-0 mb-1 opacity-0 group-hover:opacity-100 transition-opacity scale-90">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-slate-600 shadow-sm flex-shrink-0 mb-1">
                 <User className="w-4 h-4" />
               </div>
             )}
+
+            <div className={cn(
+              "absolute -bottom-1 text-[10px]",
+              isUser ? "right-12 text-slate-400" : "left-12 text-slate-400"
+            )}>
+              {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </div>
           </div>
         );
       })}
