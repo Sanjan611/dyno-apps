@@ -207,10 +207,8 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatPanel({ 
     <div className="flex flex-col h-full bg-white relative">
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/30 relative"
+        className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/30 bg-grid-pattern"
       >
-        <div className="absolute inset-0 bg-grid-pattern opacity-[0.4] pointer-events-none" />
-
         <MessageList messages={messages} />
       </div>
 
