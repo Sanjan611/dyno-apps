@@ -244,6 +244,25 @@ When working with SSE endpoints:
 4. Format events as: `data: ${JSON.stringify(payload)}\n\n`
 5. Handle errors by sending `{type: "error", error: message}` before closing stream
 
+### UI Patterns
+
+When building scrollable containers:
+
+1. **Always add `overflow-auto`** to containers that may have dynamic or expandable content
+2. **Avoid `items-center` on scrollable containers** - when content overflows, centering causes the top to be cut off and unscrollable. Instead:
+   - Use `items-start` on the container
+   - Add `my-auto` to the inner content for vertical centering when there's space
+3. **Example pattern for centered content that may overflow:**
+   ```tsx
+   // Container: items-start + overflow-auto
+   <div className="flex items-start justify-center overflow-auto h-full">
+     // Content: my-auto for centering when space available
+     <div className="my-auto">
+       {/* Content that may expand */}
+     </div>
+   </div>
+   ```
+
 ### Modal Sandbox Operations
 
 When interacting with sandboxes:
