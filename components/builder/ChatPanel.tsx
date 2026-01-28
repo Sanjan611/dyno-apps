@@ -119,7 +119,8 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatPanel({ 
       const thinkingMessageId = (Date.now() + 1).toString();
       const thinkingMessage: Message = {
         id: thinkingMessageId,
-        role: "thinking",
+        role: "assistant",
+        variant: "thinking",
         content: "",
         timestamp: new Date(),
         actions: [{

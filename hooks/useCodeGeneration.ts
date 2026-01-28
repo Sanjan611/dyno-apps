@@ -26,7 +26,7 @@ function finalizeThinkingMessage(
           status: 'completed' as const,
         })),
         isComplete: true,
-        replyContent: finalContent,
+        content: finalContent,
       };
     }
     return msg;
@@ -242,7 +242,8 @@ export function useCodeGeneration() {
         ...prev,
         {
           id: thinkingMessageIdRef.current!,
-          role: "thinking",
+          role: "assistant",
+          variant: "thinking",
           content: "",
           timestamp: new Date(),
           actions: [],
@@ -448,7 +449,8 @@ export function useCodeGeneration() {
                         ...prev,
                         {
                           id: thinkingMessageId!,
-                          role: "thinking",
+                          role: "assistant",
+                          variant: "thinking",
                           content: "",
                           timestamp: new Date(),
                           actions: [{
@@ -480,7 +482,8 @@ export function useCodeGeneration() {
                           ...prev,
                           {
                             id: thinkingMessageId!,
-                            role: "thinking",
+                            role: "assistant",
+                            variant: "thinking",
                             content: "",
                             timestamp: new Date(),
                             actions: [],

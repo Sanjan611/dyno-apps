@@ -27,7 +27,7 @@ export default function MessageList({ messages }: MessageListProps) {
           );
         }
 
-        if (message.role === "thinking") {
+        if (message.role === "assistant" && message.variant === "thinking") {
           return (
             <div key={message.id} className="flex justify-start animate-in fade-in slide-in-from-left-2 relative z-10 pl-2 group pb-5">
               <div className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-primary shadow-sm flex-shrink-0 mb-1 group-hover:scale-105 transition-transform mr-3">
@@ -38,10 +38,10 @@ export default function MessageList({ messages }: MessageListProps) {
                   actions={message.actions || []}
                   isComplete={message.isComplete || false}
                 />
-                {message.replyContent && (
+                {message.content && (
                   <div className="rounded-2xl px-5 py-3.5 text-sm shadow-sm max-w-[85%] bg-white border border-slate-100 text-slate-700 rounded-bl-sm hover:shadow-md">
                     <div className="prose prose-sm max-w-none break-words whitespace-pre-wrap leading-relaxed text-slate-700">
-                      {message.replyContent}
+                      {message.content}
                     </div>
                   </div>
                 )}

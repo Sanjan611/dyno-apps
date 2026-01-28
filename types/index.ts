@@ -33,18 +33,27 @@ export type {
 export type MessageMode = 'ask' | 'build';
 
 /**
+ * Assistant message variant
+ * - plain: Standard assistant response
+ * - thinking: Shows agent thinking box with actions
+ */
+export type AssistantVariant = 'plain' | 'thinking';
+
+/**
  * Chat message for the builder UI
  * Used in ChatPanel and store
  */
 export interface Message {
   id: string;
-  role: "user" | "assistant" | "thinking" | "system";
+  role: "user" | "assistant" | "system";
   content: string;
   timestamp: Date;
+  mode?: MessageMode;
+
+  // Assistant-only fields (thinking variant)
+  variant?: AssistantVariant;
   actions?: AgentAction[];
   isComplete?: boolean;
-  mode?: MessageMode;
-  replyContent?: string;  // Stores agent's final reply in thinking messages
 }
 
 /**
