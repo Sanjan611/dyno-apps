@@ -114,6 +114,25 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatPanel({ 
 
       setMessages((prev) => [...prev, newMessage]);
 
+      // Create thinking message immediately (optimistic UI)
+      // This eliminates the loading dots phase and shows the thinking box right away
+      const thinkingMessageId = (Date.now() + 1).toString();
+      const thinkingMessage: Message = {
+        id: thinkingMessageId,
+        role: "thinking",
+        content: "",
+        timestamp: new Date(),
+        actions: [{
+          id: `${Date.now()}-initial`,
+          type: 'status',
+          description: 'Analyzing your request...',
+          timestamp: new Date(),
+          status: 'in_progress',
+        }],
+        isComplete: false,
+      };
+      setMessages((prev) => [...prev, thinkingMessage]);
+
       const isFirstMessage = !hasSentInitialMessage;
       if (isFirstMessage) {
         setHasSentInitialMessage(true);
@@ -135,7 +154,8 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatPanel({ 
       setIsLoading(true);
       try {
         // Generate code (state is managed server-side)
-        const { promise, abort } = generateCode(newMessage.content, currentProjectId, setMessages, mode);
+        // Pass the thinking message ID so generateCode can use it instead of creating a new one
+        const { promise, abort } = generateCode(newMessage.content, currentProjectId, setMessages, mode, undefined, thinkingMessageId);
         abortRef.current = abort;
         await promise;
       } catch (error) {
@@ -190,7 +210,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatPanel({ 
       >
         <div className="absolute inset-0 bg-grid-pattern opacity-[0.4] pointer-events-none" />
 
-        <MessageList messages={messages} isLoading={isLoading || isGenerating} />
+        <MessageList messages={messages} />
       </div>
 
       {/* Setting Up Environment Overlay */}

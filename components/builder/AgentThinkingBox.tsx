@@ -24,7 +24,7 @@ const actionLabels = {
 
 export default function AgentThinkingBox({ actions, isComplete }: AgentThinkingBoxProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(isComplete);
 
   // Auto-scroll to bottom when new actions are added
   useEffect(() => {

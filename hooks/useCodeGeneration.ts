@@ -7,16 +7,16 @@ import type { codingAgentTask } from "@/trigger/coding-agent";
 import type { AgentMetadata } from "@/trigger/coding-agent";
 
 /**
- * Finalizes a thinking message and adds a final assistant message
+ * Finalizes a thinking message by storing the reply content directly in the thinking message
+ * This unifies the thinking box and reply into a single message block
  * Used for complete, error, and stopped events
  */
 function finalizeThinkingMessage(
   prev: Message[],
   thinkingId: string | null,
-  finalContent: string,
-  role: "assistant" = "assistant"
+  finalContent: string
 ): Message[] {
-  const updated = prev.map((msg) => {
+  return prev.map((msg) => {
     if (msg.id === thinkingId) {
       return {
         ...msg,
@@ -25,20 +25,11 @@ function finalizeThinkingMessage(
           status: 'completed' as const,
         })),
         isComplete: true,
+        replyContent: finalContent,
       };
     }
     return msg;
   });
-
-  return [
-    ...updated,
-    {
-      id: (Date.now() + 1).toString(),
-      role,
-      content: finalContent,
-      timestamp: new Date(),
-    },
-  ];
 }
 
 // Helper function to map tool names to user-friendly action types
@@ -308,7 +299,8 @@ export function useCodeGeneration() {
       projectId: string,
       setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
       mode: MessageMode = 'build',
-      abortController?: AbortController
+      abortController?: AbortController,
+      existingThinkingMessageId?: string
     ): { promise: Promise<void>; abort: () => void } => {
       if (!projectId) {
         throw new Error("Project ID is required");
@@ -364,6 +356,11 @@ export function useCodeGeneration() {
               useBuilderStore.getState().setProjectName(data.generatedTitle);
             }
 
+            // Use existing thinking message ID if provided (optimistic UI from ChatPanel)
+            if (existingThinkingMessageId) {
+              thinkingMessageIdRef.current = existingThinkingMessageId;
+            }
+
             // Set Trigger.dev state to start subscription
             setTriggerRunId(data.runId);
             setTriggerAccessToken(data.publicAccessToken);
@@ -386,7 +383,8 @@ export function useCodeGeneration() {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
 
-        let thinkingMessageId: string | null = null;
+        // Use existing thinking message ID if provided (optimistic UI from ChatPanel)
+        let thinkingMessageId: string | null = existingThinkingMessageId || null;
         let buffer = '';
 
         try {
@@ -440,7 +438,8 @@ export function useCodeGeneration() {
                     break;
 
                   case 'agent_started':
-                    // Show thinking box immediately when agent starts
+                    // Thinking box is now created optimistically in ChatPanel
+                    // Only create here as fallback if not already created
                     if (!thinkingMessageId) {
                       thinkingMessageId = Date.now().toString();
                       setMessages((prev) => [
@@ -461,6 +460,8 @@ export function useCodeGeneration() {
                         },
                       ]);
                     }
+                    // If thinking message already exists (optimistic UI), the initial action
+                    // is already showing - we just continue with updates
                     break;
 
                   case 'coding_iteration':

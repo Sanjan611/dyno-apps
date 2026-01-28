@@ -44,6 +44,7 @@ export interface Message {
   actions?: AgentAction[];
   isComplete?: boolean;
   mode?: MessageMode;
+  replyContent?: string;  // Stores agent's final reply in thinking messages
 }
 
 /**
