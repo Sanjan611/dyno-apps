@@ -143,20 +143,6 @@ function getActionTypeFromTriggerStatus(metadata: AgentMetadata): AgentActionTyp
   return 'status';
 }
 
-// Helper to create description from Trigger.dev metadata
-function createDescriptionFromMetadata(metadata: AgentMetadata): string {
-  if (metadata.toolDescription) {
-    return metadata.toolDescription;
-  }
-  if (metadata.statusMessage) {
-    return metadata.statusMessage;
-  }
-  if (metadata.status === 'thinking') {
-    return `Thinking... (iteration ${metadata.iteration}/${metadata.maxIterations})`;
-  }
-  return 'Processing...';
-}
-
 /**
  * Hook for handling code generation via SSE streaming or Trigger.dev
  * Manages the streaming connection and updates messages with agent actions
@@ -195,15 +181,26 @@ export function useCodeGeneration() {
 
     // Handle terminal states FIRST (before metadata early-return)
     // This ensures completion/failure is always handled even if metadata doesn't change
-    if (run.status === 'COMPLETED' && run.output) {
-      const output = run.output as { success: boolean; message?: string; error?: string };
-      const finalMessage = output.success
-        ? output.message || "App updated successfully! The changes should be visible in the preview."
-        : `Error: ${output.error || "Unknown error"}`;
+    if (run.status === 'COMPLETED') {
+      // Extract message from output if available, otherwise use default
+      let finalMessage = "App updated successfully! The changes should be visible in the preview.";
+      if (run.output) {
+        const output = run.output as { success: boolean; message?: string; error?: string };
+        finalMessage = output.success
+          ? output.message || finalMessage
+          : `Error: ${output.error || "Unknown error"}`;
+      }
 
-      setMessages((prev) =>
-        finalizeThinkingMessage(prev, thinkingMessageIdRef.current, finalMessage)
-      );
+      // Use setTimeout to ensure any pending state updates from metadata changes are processed first
+      // This fixes a race condition where finalization runs before the last action is added
+      const thinkingId = thinkingMessageIdRef.current;
+      setTimeout(() => {
+        if (setMessagesRef.current) {
+          setMessagesRef.current((prev) =>
+            finalizeThinkingMessage(prev, thinkingId, finalMessage)
+          );
+        }
+      }, 0);
 
       // Reset Trigger.dev state
       setTriggerRunId(null);
@@ -219,9 +216,15 @@ export function useCodeGeneration() {
         ? "Stopped processing"
         : `Error: ${triggerError?.message || "Task failed"}`;
 
-      setMessages((prev) =>
-        finalizeThinkingMessage(prev, thinkingMessageIdRef.current, errorMessage)
-      );
+      // Use setTimeout to ensure any pending state updates are processed first
+      const thinkingId = thinkingMessageIdRef.current;
+      setTimeout(() => {
+        if (setMessagesRef.current) {
+          setMessagesRef.current((prev) =>
+            finalizeThinkingMessage(prev, thinkingId, errorMessage)
+          );
+        }
+      }, 0);
 
       // Reset Trigger.dev state
       setTriggerRunId(null);
@@ -255,10 +258,11 @@ export function useCodeGeneration() {
       ]);
     }
 
-    // Handle status updates
-    if (metadata.status === 'thinking' || metadata.status === 'executing_tool') {
+    // Handle status updates - only create actions for actual tool executions
+    // Skip status-only messages (like "Agent working...") that don't have a toolDescription
+    if (metadata.status === 'executing_tool' && metadata.toolDescription) {
       const actionType = getActionTypeFromTriggerStatus(metadata);
-      const description = createDescriptionFromMetadata(metadata);
+      const description = metadata.toolDescription;
 
       if (thinkingMessageIdRef.current) {
         setMessages((prev) =>

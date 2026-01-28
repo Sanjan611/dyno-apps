@@ -195,7 +195,7 @@ function getToolDescription(
     case "edit_file":
       return `Editing ${(tool as EditTool).filePath}`;
     case "verify_expo_server":
-      return "Verifying Expo server status";
+      return "Verifying app is running";
     case "todo_write": {
       const todoTool = tool as TodoWriteTool;
       const inProgressTodo = todoTool.todos.find(
@@ -292,7 +292,7 @@ export const codingAgentTask = task({
         // Update metadata for thinking phase
         await metadata.set("iteration", iterations);
         await metadata.set("status", "thinking");
-        await metadata.set("statusMessage", `Iteration ${iterations}/${maxIterations}`);
+        await metadata.set("statusMessage", "Agent working...");
 
         let response;
         try {

@@ -526,7 +526,7 @@ export async function runCodingAgent(
       currentTodo = `Editing ${(tool as EditTool).filePath}`;
     } else if (tool.action === "verify_expo_server") {
       toolName = tool.action;
-      currentTodo = "Verifying Expo server status";
+      currentTodo = "Verifying app is running";
     } else {
       toolName = tool.action;
     }
