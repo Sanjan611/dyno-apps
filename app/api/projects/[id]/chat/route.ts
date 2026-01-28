@@ -8,6 +8,7 @@ import { LOG_PREFIXES, ERROR_MESSAGES } from "@/lib/constants";
 import type { SSEProgressEvent, MessageMode } from "@/types";
 import { autoGenerateProjectTitle } from "@/lib/server/title-generator";
 import type { codingAgentTask } from "@/trigger/coding-agent";
+import type { askAgentTask } from "@/trigger/ask-agent";
 
 // Force dynamic route to enable streaming
 export const dynamic = 'force-dynamic';
@@ -63,14 +64,6 @@ export async function POST(
         );
       }
 
-      // Note: "ask" mode is not yet supported with Trigger.dev
-      if (messageMode === "ask") {
-        return Response.json(
-          { error: "Ask mode is not yet supported with Trigger.dev. Please use build mode." },
-          { status: 400 }
-        );
-      }
-
       console.log(
         `${LOG_PREFIXES.CHAT} [Trigger.dev] Starting chat for project: ${projectId}, sandbox: ${project.currentSandboxId}`
       );
@@ -78,13 +71,20 @@ export async function POST(
       // Auto-generate project title if needed
       const generatedTitle = await autoGenerateProjectTitle(projectId, user.id, userPrompt);
 
-      // Trigger the Trigger.dev task
-      const handle = await tasks.trigger<typeof codingAgentTask>("coding-agent", {
-        projectId,
-        sandboxId: project.currentSandboxId,
-        userPrompt: userPrompt.trim(),
-        userId: user.id,
-      });
+      // Trigger the Trigger.dev task based on mode
+      const handle = messageMode === 'ask'
+        ? await tasks.trigger<typeof askAgentTask>("ask-agent", {
+            projectId,
+            sandboxId: project.currentSandboxId,
+            userPrompt: userPrompt.trim(),
+            userId: user.id,
+          })
+        : await tasks.trigger<typeof codingAgentTask>("coding-agent", {
+            projectId,
+            sandboxId: project.currentSandboxId,
+            userPrompt: userPrompt.trim(),
+            userId: user.id,
+          });
 
       console.log(`${LOG_PREFIXES.CHAT} [Trigger.dev] Task triggered with runId: ${handle.id}`);
 

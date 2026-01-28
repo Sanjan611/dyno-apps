@@ -5,7 +5,7 @@ function AskAgent(
   state: Message[],
   working_dir: string
 ) -> ReadOnlyTools | ReplyToUser {
-  client MultiModelRoundRobin
+  client CustomGPT5Chat
   prompt #"
     {{ _.role("system", cache_control={"type": "ephemeral"}) }}
     You are a conversational AI assistant for Dyno Apps, an AI-powered platform for building production-ready mobile applications across iOS and Android using React Native and Expo framework.

@@ -4,6 +4,7 @@ import type { Message, AgentAction, AgentActionType, SSEProgressEvent, MessageMo
 import { API_ENDPOINTS } from "@/lib/constants";
 import { useBuilderStore } from "@/lib/store";
 import type { codingAgentTask } from "@/trigger/coding-agent";
+import type { askAgentTask } from "@/trigger/ask-agent";
 import type { AgentMetadata } from "@/trigger/coding-agent";
 
 /**
@@ -158,7 +159,8 @@ export function useCodeGeneration() {
   const projectIdRef = useRef<string | null>(null);
 
   // Subscribe to Trigger.dev run updates (only active when triggerRunId is set)
-  const { run, error: triggerError } = useRealtimeRun<typeof codingAgentTask>(triggerRunId ?? undefined, {
+  // Supports both coding and ask agent tasks (they share the same AgentMetadata structure)
+  const { run, error: triggerError } = useRealtimeRun<typeof codingAgentTask | typeof askAgentTask>(triggerRunId ?? undefined, {
     accessToken: triggerAccessToken ?? undefined,
     enabled: !!triggerRunId && !!triggerAccessToken,
   });
