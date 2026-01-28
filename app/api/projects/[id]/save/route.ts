@@ -91,6 +91,18 @@ export const POST = withAsyncParams(async (request, user, params) => {
       // Continue anyway - git commit will fail with a clear error if config is missing
     }
 
+    // Save conversation history early - before git operations
+    // This ensures messages are saved even if there are no file changes to commit
+    if (messagesToSave && messagesToSave.length > 0) {
+      try {
+        await saveConversationHistory(projectId, messagesToSave);
+        console.log(`${LOG_PREFIXES.PROJECTS} Conversation history saved for project:`, projectId);
+      } catch (historyError) {
+        // Log but don't fail the save operation
+        console.error(`${LOG_PREFIXES.PROJECTS} Failed to save conversation history:`, historyError);
+      }
+    }
+
     // Stage all changes: git add .
     console.log(`${LOG_PREFIXES.PROJECTS} Staging changes (git add .)...`);
     const addProcess = await sandbox.exec(
@@ -228,17 +240,6 @@ export const POST = withAsyncParams(async (request, user, params) => {
     }
 
     console.log(`${LOG_PREFIXES.PROJECTS} Successfully saved and pushed changes for project:`, projectId);
-
-    // Save conversation history if messages were provided
-    if (messagesToSave && messagesToSave.length > 0) {
-      try {
-        await saveConversationHistory(projectId, messagesToSave);
-        console.log(`${LOG_PREFIXES.PROJECTS} Conversation history saved for project:`, projectId);
-      } catch (historyError) {
-        // Log but don't fail the save operation
-        console.error(`${LOG_PREFIXES.PROJECTS} Failed to save conversation history:`, historyError);
-      }
-    }
 
     return successResponse({
       message: "Changes saved and pushed successfully",
