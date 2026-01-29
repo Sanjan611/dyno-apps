@@ -10,7 +10,7 @@ export async function POST(
 ) {
   try {
     // Authenticate user
-    const user = await getAuthenticatedUser(request);
+    const user = await getAuthenticatedUser();
     if (!user) {
       return Response.json({ error: ERROR_MESSAGES.UNAUTHORIZED }, { status: 401 });
     }

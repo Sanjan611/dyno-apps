@@ -56,7 +56,7 @@ async function recordUsageAndDeductCredits(
   projectId: string
 ): Promise<void> {
   // Record token usage to ClickHouse
-  await recordUsageAndDeductCredits(tokenUsageRecords, userId, projectId);
+  await recordTokenUsageBatch(tokenUsageRecords);
 
   // Calculate total raw cost from this run and deduct credits
   const totalRawCost = tokenUsageRecords.reduce((sum, r) => sum + r.costUsd, 0);

@@ -41,14 +41,6 @@ export type AuthenticatedHandlerWithParams<T = unknown> = (
   params: { [key: string]: string }
 ) => Promise<NextResponse<ApiResponse<T>>>;
 
-/**
- * Handler function for routes that may or may not require auth
- */
-export type Handler<T = unknown> = (
-  request: NextRequest,
-  params?: { [key: string]: string | Promise<string> }
-) => Promise<NextResponse<ApiResponse<T>>>;
-
 // ============================================================================
 // Response Helpers
 // ============================================================================
@@ -158,7 +150,7 @@ export function withAuth<T = unknown>(
   handler: AuthenticatedHandler<T>
 ): (request: NextRequest) => Promise<NextResponse<ApiResponse<T>>> {
   return async (request: NextRequest) => {
-    const user = await getAuthenticatedUser(request);
+    const user = await getAuthenticatedUser();
     
     if (!user) {
       return unauthorizedResponse();
@@ -188,7 +180,7 @@ export function withAsyncParams<T = unknown>(
   handler: AuthenticatedHandlerWithParams<T>
 ): (request: NextRequest, context: { params: Promise<{ [key: string]: string }> }) => Promise<NextResponse<ApiResponse<T>>> {
   return async (request: NextRequest, context: { params: Promise<{ [key: string]: string }> }) => {
-    const user = await getAuthenticatedUser(request);
+    const user = await getAuthenticatedUser();
     
     if (!user) {
       return unauthorizedResponse();

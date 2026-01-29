@@ -18,20 +18,11 @@ import { createStorage, STORAGE_KEYS } from "./persist";
 /**
  * Sandbox health status
  */
-export type SandboxHealthStatus = 
+export type SandboxHealthStatus =
   | "unknown"      // Not yet checked
   | "healthy"      // Sandbox is active and responsive
   | "unhealthy"   // Sandbox exists but not responding
   | "not_found";  // Sandbox doesn't exist
-
-/**
- * File modification tracking
- */
-export interface ModifiedFile {
-  path: string;
-  lastModified: Date;
-  content?: string; // Optional: store content for quick access
-}
 
 /**
  * User credits state
@@ -47,9 +38,8 @@ export interface BuilderState {
   projectName: string;
   projectId: string | null;
 
-  // Messages and code (NOT persisted)
+  // Messages (NOT persisted)
   messages: StoreMessage[];
-  generatedCode: string;
 
   // Sandbox info (NOT persisted - ephemeral per session)
   sandboxId: string | null;
@@ -57,10 +47,6 @@ export interface BuilderState {
   sandboxHealthStatus: SandboxHealthStatus;
   lastHealthCheck: Date | null;
   sandboxStarted: boolean;
-
-  // Session state (NOT persisted)
-  modifiedFiles: ModifiedFile[];
-  lastActivity: Date | null;
 
   // User credits (NOT persisted - fetched from API)
   credits: CreditsState;
@@ -73,15 +59,11 @@ export interface BuilderState {
   setProjectId: (id: string | null) => void;
   addMessage: (message: StoreMessage) => void;
   setMessages: (messages: StoreMessage[]) => void;
-  setGeneratedCode: (code: string) => void;
   setSandboxId: (id: string | null) => void;
   setPreviewUrl: (url: string | null) => void;
   setSandboxHealthStatus: (status: SandboxHealthStatus) => void;
   updateLastHealthCheck: () => void;
   setSandboxStarted: (started: boolean) => void;
-  addModifiedFile: (path: string, content?: string) => void;
-  clearModifiedFiles: () => void;
-  updateLastActivity: () => void;
   setCurrentMode: (mode: MessageMode) => void;
   refreshCredits: () => Promise<void>;
 
@@ -93,13 +75,10 @@ const initialState = {
   projectName: DEFAULT_PROJECT_NAME,
   projectId: null,
   messages: [],
-  generatedCode: "",
   sandboxId: null,
   previewUrl: null,
   sandboxHealthStatus: "unknown" as SandboxHealthStatus,
   lastHealthCheck: null,
-  modifiedFiles: [],
-  lastActivity: null,
   currentMode: "build" as MessageMode, // Default to build mode
   sandboxStarted: false,
   credits: {
@@ -125,59 +104,23 @@ export const useBuilderStore = create<BuilderState>()(
       setProjectId: (id) => set({ projectId: id }),
       
       addMessage: (message) =>
-        set((state) => ({ 
+        set((state) => ({
           messages: [...state.messages, message],
-          lastActivity: new Date(),
         })),
-      
+
       setMessages: (messages) => set({ messages }),
-      
-      setGeneratedCode: (code) => 
-        set({ generatedCode: code, lastActivity: new Date() }),
-      
+
       setSandboxId: (id) => set({ sandboxId: id }),
       setPreviewUrl: (url) => set({ previewUrl: url }),
-      
-      setSandboxHealthStatus: (status) => 
-        set({ sandboxHealthStatus: status }),
-      
-      updateLastHealthCheck: () => 
-        set({ lastHealthCheck: new Date() }),
-      
-      setSandboxStarted: (started) => 
-        set({ sandboxStarted: started }),
-      
-      addModifiedFile: (path, content) =>
-        set((state) => {
-          const existingIndex = state.modifiedFiles.findIndex(
-            (f) => f.path === path
-          );
-          const newFile: ModifiedFile = {
-            path,
-            lastModified: new Date(),
-            content,
-          };
-          
-          if (existingIndex >= 0) {
-            // Update existing file
-            const updated = [...state.modifiedFiles];
-            updated[existingIndex] = newFile;
-            return { 
-              modifiedFiles: updated,
-              lastActivity: new Date(),
-            };
-          } else {
-            // Add new file
-            return { 
-              modifiedFiles: [...state.modifiedFiles, newFile],
-              lastActivity: new Date(),
-            };
-          }
-        }),
-      
-      clearModifiedFiles: () => set({ modifiedFiles: [] }),
 
-      updateLastActivity: () => set({ lastActivity: new Date() }),
+      setSandboxHealthStatus: (status) =>
+        set({ sandboxHealthStatus: status }),
+
+      updateLastHealthCheck: () =>
+        set({ lastHealthCheck: new Date() }),
+
+      setSandboxStarted: (started) =>
+        set({ sandboxStarted: started }),
 
       setCurrentMode: (mode) => set({ currentMode: mode }),
 

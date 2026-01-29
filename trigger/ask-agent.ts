@@ -161,6 +161,11 @@ function getToolDescription(tool: ListFilesTool | ReadFileTool | ReadFilesTool):
     }
     case "list_files":
       return `Listing ${(tool as ListFilesTool).directoryPath}`;
+    default: {
+      // Exhaustive check - TypeScript will error if a case is missing
+      const _exhaustive: never = tool;
+      return `Unknown action`;
+    }
   }
 }
 

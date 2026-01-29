@@ -1,6 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { NextRequest, NextResponse } from "next/server";
 
 /**
  * Creates a Supabase client for server-side usage (API routes, server components).
@@ -34,7 +33,7 @@ export async function createClient() {
   );
 }
 
-export async function getAuthenticatedUser(request?: NextRequest) {
+export async function getAuthenticatedUser() {
   const supabase = await createClient();
   const {
     data: { user },

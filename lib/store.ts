@@ -15,7 +15,7 @@ export type { AuthState } from "./stores/auth-store";
 
 // Re-export builder store
 export { useBuilderStore } from "./stores/builder-store";
-export type { BuilderState, SandboxHealthStatus, ModifiedFile, CreditsState } from "./stores/builder-store";
+export type { BuilderState, SandboxHealthStatus, CreditsState } from "./stores/builder-store";
 
 // Re-export persistence utilities
 export {
