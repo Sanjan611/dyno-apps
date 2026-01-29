@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
-import { Home, FolderOpen, Save, MoreVertical, Zap, Coins } from "lucide-react";
+import { Home, Save, Zap, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DEFAULT_PROJECT_NAME, API_ENDPOINTS } from "@/lib/constants";
 import { useBuilderStore } from "@/lib/store";
+import UserProfileDropdown from "./UserProfileDropdown";
 
 interface ProjectHeaderProps {
   projectName: string;
@@ -212,12 +213,6 @@ export default function ProjectHeader({
             <span className="text-sm font-medium">{Math.max(credits.balance, 0).toFixed(1)}</span>
           </div>
         )}
-        <Button variant="outline" size="sm" asChild className="hidden sm:flex gap-2 bg-white hover:bg-slate-50">
-          <Link href="/project-gallery">
-            <FolderOpen className="w-4 h-4" />
-            My Projects
-          </Link>
-        </Button>
         <Button
           size="sm"
           className="bg-primary hover:bg-primary/90 text-white shadow-sm"
@@ -227,9 +222,7 @@ export default function ProjectHeader({
           <Save className="w-4 h-4 mr-2" />
           {isSaving ? "Saving..." : "Save"}
         </Button>
-        <Button variant="ghost" size="icon" className="text-muted-foreground">
-          <MoreVertical className="w-4 h-4" />
-        </Button>
+        <UserProfileDropdown />
       </div>
     </header>
   );

@@ -6,8 +6,6 @@ import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
   Zap,
-  LogOut,
-  User,
   Twitter,
   Github,
   Globe
@@ -24,9 +22,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import UserProfileDropdown from "@/components/builder/UserProfileDropdown";
 
 export default function LandingPage() {
-  const { user, loading, checkAuth, logout } = useAuthStore();
+  const { user, loading, checkAuth } = useAuthStore();
 
   useEffect(() => {
     checkAuth();
@@ -51,20 +50,7 @@ export default function LandingPage() {
             {loading ? (
               <div className="w-20 h-9 bg-gray-200 animate-pulse rounded-md" />
             ) : user ? (
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground hidden sm:flex">
-                  <User className="w-4 h-4" />
-                  <span>{user.email}</span>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={logout}
-                  className="shadow-sm hover:shadow-md transition-all"
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Logout
-                </Button>
-              </div>
+              <UserProfileDropdown />
             ) : (
               <div className="flex items-center gap-2">
                 <Button

@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import type { ProjectWithMeta } from "@/types";
+import UserProfileDropdown from "@/components/builder/UserProfileDropdown";
 
 export default function ProjectGalleryPage() {
   const router = useRouter();
@@ -297,24 +298,27 @@ export default function ProjectGalleryPage() {
               Project Gallery
             </h1>
           </div>
-          <Button
-            className="bg-primary hover:bg-primary/90 shadow-md hover:shadow-lg hover:shadow-primary/20 transition-all rounded-full px-6"
-            disabled={isCreatingProject || (limitInfo ? !limitInfo.canCreate : false)}
-            title={limitInfo && !limitInfo.canCreate ? `Project limit reached (${limitInfo.current}/${limitInfo.max})` : undefined}
-            onClick={handleCreateNewProject}
-          >
-            {isCreatingProject ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Creating...
-              </>
-            ) : (
-              <>
-                <PlusCircle className="w-4 h-4 mr-2" />
-                New Project
-              </>
-            )}
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              className="bg-primary hover:bg-primary/90 shadow-md hover:shadow-lg hover:shadow-primary/20 transition-all rounded-full px-6"
+              disabled={isCreatingProject || (limitInfo ? !limitInfo.canCreate : false)}
+              title={limitInfo && !limitInfo.canCreate ? `Project limit reached (${limitInfo.current}/${limitInfo.max})` : undefined}
+              onClick={handleCreateNewProject}
+            >
+              {isCreatingProject ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <PlusCircle className="w-4 h-4 mr-2" />
+                  New Project
+                </>
+              )}
+            </Button>
+            <UserProfileDropdown />
+          </div>
         </div>
       </header>
 
