@@ -8,9 +8,6 @@ import {
   Zap,
   LogOut,
   User,
-  MessageSquareCode,
-  Smartphone,
-  Database,
   Twitter,
   Github,
   Globe
@@ -19,6 +16,7 @@ import { TypingAnimation } from "@/components/ui/typing-animation";
 import { useAuthStore } from "@/lib/store";
 import { WaitlistForm } from "@/components/waitlist-form";
 import { PhoneMockup } from "@/components/landing/phone-mockup";
+import { HowItWorks } from "@/components/landing/how-it-works";
 import {
   Card,
   CardContent,
@@ -48,14 +46,6 @@ export default function LandingPage() {
             </span>
           </Link>
           
-          <nav className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-8">
-            <Link
-              href="#features"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hidden md:block"
-            >
-              Features
-            </Link>
-          </nav>
 
           <div className="flex items-center">
             {loading ? (
@@ -98,9 +88,14 @@ export default function LandingPage() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col items-center justify-start pt-20">
-        <div className="w-full px-4 md:px-6 space-y-24">
-          
+      <main className="flex-1 flex flex-col items-center justify-start pt-20 relative overflow-hidden">
+        {/* Floating gradient orbs */}
+        <div className="absolute top-20 -left-32 w-96 h-96 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-full blur-3xl animate-gradient-shift pointer-events-none" />
+        <div className="absolute top-60 -right-32 w-80 h-80 bg-gradient-to-br from-secondary/15 to-pink-500/15 rounded-full blur-3xl animate-gradient-shift-slow pointer-events-none" />
+        <div className="absolute top-[500px] left-1/4 w-72 h-72 bg-gradient-to-br from-pink-500/10 to-orange-400/10 rounded-full blur-3xl animate-gradient-shift-delayed pointer-events-none" />
+
+        <div className="w-full px-4 md:px-6 space-y-24 relative z-10">
+
           {/* Hero Section */}
           <div className="max-w-6xl mx-auto">
             <div className="flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-16">
@@ -108,21 +103,21 @@ export default function LandingPage() {
               <div className="flex-1 max-w-xl text-center lg:text-left">
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
                   {/* Hero Badge */}
-                  <div className="inline-flex items-center px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-semibold text-primary mb-4">
+                  <div className="inline-flex items-center px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-semibold text-primary mb-4 animate-shimmer">
                     <span className="relative flex h-2 w-2 mr-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
                     </span>
-                    v1.0 Beta Now Available
+                    10 free credits to start building
                   </div>
 
                   <h1 className="text-5xl md:text-7xl font-bold tracking-tight min-h-[1.1em] text-foreground drop-shadow-sm">
                     <TypingAnimation text="Build your Dyno." />
                   </h1>
                   <p className="text-xl text-muted-foreground max-w-2xl mx-auto lg:mx-0 leading-relaxed">
-                    From an idea in your head to an app on your phone.
+                    Turn your app idea into a working mobile app in minutes.
                     <br className="hidden md:block" />
-                    Built from the ground up for continued development and support.
+                    No coding required.
                   </p>
                 </div>
 
@@ -144,7 +139,7 @@ export default function LandingPage() {
                   ) : (
                     <Card className="max-w-md mx-auto lg:mx-0 glass-card border-primary/20">
                       <CardHeader className="text-center lg:text-left pb-2">
-                        <CardTitle className="text-xl">Request Beta Access</CardTitle>
+                        <CardTitle className="text-xl">Start Building for Free</CardTitle>
                         <CardDescription>
                           Join the waitlist and we&apos;ll send you an invite
                         </CardDescription>
@@ -155,7 +150,7 @@ export default function LandingPage() {
                     </Card>
                   )}
                   <p className="mt-4 text-sm text-muted-foreground">
-                    No credit card required · Free during beta
+                    10 free credits included · No credit card required
                   </p>
                 </div>
               </div>
@@ -167,65 +162,8 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Features Section */}
-          <section id="features" className="max-w-6xl mx-auto scroll-mt-24 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300">
-            <h2 className="text-3xl font-bold text-center mb-12 bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600">Powerful Features</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="glass-card border-none hover:-translate-y-2 transition-transform duration-300 hover:shadow-xl">
-                <CardHeader>
-                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 text-primary">
-                    <MessageSquareCode className="w-6 h-6" />
-                  </div>
-                  <CardTitle>Build from Text</CardTitle>
-                  <CardDescription>
-                    Turn natural language into fully functional apps.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">
-                    Describe your app idea in plain English and watch as our AI generates the code, structure, and styling instantly.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="glass-card border-none hover:-translate-y-2 transition-transform duration-300 hover:shadow-xl">
-                <CardHeader>
-                  <div className="w-12 h-12 rounded-lg bg-secondary/10 flex items-center justify-center mb-4 text-secondary">
-                    <Smartphone className="w-6 h-6" />
-                  </div>
-                  <CardTitle>Instant Preview</CardTitle>
-                  <CardDescription>
-                    Scan to test immediately on your device.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">
-                    Get a QR code to run your app on your physical device instantly, or preview it right in the browser.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="glass-card border-none hover:-translate-y-2 transition-transform duration-300 hover:shadow-xl">
-                <CardHeader>
-                  <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center mb-4 text-blue-500">
-                    <Database className="w-6 h-6" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Integrated Databases</CardTitle>
-                    <span className="text-xs font-medium px-2 py-1 rounded-full bg-muted text-muted-foreground">Coming Soon</span>
-                  </div>
-                  <CardDescription>
-                    Built-in data storage.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">
-                    Seamlessly connect your apps to persistent storage without complex backend configuration.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          </section>
+          {/* How It Works Section */}
+          <HowItWorks />
 
         </div>
       </main>
@@ -249,7 +187,6 @@ export default function LandingPage() {
             <div>
               <h3 className="font-semibold mb-3">Product</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link href="#features" className="hover:text-foreground">Features</Link></li>
                 <li><Link href="/signup" className="hover:text-foreground">Sign Up</Link></li>
                 <li><Link href="/login" className="hover:text-foreground">Login</Link></li>
               </ul>
