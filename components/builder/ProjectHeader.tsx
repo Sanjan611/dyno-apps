@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
-import { Home, FolderOpen, Save, MoreVertical, Zap } from "lucide-react";
+import { Home, FolderOpen, Save, MoreVertical, Zap, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DEFAULT_PROJECT_NAME, API_ENDPOINTS } from "@/lib/constants";
+import { useBuilderStore } from "@/lib/store";
 
 interface ProjectHeaderProps {
   projectName: string;
@@ -36,6 +37,12 @@ export default function ProjectHeader({
   const [isSavingName, setIsSavingName] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const { credits, refreshCredits } = useBuilderStore();
+
+  // Fetch credits on mount
+  useEffect(() => {
+    refreshCredits();
+  }, [refreshCredits]);
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setEditingName(e.target.value);
@@ -198,6 +205,13 @@ export default function ProjectHeader({
 
       {/* Right section */}
       <div className="flex items-center gap-2 justify-end">
+        {/* Credit Balance Display */}
+        {!credits.isLoading && credits.balance !== null && (
+          <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 rounded-md">
+            <Coins className="w-4 h-4 text-amber-500" />
+            <span className="text-sm font-medium">{Math.max(credits.balance, 0).toFixed(1)}</span>
+          </div>
+        )}
         <Button variant="outline" size="sm" asChild className="hidden sm:flex gap-2 bg-white hover:bg-slate-50">
           <Link href="/project-gallery">
             <FolderOpen className="w-4 h-4" />

@@ -33,6 +33,15 @@ export interface ModifiedFile {
   content?: string; // Optional: store content for quick access
 }
 
+/**
+ * User credits state
+ */
+export interface CreditsState {
+  balance: number | null;
+  isLoading: boolean;
+  lastFetched: Date | null;
+}
+
 export interface BuilderState {
   // Project info (NOT persisted - set from route)
   projectName: string;
@@ -53,6 +62,9 @@ export interface BuilderState {
   modifiedFiles: ModifiedFile[];
   lastActivity: Date | null;
 
+  // User credits (NOT persisted - fetched from API)
+  credits: CreditsState;
+
   // Chat mode (PERSISTED - user preference)
   currentMode: MessageMode;
 
@@ -71,6 +83,7 @@ export interface BuilderState {
   clearModifiedFiles: () => void;
   updateLastActivity: () => void;
   setCurrentMode: (mode: MessageMode) => void;
+  refreshCredits: () => Promise<void>;
 
   // Reset
   reset: () => void;
@@ -89,6 +102,11 @@ const initialState = {
   lastActivity: null,
   currentMode: "build" as MessageMode, // Default to build mode
   sandboxStarted: false,
+  credits: {
+    balance: null,
+    isLoading: false,
+    lastFetched: null,
+  } as CreditsState,
 };
 
 /**
@@ -162,6 +180,47 @@ export const useBuilderStore = create<BuilderState>()(
       updateLastActivity: () => set({ lastActivity: new Date() }),
 
       setCurrentMode: (mode) => set({ currentMode: mode }),
+
+      refreshCredits: async () => {
+        console.log("[builder-store] refreshCredits called");
+        set((state) => ({
+          credits: { ...state.credits, isLoading: true },
+        }));
+
+        try {
+          const response = await fetch(`/api/user/credits?_t=${Date.now()}`);
+          if (!response.ok) {
+            if (response.status === 401) {
+              // User not authenticated
+              set({
+                credits: { balance: null, isLoading: false, lastFetched: null },
+              });
+              return;
+            }
+            throw new Error("Failed to fetch credits");
+          }
+
+          const data = await response.json();
+          console.log("[builder-store] Credits API response:", data);
+          if (data.success === false) {
+            throw new Error(data.error || "Failed to fetch credits");
+          }
+
+          set({
+            credits: {
+              balance: data.balance,
+              isLoading: false,
+              lastFetched: new Date(),
+            },
+          });
+          console.log("[builder-store] Credits updated to:", data.balance);
+        } catch (error) {
+          console.error("[builder-store] Error fetching credits:", error);
+          set((state) => ({
+            credits: { ...state.credits, isLoading: false },
+          }));
+        }
+      },
 
       reset: () => set(initialState),
     }),

@@ -36,6 +36,7 @@ import { withRetry } from "../lib/server/retry-utils";
 import { extractBamlMetrics } from "../lib/server/coding-agent";
 import { recordTokenUsageBatch, TokenUsageRecord } from "../lib/server/clickhouse";
 import { calculateCost } from "../lib/server/pricingStore";
+import { deductCredits } from "../lib/server/creditsStore";
 
 // Re-export AgentMetadata from coding-agent for shared use
 export type { AgentMetadata } from "./coding-agent";
@@ -388,6 +389,12 @@ export const askAgentTask = task({
       // Always send token usage to ClickHouse, even on cancellation
       console.log(`${LOG_PREFIXES.CHAT} Sending ${tokenUsageRecords.length} token usage records to ClickHouse...`);
       await recordTokenUsageBatch(tokenUsageRecords);
+
+      // Deduct credits based on total cost
+      const totalRawCost = tokenUsageRecords.reduce((sum, r) => sum + r.costUsd, 0);
+      if (totalRawCost > 0) {
+        await deductCredits(userId, totalRawCost, projectId);
+      }
     }
   },
 });

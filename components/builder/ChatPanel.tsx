@@ -10,7 +10,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { useBuilderStore } from "@/lib/store";
-import { useCodeGeneration } from "@/hooks/useCodeGeneration";
+import { useCodeGeneration, InsufficientCreditsError } from "@/hooks/useCodeGeneration";
 import { useSandboxStartup } from "@/hooks/useSandboxStartup";
 import MessageList from "./MessageList";
 import ChatInput from "./ChatInput";
@@ -52,6 +52,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatPanel({ 
     currentMode,
     setCurrentMode,
     sandboxStarted,
+    refreshCredits,
   } = useBuilderStore();
   const [hasSentInitialMessage, setHasSentInitialMessage] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -160,16 +161,34 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatPanel({ 
         abortRef.current = abort;
         await promise;
       } catch (error) {
-        const errorMessage: Message = {
-          id: (Date.now() + 2).toString(),
-          role: "assistant",
-          content: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, errorMessage]);
+        if (error instanceof InsufficientCreditsError) {
+          // Remove the thinking message and show clean error for insufficient credits
+          setMessages((prev) => {
+            const withoutThinking = prev.filter((m) => m.id !== thinkingMessageId);
+            return [
+              ...withoutThinking,
+              {
+                id: (Date.now() + 2).toString(),
+                role: "assistant",
+                content: "You don't have enough credits to run the agent. Please add more credits to continue.",
+                timestamp: new Date(),
+              },
+            ];
+          });
+        } else {
+          const errorMessage: Message = {
+            id: (Date.now() + 2).toString(),
+            role: "assistant",
+            content: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, errorMessage]);
+        }
       } finally {
         setIsLoading(false);
         abortRef.current = null;
+        // Refresh credits after generation completes (credits were deducted server-side)
+        refreshCredits();
       }
     },
     [
@@ -178,6 +197,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatPanel({ 
       setMessages,
       sandboxStarted,
       projectId,
+      refreshCredits,
     ]
   );
 

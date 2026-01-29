@@ -9,6 +9,7 @@ import type { SSEProgressEvent, MessageMode } from "@/types";
 import { autoGenerateProjectTitle } from "@/lib/server/title-generator";
 import type { codingAgentTask } from "@/trigger/coding-agent";
 import type { askAgentTask } from "@/trigger/ask-agent";
+import { getUserCredits } from "@/lib/server/creditsStore";
 
 // Force dynamic route to enable streaming
 export const dynamic = 'force-dynamic';
@@ -50,6 +51,15 @@ export async function POST(
         return Response.json(
           { error: "Project does not have an active sandbox. Please initialize the sandbox first." },
           { status: 400 }
+        );
+      }
+
+      // Check user has credits
+      const credits = await getUserCredits(user.id);
+      if (credits.balance <= 0) {
+        return Response.json(
+          { error: "Insufficient credits", code: "INSUFFICIENT_CREDITS" },
+          { status: 402 }
         );
       }
 
@@ -210,6 +220,18 @@ export async function POST(
       if (!project.currentSandboxId) {
         const errorEvent = formatErrorForStream(new Error("Project does not have an active sandbox. Please initialize the sandbox first."));
         await sendProgress(errorEvent);
+        await closeWriter();
+        return;
+      }
+
+      // Check user has credits
+      const credits = await getUserCredits(user.id);
+      if (credits.balance <= 0) {
+        await sendProgress({
+          type: "error",
+          error: "Insufficient credits",
+          code: "INSUFFICIENT_CREDITS",
+        });
         await closeWriter();
         return;
       }

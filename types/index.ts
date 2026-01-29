@@ -204,6 +204,7 @@ export interface SSEProgressEvent {
   todo?: string;
   todos?: SSETodoItem[];
   error?: string;
+  code?: string; // Error code (e.g., "INSUFFICIENT_CREDITS")
   details?: unknown;
   files?: Record<string, string>;
   title?: string;

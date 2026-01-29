@@ -8,6 +8,16 @@ import type { askAgentTask } from "@/trigger/ask-agent";
 import type { AgentMetadata } from "@/trigger/coding-agent";
 
 /**
+ * Custom error for insufficient credits
+ */
+export class InsufficientCreditsError extends Error {
+  constructor(message: string = "Insufficient credits") {
+    super(message);
+    this.name = "InsufficientCreditsError";
+  }
+}
+
+/**
  * Finalizes a thinking message by storing the reply content directly in the thinking message
  * This unifies the thinking box and reply into a single message block
  * Used for complete, error, and stopped events
@@ -201,6 +211,9 @@ export function useCodeGeneration() {
       setIsGenerating(false);
       thinkingMessageIdRef.current = null;
       lastMetadataRef.current = null;
+
+      // Refresh credits after agent completes (credits were deducted server-side)
+      useBuilderStore.getState().refreshCredits();
       return;
     }
 
@@ -225,6 +238,9 @@ export function useCodeGeneration() {
       setIsGenerating(false);
       thinkingMessageIdRef.current = null;
       lastMetadataRef.current = null;
+
+      // Refresh credits after agent fails/cancels (credits may have been deducted)
+      useBuilderStore.getState().refreshCredits();
       return;
     }
 
@@ -337,6 +353,11 @@ export function useCodeGeneration() {
           const contentType = response.headers.get("content-type");
           if (contentType?.includes("application/json")) {
             const errorData = await response.json();
+            // Check for insufficient credits error (HTTP 402)
+            if (errorData.code === "INSUFFICIENT_CREDITS" || response.status === 402) {
+              setIsGenerating(false);
+              throw new InsufficientCreditsError(errorData.error || "Insufficient credits");
+            }
             throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
           }
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -560,6 +581,11 @@ export function useCodeGeneration() {
                     break;
 
                   case 'error':
+                    // Check for insufficient credits error from SSE stream
+                    if ((event as any).code === "INSUFFICIENT_CREDITS") {
+                      setIsGenerating(false);
+                      throw new InsufficientCreditsError(event.error || "Insufficient credits");
+                    }
                     setMessages((prev) =>
                       finalizeThinkingMessage(
                         prev,

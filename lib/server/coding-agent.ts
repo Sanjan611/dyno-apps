@@ -41,6 +41,29 @@ import { getAgentState, setAgentState } from "@/lib/server/agent-state-store";
 import { withRetry } from "@/lib/server/retry-utils";
 import { recordTokenUsageBatch, TokenUsageRecord } from "@/lib/server/clickhouse";
 import { calculateCost } from "@/lib/server/pricingStore";
+import { deductCredits } from "@/lib/server/creditsStore";
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Records token usage to ClickHouse and deducts credits from user's balance
+ */
+async function recordUsageAndDeductCredits(
+  tokenUsageRecords: TokenUsageRecord[],
+  userId: string,
+  projectId: string
+): Promise<void> {
+  // Record token usage to ClickHouse
+  await recordUsageAndDeductCredits(tokenUsageRecords, userId, projectId);
+
+  // Calculate total raw cost from this run and deduct credits
+  const totalRawCost = tokenUsageRecords.reduce((sum, r) => sum + r.costUsd, 0);
+  if (totalRawCost > 0) {
+    await deductCredits(userId, totalRawCost, projectId);
+  }
+}
 
 // ============================================================================
 // Types
@@ -362,7 +385,7 @@ export async function runCodingAgent(
       console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
 
       // Batch send partial token usage to ClickHouse
-      await recordTokenUsageBatch(tokenUsageRecords);
+      await recordUsageAndDeductCredits(tokenUsageRecords, userId, projectId);
 
       if (onProgress) {
         await onProgress({
@@ -428,7 +451,7 @@ export async function runCodingAgent(
         console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
 
         // Batch send partial token usage to ClickHouse
-        await recordTokenUsageBatch(tokenUsageRecords);
+        await recordUsageAndDeductCredits(tokenUsageRecords, userId, projectId);
 
         if (onProgress) {
           await onProgress({
@@ -448,7 +471,7 @@ export async function runCodingAgent(
       const errorEvent = formatErrorForStream(error, "Coding agent");
 
       // Batch send partial token usage to ClickHouse
-      await recordTokenUsageBatch(tokenUsageRecords);
+      await recordUsageAndDeductCredits(tokenUsageRecords, userId, projectId);
 
       if (onProgress) {
         await onProgress(errorEvent);
@@ -486,7 +509,7 @@ export async function runCodingAgent(
       console.log(`${LOG_PREFIXES.CHAT} CodingAgent complete - cumulative usage:`, cumulativeMetrics);
 
       // Batch send token usage to ClickHouse
-      await recordTokenUsageBatch(tokenUsageRecords);
+      await recordUsageAndDeductCredits(tokenUsageRecords, userId, projectId);
 
       if (onProgress) {
         await onProgress({
@@ -566,7 +589,7 @@ export async function runCodingAgent(
       console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
 
       // Batch send partial token usage to ClickHouse
-      await recordTokenUsageBatch(tokenUsageRecords);
+      await recordUsageAndDeductCredits(tokenUsageRecords, userId, projectId);
 
       if (onProgress) {
         await onProgress({
@@ -628,7 +651,7 @@ export async function runCodingAgent(
   await setAgentState(projectId, state);
 
   // Batch send partial token usage to ClickHouse
-  await recordTokenUsageBatch(tokenUsageRecords);
+  await recordUsageAndDeductCredits(tokenUsageRecords, userId, projectId);
 
   if (onProgress) {
     await onProgress({
@@ -759,7 +782,7 @@ export async function runAskAgent(
       console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
 
       // Batch send partial token usage to ClickHouse
-      await recordTokenUsageBatch(tokenUsageRecords);
+      await recordUsageAndDeductCredits(tokenUsageRecords, userId, projectId);
 
       if (onProgress) {
         await onProgress({
@@ -824,7 +847,7 @@ export async function runAskAgent(
         console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
 
         // Batch send partial token usage to ClickHouse
-        await recordTokenUsageBatch(tokenUsageRecords);
+        await recordUsageAndDeductCredits(tokenUsageRecords, userId, projectId);
 
         if (onProgress) {
           await onProgress({
@@ -844,7 +867,7 @@ export async function runAskAgent(
       const errorEvent = formatErrorForStream(error, "Ask agent");
 
       // Batch send partial token usage to ClickHouse
-      await recordTokenUsageBatch(tokenUsageRecords);
+      await recordUsageAndDeductCredits(tokenUsageRecords, userId, projectId);
 
       if (onProgress) {
         await onProgress(errorEvent);
@@ -876,7 +899,7 @@ export async function runAskAgent(
       console.log(`${LOG_PREFIXES.CHAT} AskAgent complete - cumulative usage:`, cumulativeMetrics);
 
       // Batch send token usage to ClickHouse
-      await recordTokenUsageBatch(tokenUsageRecords);
+      await recordUsageAndDeductCredits(tokenUsageRecords, userId, projectId);
 
       if (onProgress) {
         await onProgress({
@@ -937,7 +960,7 @@ export async function runAskAgent(
       console.log(`${LOG_PREFIXES.CHAT} Saved agent state with ${state.length} messages before stopping`);
 
       // Batch send partial token usage to ClickHouse
-      await recordTokenUsageBatch(tokenUsageRecords);
+      await recordUsageAndDeductCredits(tokenUsageRecords, userId, projectId);
 
       if (onProgress) {
         await onProgress({
@@ -972,7 +995,7 @@ export async function runAskAgent(
   await setAgentState(projectId, state);
 
   // Batch send partial token usage to ClickHouse
-  await recordTokenUsageBatch(tokenUsageRecords);
+  await recordUsageAndDeductCredits(tokenUsageRecords, userId, projectId);
 
   if (onProgress) {
     await onProgress({
