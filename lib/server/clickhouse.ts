@@ -43,6 +43,7 @@ export interface TokenUsageRecord {
   outputTokens: number;
   cachedInputTokens: number;
   model: string;
+  costUsd: number;
 }
 
 /**
@@ -78,6 +79,7 @@ export async function recordTokenUsageBatch(
         output_tokens: r.outputTokens,
         cached_input_tokens: r.cachedInputTokens,
         model: r.model,
+        cost_usd: r.costUsd,
       })),
       format: "JSONEachRow",
     });

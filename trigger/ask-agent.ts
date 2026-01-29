@@ -35,6 +35,7 @@ import { getAgentState, setAgentState } from "../lib/server/agent-state-store";
 import { withRetry } from "../lib/server/retry-utils";
 import { extractBamlMetrics } from "../lib/server/coding-agent";
 import { recordTokenUsageBatch, TokenUsageRecord } from "../lib/server/clickhouse";
+import { calculateCost } from "../lib/server/pricingStore";
 
 // Re-export AgentMetadata from coding-agent for shared use
 export type { AgentMetadata } from "./coding-agent";
@@ -257,6 +258,14 @@ export const askAgentTask = task({
             const metrics = extractBamlMetrics(collector, false);
             console.log(`${LOG_PREFIXES.CHAT} AskAgent iteration ${iterations} usage:`, metrics);
 
+            // Calculate cost for this iteration
+            const cost = await calculateCost(
+              metrics.model ?? "unknown",
+              metrics.inputTokens ?? 0,
+              metrics.cachedInputTokens ?? 0,
+              metrics.outputTokens ?? 0
+            );
+
             // Accumulate for batch insert to ClickHouse
             tokenUsageRecords.push({
               userId,
@@ -266,6 +275,7 @@ export const askAgentTask = task({
               outputTokens: metrics.outputTokens ?? 0,
               cachedInputTokens: metrics.cachedInputTokens ?? 0,
               model: metrics.model ?? "unknown",
+              costUsd: cost,
             });
           }
         } catch (error) {
