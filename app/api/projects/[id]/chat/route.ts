@@ -27,7 +27,7 @@ export async function POST(
   if (useTriggerDev) {
     try {
       // Authenticate user
-      const user = await getAuthenticatedUser(request);
+      const user = await getAuthenticatedUser();
       if (!user) {
         return Response.json({ error: ERROR_MESSAGES.UNAUTHORIZED }, { status: 401 });
       }
@@ -187,7 +187,7 @@ export async function POST(
   (async () => {
     try {
       // Authenticate user
-      const user = await getAuthenticatedUser(request);
+      const user = await getAuthenticatedUser();
       if (!user) {
         const errorEvent = formatErrorForStream(new Error(ERROR_MESSAGES.UNAUTHORIZED));
         await sendProgress(errorEvent);

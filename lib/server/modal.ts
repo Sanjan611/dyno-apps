@@ -1,5 +1,6 @@
 import { ModalClient, NotFoundError } from "modal";
 import { EXPO_PORT } from "@/lib/constants";
+import type { ApiErrorResponse } from "@/types/api";
 
 /**
  * Creates and returns a configured Modal client instance
@@ -86,15 +87,6 @@ export async function createSandbox(
     sandbox,
     app,
   };
-}
-
-/**
- * Standard error response format
- */
-export interface ApiErrorResponse {
-  success: false;
-  error: string;
-  details?: string;
 }
 
 /**

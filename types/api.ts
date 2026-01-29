@@ -242,35 +242,6 @@ export interface GetUserResponse {
 }
 
 // ============================================================================
-// Project Load/Save API Types
-// ============================================================================
-
-/**
- * POST /api/projects/[id]/save - Request body
- */
-export interface SaveProjectRequest {
-  files: Record<string, string>;
-}
-
-/**
- * POST /api/projects/[id]/save - Response
- */
-export interface SaveProjectResponse {
-  success: boolean;
-  savedFiles?: string[];
-  error?: string;
-}
-
-/**
- * GET /api/projects/[id]/load - Response
- */
-export interface LoadProjectResponse {
-  success: boolean;
-  files?: Record<string, string>;
-  error?: string;
-}
-
-// ============================================================================
 // Sandbox Logs API Types
 // ============================================================================
 
