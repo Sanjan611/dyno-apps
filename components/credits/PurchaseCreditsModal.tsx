@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -24,6 +25,12 @@ export default function PurchaseCreditsModal({
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   const packages = getCreditPackages();
 
@@ -58,9 +65,9 @@ export default function PurchaseCreditsModal({
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
-  return (
+  const modalContent = (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-start justify-center overflow-auto p-4">
       <Card className="my-auto max-w-lg w-full shadow-2xl animate-in fade-in zoom-in-95">
         <CardHeader className="relative">
@@ -153,4 +160,6 @@ export default function PurchaseCreditsModal({
       </Card>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
