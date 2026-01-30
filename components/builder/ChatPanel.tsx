@@ -1,14 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
-import { RefreshCw, Check } from "lucide-react";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
 import { useBuilderStore } from "@/lib/store";
 import { useCodeGeneration, InsufficientCreditsError } from "@/hooks/useCodeGeneration";
 import { useSandboxStartup } from "@/hooks/useSandboxStartup";
@@ -59,7 +51,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatPanel({ 
   const abortRef = useRef<(() => void) | null>(null);
 
   const { generateCode, cancelGeneration, isGenerating } = useCodeGeneration();
-  const { startSandbox, isStarting: isStartingSandbox, error: sandboxError, progressMessages, currentProgress } = useSandboxStartup();
+  const { startSandbox, isStarting: isStartingSandbox } = useSandboxStartup();
 
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
@@ -231,43 +223,6 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(function ChatPanel({ 
       >
         <MessageList messages={messages} />
       </div>
-
-      {/* Setting Up Environment Overlay */}
-      {!sandboxStarted && (
-        <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-50 flex items-center justify-center">
-          <Card className="max-w-md w-full mx-4 shadow-xl">
-            <CardHeader>
-              <CardTitle className="text-2xl">Setting Up Environment</CardTitle>
-              <CardDescription>
-                Preparing your development sandbox and initializing Expo. This may take a moment.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {sandboxError && (
-                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
-                  <p className="text-sm text-destructive">{sandboxError}</p>
-                </div>
-              )}
-              {(progressMessages.length > 0 || currentProgress || isStartingSandbox) && (
-                <div className="space-y-2 pt-2">
-                  {progressMessages.map((message, index) => (
-                    <div key={index} className="flex items-center gap-2 text-sm">
-                      <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
-                      <span className="text-muted-foreground">{message}</span>
-                    </div>
-                  ))}
-                  {(currentProgress || isStartingSandbox) && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <RefreshCw className="w-4 h-4 animate-spin text-primary flex-shrink-0" />
-                      <span className="font-medium">{currentProgress || "Setting up..."}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
       <ChatInput
         input={input}

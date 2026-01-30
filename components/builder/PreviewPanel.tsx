@@ -7,6 +7,13 @@ import CodeViewer from "./CodeViewer";
 import { useBuilderStore } from "@/lib/store";
 import { Smartphone, Code2, RefreshCw, Battery, Wifi, Signal, QrCode, Copy, Check, Terminal, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
 import { API_ENDPOINTS } from "@/lib/constants";
 
 export default function PreviewPanel() {
@@ -15,7 +22,16 @@ export default function PreviewPanel() {
   const [showInstallInstructions, setShowInstallInstructions] = useState(false);
   const [viewingLogs, setViewingLogs] = useState(false);
   const [logs, setLogs] = useState<any>(null);
-  const { previewUrl, projectId, sandboxId } = useBuilderStore();
+  const {
+    previewUrl,
+    projectId,
+    sandboxId,
+    sandboxStarted,
+    sandboxProgressMessages,
+    sandboxCurrentProgress,
+    sandboxError,
+    isStartingSandbox,
+  } = useBuilderStore();
 
   const fetchLogs = async () => {
     if (!sandboxId || !projectId) return;
@@ -71,11 +87,14 @@ export default function PreviewPanel() {
             Code
           </button>
           <button
-            onClick={() => setActiveView("test")}
+            onClick={() => sandboxStarted && setActiveView("test")}
+            disabled={!sandboxStarted}
             className={`flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
-              activeView === "test"
-                ? "bg-white text-primary shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-slate-200/50"
+              !sandboxStarted
+                ? "text-muted-foreground/50 cursor-not-allowed"
+                : activeView === "test"
+                  ? "bg-white text-primary shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-slate-200/50"
             }`}
           >
             <QrCode className="w-4 h-4" />
@@ -110,6 +129,43 @@ export default function PreviewPanel() {
 
       {/* Content Area - All tabs always mounted, CSS controls visibility */}
       <div className="flex-1 overflow-hidden relative flex items-center justify-center bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]">
+        {/* Setting Up Environment Overlay */}
+        {!sandboxStarted && (
+          <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-40 flex items-center justify-center">
+            <Card className="max-w-md w-full mx-4 shadow-xl">
+              <CardHeader>
+                <CardTitle className="text-2xl">Setting Up Environment</CardTitle>
+                <CardDescription>
+                  Preparing your development sandbox and initializing Expo. This may take a moment.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {sandboxError && (
+                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                    <p className="text-sm text-destructive">{sandboxError}</p>
+                  </div>
+                )}
+                {(sandboxProgressMessages.length > 0 || sandboxCurrentProgress || isStartingSandbox) && (
+                  <div className="space-y-2 pt-2">
+                    {sandboxProgressMessages.map((message, index) => (
+                      <div key={index} className="flex items-center gap-2 text-sm">
+                        <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+                        <span className="text-muted-foreground">{message}</span>
+                      </div>
+                    ))}
+                    {(sandboxCurrentProgress || isStartingSandbox) && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <RefreshCw className="w-4 h-4 animate-spin text-primary flex-shrink-0" />
+                        <span className="font-medium">{sandboxCurrentProgress || "Setting up..."}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Preview - always mounted, hidden when not active */}
         <div className={`${activeView === "preview" ? "flex" : "hidden"} flex-col items-center justify-center h-full w-full py-4`}>
           <div className="relative w-full max-w-[375px] max-h-[812px] flex-1 flex flex-col shadow-2xl rounded-[3rem] border-[8px] border-gray-900 bg-black overflow-hidden transform transition-transform hover:scale-[1.01]">

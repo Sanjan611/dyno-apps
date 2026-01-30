@@ -82,6 +82,7 @@ export default function BuilderPage() {
     sandboxStarted,
     setSandboxStarted,
     setSandboxHealthStatus,
+    clearSandboxProgress,
   } = useBuilderStore();
 
   // On mount: Load project from route param and initialize store
@@ -99,6 +100,7 @@ export default function BuilderPage() {
         setPreviewUrl(null);
         setSandboxStarted(false);
         setSandboxHealthStatus("unknown");
+        clearSandboxProgress();
         setInitialMessages(undefined);
 
         // Fetch project details
@@ -136,7 +138,7 @@ export default function BuilderPage() {
     };
 
     loadProject();
-  }, [projectIdFromRoute, setProjectId, setProjectName, setSandboxId, setPreviewUrl, setSandboxStarted, setSandboxHealthStatus]);
+  }, [projectIdFromRoute, setProjectId, setProjectName, setSandboxId, setPreviewUrl, setSandboxStarted, setSandboxHealthStatus, clearSandboxProgress]);
 
   // Intercept navigation when sandbox is started
   useEffect(() => {
