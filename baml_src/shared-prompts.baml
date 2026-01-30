@@ -18,25 +18,55 @@ template_string EnvironmentSetup(working_dir: string) #"
 template_string ExpoBestPractices #"
   # React Native/Expo Best Practices
 
-  ## Folder Structure (Based on Expo Best Practices)
-  Follow these organizational patterns for React Native/Expo projects:
+  ## Recommended Folder Structure
 
-  - **src/ folder**: Separate app code from config files. Place the main app folder at `/src/app` or `/src` root instead of project root for better organization
-  - **components/ folder**: Reusable components outside the app directory (since file-based routing limits what can go in /app)
-    - Each component should have one named export
-    - Filename matches component name (PascalCase, e.g., `Button.tsx` exports `Button`)
-    - For complex components, use a folder with `index.tsx` as the main file (e.g., `components/Table/index.tsx`)
-  - **screens/ folder**: Screen-level components for larger apps that need separation from route files
-  - **utils/ folder**: Standalone utilities (date formatters, currency converters, data transformers)
-  - **hooks/ folder**: Reusable custom React hooks (e.g., `useAuth`, `useFetch`)
-  - **server/ folder**: Server-side utilities and API route helpers (separate from client code)
-  - **Platform-specific code**: Use file extensions for platform variants:
-    - `.web.tsx` / `.web.ts` - Web-specific implementations
-    - `.native.tsx` / `.native.ts` - Native (iOS/Android) implementations
-    - `.ios.tsx` / `.ios.ts` - iOS-specific implementations
-    - `.android.tsx` / `.android.ts` - Android-specific implementations
-    - Always provide a default version without platform extension as fallback
-    - Platform-specific components must have identical props interface
+  ```
+  app/                    # Expo Router routes (file-based routing)
+    _layout.tsx           # Root layout
+    index.tsx             # Home screen (/)
+    (tabs)/               # Tab group
+      _layout.tsx         # Tab configuration
+      index.tsx           # First tab
+      explore.tsx         # Second tab
+    (auth)/               # Auth screens group
+      sign-in.tsx
+      sign-up.tsx
+    [id].tsx              # Dynamic route
+    modal.tsx             # Modal screen
+
+  components/             # Reusable UI components
+    ui/                   # Base UI primitives
+      Button.tsx
+      Input.tsx
+      Card.tsx
+    features/             # Feature-specific components
+      auth/
+        LoginForm.tsx
+      home/
+        FeedCard.tsx
+
+  hooks/                  # Custom React hooks
+    useAuth.ts
+    useFetch.ts
+
+  lib/                    # Utilities and helpers
+    api.ts                # API client
+    storage.ts            # AsyncStorage helpers
+    utils.ts              # General utilities
+
+  constants/              # App constants
+    theme.ts              # Design tokens
+    config.ts             # App configuration
+
+  types/                  # TypeScript types
+    index.ts
+  ```
+
+  ## Route Groups
+  - Use `(groupName)` for logical grouping without affecting URL
+  - `(tabs)` groups tab screens together
+  - `(auth)` groups authentication screens
+  - Groups keep URLs clean: `(tabs)/profile` → `/profile`
 
   ## Component Structure Guidelines
 
@@ -44,13 +74,389 @@ template_string ExpoBestPractices #"
   - **TypeScript Types**: Define props using TypeScript interfaces (e.g., `interface ButtonProps { label: string }`)
   - **Named Exports**: Use named exports matching the component name (e.g., `export function Button() {}`)
   - **File Naming**: PascalCase for component files (e.g., `Button.tsx`, `UserProfile.tsx`)
-  - **Style Organization**: Keep `StyleSheet.create()` at the bottom of component files, not in separate files. This is a modern best practice that makes styles easier to see and work with.
+  - **Style Organization**: Keep `StyleSheet.create()` at the bottom of component files, not in separate files
   - **Import Ordering**: Organize imports in this order:
     1. React and React Native imports
     2. Third-party library imports
     3. Local component imports
     4. Utility/hook imports
     5. Type imports (if separate)
+
+  ## Platform-Specific Code
+  Use file extensions for platform variants:
+  - `.web.tsx` / `.web.ts` - Web-specific implementations
+  - `.native.tsx` / `.native.ts` - Native (iOS/Android) implementations
+  - `.ios.tsx` / `.ios.ts` - iOS-specific implementations
+  - `.android.tsx` / `.android.ts` - Android-specific implementations
+  - Always provide a default version without platform extension as fallback
+  - Platform-specific components must have identical props interface
+"#
+
+template_string NavigationPatterns #"
+  ## Expo Router Navigation Patterns
+
+  ### Tab Navigation Setup
+  Create tabs using a `(tabs)` directory with `_layout.tsx`:
+
+  ```
+  app/
+    _layout.tsx          # Root layout (Stack wrapping tabs)
+    (tabs)/
+      _layout.tsx        # Tab layout configuration
+      index.tsx          # Home tab (default)
+      settings.tsx       # Settings tab
+      profile.tsx        # Profile tab
+  ```
+
+  **Root Layout** (`app/_layout.tsx`):
+  ```tsx
+  import { Stack } from 'expo-router';
+
+  export default function RootLayout() {
+    return (
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{"{{"}} headerShown: false {{"}}"}} />
+      </Stack>
+    );
+  }
+  ```
+
+  **Tab Layout** (`app/(tabs)/_layout.tsx`):
+  ```tsx
+  import FontAwesome from '@expo/vector-icons/FontAwesome';
+  import { Tabs } from 'expo-router';
+
+  export default function TabLayout() {
+    return (
+      <Tabs screenOptions={{"{{"}} tabBarActiveTintColor: 'blue' {{"}}"}}>
+        <Tabs.Screen
+          name="index"
+          options={{"{{"}}
+            title: 'Home',
+            tabBarIcon: ({{"{{"}} color {{"}}"}}) => <FontAwesome size={28} name="home" color={color} />,
+          {{"}}"}}
+        />
+        <Tabs.Screen
+          name="settings"
+          options={{"{{"}}
+            title: 'Settings',
+            tabBarIcon: ({{"{{"}} color {{"}}"}}) => <FontAwesome size={28} name="cog" color={color} />,
+          {{"}}"}}
+        />
+      </Tabs>
+    );
+  }
+  ```
+
+  ### Stacks Inside Tabs (for multi-screen tabs)
+  When a tab needs multiple screens (e.g., Feed → Post Details):
+
+  ```
+  app/
+    (tabs)/
+      _layout.tsx
+      index.tsx
+      feed/
+        _layout.tsx      # Stack navigator for feed tab
+        index.tsx        # Feed list
+        [id].tsx         # Post detail screen
+  ```
+
+  **Feed Stack** (`app/(tabs)/feed/_layout.tsx`):
+  ```tsx
+  import { Stack } from 'expo-router';
+
+  export default function FeedLayout() {
+    return <Stack />;
+  }
+  ```
+
+  ### Drawer Navigation
+  Install: `npx expo install @react-navigation/drawer react-native-reanimated react-native-gesture-handler`
+
+  ```tsx
+  import { Drawer } from 'expo-router/drawer';
+
+  export default function DrawerLayout() {
+    return (
+      <Drawer>
+        <Drawer.Screen name="index" options={{"{{"}} drawerLabel: 'Home', title: 'Home' {{"}}"}} />
+        <Drawer.Screen name="settings" options={{"{{"}} drawerLabel: 'Settings', title: 'Settings' {{"}}"}} />
+      </Drawer>
+    );
+  }
+  ```
+
+  ### Modal Screens
+  Add modals at the root level, outside tabs:
+
+  ```
+  app/
+    _layout.tsx
+    (tabs)/
+      ...
+    modal.tsx            # Modal screen
+  ```
+
+  **Root Layout with Modal**:
+  ```tsx
+  import { Stack } from 'expo-router';
+
+  export default function RootLayout() {
+    return (
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{"{{"}} headerShown: false {{"}}"}} />
+        <Stack.Screen name="modal" options={{"{{"}} presentation: 'modal' {{"}}"}} />
+      </Stack>
+    );
+  }
+  ```
+
+  ### Protected Routes (Auth Flow)
+  ```tsx
+  import { Stack } from 'expo-router';
+  import { useAuth } from '@/hooks/useAuth';
+
+  export default function RootLayout() {
+    const {{"{{"}} isLoggedIn {{"}}"}} = useAuth();
+
+    return (
+      <Stack>
+        {isLoggedIn ? (
+          <Stack.Screen name="(tabs)" options={{"{{"}} headerShown: false {{"}}"}} />
+        ) : (
+          <Stack.Screen name="sign-in" options={{"{{"}} headerShown: false {{"}}"}} />
+        )}
+      </Stack>
+    );
+  }
+  ```
+
+  ### Key Navigation Rules
+  - **Android tab limit**: Maximum 5 tabs in bottom tab bar (Material Design restriction)
+  - **Hide tabs**: Use `options={{"{{"}} href: null {{"}}"}}` to hide a tab from the bar
+  - **Tab icons**: Always provide `tabBarIcon` for visual clarity
+  - **Header control**: Use `headerShown: false` on parent when child has its own header
+"#
+
+template_string AppLayoutPatterns #"
+  ## App Layout Best Practices
+
+  ### Screen Structure Pattern
+  Every screen should follow this structure:
+
+  ```tsx
+  import { View, StyleSheet } from 'react-native';
+  import { SafeAreaView } from 'react-native-safe-area-context';
+
+  export default function ScreenName() {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          {/* Screen content */}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    content: {
+      flex: 1,
+      padding: theme.spacing.md,
+    },
+  });
+  ```
+
+  ### Common Layout Patterns
+
+  **1. List with Header**
+  ```tsx
+  <View style={styles.container}>
+    <View style={styles.header}>
+      <Text style={styles.title}>Title</Text>
+    </View>
+    <FlatList
+      data={items}
+      renderItem={({{"{{"}} item {{"}}"}}) => <ListItem item={item} />}
+      contentContainerStyle={styles.list}
+    />
+  </View>
+  ```
+
+  **2. Form Layout**
+  ```tsx
+  <KeyboardAvoidingView
+    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    style={styles.container}
+  >
+    <ScrollView contentContainerStyle={styles.form}>
+      <TextInput style={styles.input} placeholder="Email" />
+      <TextInput style={styles.input} placeholder="Password" secureTextEntry />
+      <Button title="Submit" onPress={handleSubmit} />
+    </ScrollView>
+  </KeyboardAvoidingView>
+  ```
+
+  **3. Card Grid Layout**
+  ```tsx
+  <FlatList
+    data={items}
+    numColumns={2}
+    renderItem={({{"{{"}} item {{"}}"}}) => (
+      <View style={styles.card}>
+        <Image source={{"{{"}} uri: item.image {{"}}"}} style={styles.cardImage} />
+        <Text style={styles.cardTitle}>{item.title}</Text>
+      </View>
+    )}
+    columnWrapperStyle={styles.row}
+  />
+  ```
+
+  **4. Bottom Action Bar**
+  ```tsx
+  <View style={styles.container}>
+    <ScrollView style={styles.content}>
+      {/* Main content */}
+    </ScrollView>
+    <View style={styles.bottomBar}>
+      <Button title="Cancel" variant="secondary" />
+      <Button title="Confirm" variant="primary" />
+    </View>
+  </View>
+  ```
+
+  ### Responsive Design
+  - Use `useWindowDimensions()` for dynamic sizing
+  - Use percentage-based widths for flexible layouts
+  - Use `flex` properties instead of fixed heights where possible
+
+  ```tsx
+  import { useWindowDimensions } from 'react-native';
+
+  export function ResponsiveGrid() {
+    const {{"{{"}} width {{"}}"}} = useWindowDimensions();
+    const numColumns = width > 600 ? 3 : 2;
+    const itemWidth = (width - theme.spacing.md * (numColumns + 1)) / numColumns;
+
+    return (
+      <FlatList
+        data={items}
+        numColumns={numColumns}
+        key={numColumns} // Force re-render on column change
+        renderItem={({{"{{"}} item {{"}}"}}) => (
+          <View style={[styles.item, {{"{{"}} width: itemWidth {{"}}"}}]}>
+            {/* Item content */}
+          </View>
+        )}
+      />
+    );
+  }
+  ```
+"#
+
+template_string CommonUIPatterns #"
+  ## Common UI Component Patterns
+
+  ### Loading States
+  ```tsx
+  function LoadingScreen() {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+  ```
+
+  ### Empty States
+  ```tsx
+  function EmptyState({{"{{"}} message, action {{"}}"}}: {{"{{"}} message: string; action?: () => void {{"}}"}}) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>{message}</Text>
+        {action && <Button title="Try Again" onPress={action} />}
+      </View>
+    );
+  }
+  ```
+
+  ### Pull to Refresh
+  ```tsx
+  <FlatList
+    data={items}
+    renderItem={renderItem}
+    refreshControl={
+      <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+    }
+  />
+  ```
+
+  ### Search Header
+  ```tsx
+  function SearchHeader({{"{{"}} value, onChangeText {{"}}"}}: SearchHeaderProps) {
+    return (
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={20} color={theme.colors.textMuted} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search..."
+          value={value}
+          onChangeText={onChangeText}
+          placeholderTextColor={theme.colors.textMuted}
+        />
+      </View>
+    );
+  }
+  ```
+
+  ### Bottom Sheet Modal
+  ```tsx
+  import { Modal, Pressable } from 'react-native';
+
+  function BottomSheet({{"{{"}} visible, onClose, children {{"}}"}}) {
+    return (
+      <Modal visible={visible} transparent animationType="slide">
+        <Pressable style={styles.overlay} onPress={onClose}>
+          <View style={styles.sheet}>
+            <View style={styles.handle} />
+            {children}
+          </View>
+        </Pressable>
+      </Modal>
+    );
+  }
+  ```
+
+  ### Floating Action Button (FAB)
+  ```tsx
+  function FAB({{"{{"}} onPress, icon {{"}}"}}: FABProps) {
+    return (
+      <Pressable style={styles.fab} onPress={onPress}>
+        <Ionicons name={icon} size={24} color="white" />
+      </Pressable>
+    );
+  }
+
+  const styles = StyleSheet.create({
+    fab: {
+      position: 'absolute',
+      right: 16,
+      bottom: 16,
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: theme.colors.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      ...theme.shadows.lg,
+    },
+  });
+  ```
 "#
 
 template_string ComponentExamples #"

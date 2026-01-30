@@ -64,6 +64,15 @@ function CodingAgent(
     ## Expo Best Practices
     {{ ExpoBestPractices() }}
 
+    ## Navigation Patterns
+    {{ NavigationPatterns() }}
+
+    ## App Layout Patterns
+    {{ AppLayoutPatterns() }}
+
+    ## Common UI Patterns
+    {{ CommonUIPatterns() }}
+
     ## Debugging Guidelines
     {{ DebuggingGuidelines() }}
 
