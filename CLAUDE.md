@@ -183,6 +183,12 @@ The builder store holds the current project/sandbox session state. Only user pre
 - Requires approval via waitlist system (users must be approved before signing up)
 - Returns 403 for unapproved or pending emails
 
+**Password Reset:**
+- `/forgot-password` → User enters email → Supabase sends reset email
+- `/reset-password` → User sets new password (requires valid recovery session)
+- API routes: `app/api/auth/forgot-password/route.ts`, `app/api/auth/reset-password/route.ts`
+- Requires Supabase config: Site URL must be base domain (e.g., `https://www.example.com`, not `https://www.example.com/login`), and Redirect URLs must include `/auth/callback?next=/reset-password` for both localhost and production
+
 **Supabase Integration:**
 - Client: `lib/supabase/client.ts` (browser)
 - Server: `lib/supabase/server.ts` (server-side with cookie handling)
@@ -303,6 +309,7 @@ The correct sequence for new projects:
 - `OPENROUTER_API_KEY` - GLM 4.6 primary model
 - `MODAL_TOKEN_ID` + `MODAL_TOKEN_SECRET` - Modal sandbox API
 - `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase
+- `NEXT_PUBLIC_APP_URL` - Base URL for the app (e.g., `http://localhost:3000` or `https://www.example.com`). Used for password reset email links.
 - `ADMIN_EMAILS` - Comma-separated admin emails for waitlist management
 - `GITHUB_ORG_NAME` + `GITHUB_PAT` - GitHub org and personal access token
 

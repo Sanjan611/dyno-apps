@@ -1,7 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import {
   Card,
@@ -15,28 +14,11 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-function LoginContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+function ForgotPasswordContent() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  // Check for OAuth errors and success messages in URL params
-  useEffect(() => {
-    const oauthError = searchParams.get("error");
-    if (oauthError) {
-      setError(oauthError);
-    }
-
-    const message = searchParams.get("message");
-    if (message === "password-reset") {
-      setSuccessMessage("Your password has been reset successfully. Please sign in with your new password.");
-    }
-  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,49 +26,62 @@ function LoginContent() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email }),
       });
 
       const data = await response.json();
 
       if (!data.success) {
-        setError(data.error || "Failed to sign in");
+        setError(data.error || "Failed to send reset email");
         setIsLoading(false);
         return;
       }
 
-      // Redirect to home page or the redirect URL from query params
-      const redirectTo = searchParams.get("redirect") || "/";
-      router.push(redirectTo);
-      router.refresh();
+      setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
       setIsLoading(false);
     }
   };
 
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="text-3xl font-bold">Check your email</CardTitle>
+            <CardDescription className="mt-2">
+              If an account exists with that email, we&apos;ve sent you a password reset link.
+              Please check your inbox and spam folder.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="justify-center">
+            <Link href="/login" className="text-primary hover:underline">
+              Back to login
+            </Link>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold">Welcome back</CardTitle>
+          <CardTitle className="text-3xl font-bold">Reset your password</CardTitle>
           <CardDescription className="mt-2">
-            Sign in to your Dyno Apps account
+            Enter your email address and we&apos;ll send you a link to reset your password.
           </CardDescription>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
-            {successMessage && (
-              <div className="p-3 text-sm text-green-700 bg-green-50 border border-green-200 rounded-md">
-                {successMessage}
-              </div>
-            )}
             {error && (
               <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
                 {error}
@@ -102,38 +97,20 @@ function LoginContent() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isLoading}
+                autoComplete="email"
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="flex justify-end">
-              <Link href="/forgot-password" className="text-sm text-muted-foreground hover:text-primary">
-                Forgot password?
-              </Link>
             </div>
           </CardContent>
 
           <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Signing in..." : "Sign In"}
+              {isLoading ? "Sending..." : "Send reset link"}
             </Button>
 
             <p className="text-center text-sm text-muted-foreground">
-              Don&apos;t have an account?{" "}
-              <Link href="/" className="text-primary hover:underline">
-                Request beta access
+              Remember your password?{" "}
+              <Link href="/login" className="text-primary hover:underline">
+                Sign in
               </Link>
             </p>
           </CardFooter>
@@ -143,10 +120,10 @@ function LoginContent() {
   );
 }
 
-export default function LoginPage() {
+export default function ForgotPasswordPage() {
   return (
     <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
-      <LoginContent />
+      <ForgotPasswordContent />
     </Suspense>
   );
 }

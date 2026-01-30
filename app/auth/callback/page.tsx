@@ -8,7 +8,7 @@ import { Loader2 } from "lucide-react";
 /**
  * Auth Callback Page (Client-Side)
  *
- * Handles OAuth callback (code exchange).
+ * Handles OAuth callback (code exchange) and password recovery flows.
  * Must be client-side because some auth flows put tokens in the
  * URL hash fragment, which is only accessible via window.location.hash.
  */
@@ -19,13 +19,12 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       const supabase = createClient();
+      const searchParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
 
-      // Check for error in URL hash
-      const hashParams = new URLSearchParams(
-        window.location.hash.substring(1)
-      );
-      const errorParam = hashParams.get("error");
-      const errorDescription = hashParams.get("error_description");
+      // Check for error in URL hash or query params
+      const errorParam = hashParams.get("error") || searchParams.get("error");
+      const errorDescription = hashParams.get("error_description") || searchParams.get("error_description");
 
       if (errorParam) {
         router.push(
@@ -34,32 +33,51 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      // Supabase client automatically picks up tokens from URL hash
-      // Wait for auth state to be set
-      const {
+      // Get the redirect destination from query params
+      const next = searchParams.get("next") || "/project-gallery";
+
+      // Check if this is a password recovery flow (tokens in hash with type=recovery)
+      const hashType = hashParams.get("type");
+      const isRecoveryFlow = hashType === "recovery";
+
+      // Try to get existing session first
+      let {
         data: { session },
         error: sessionError,
       } = await supabase.auth.getSession();
 
-      if (sessionError || !session) {
-        // Try exchanging code if present (for OAuth flows)
-        const searchParams = new URLSearchParams(window.location.search);
+      // If no session, try exchanging code (PKCE flow)
+      if (!session) {
         const code = searchParams.get("code");
 
         if (code) {
-          const { error: exchangeError } =
+          const { data, error: exchangeError } =
             await supabase.auth.exchangeCodeForSession(code);
 
           if (exchangeError) {
+            console.error("[auth/callback] Code exchange error:", exchangeError);
             router.push(
               `/login?error=${encodeURIComponent(exchangeError.message)}`
             );
             return;
           }
-        } else {
-          router.push("/login?error=Invalid authentication request");
-          return;
+          session = data.session;
         }
+      }
+
+      // For hash-based recovery flows, the Supabase client should auto-detect
+      // Give it a moment to process and re-check
+      if (!session && (hashParams.get("access_token") || isRecoveryFlow)) {
+        // Wait briefly for Supabase to process hash tokens
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        const result = await supabase.auth.getSession();
+        session = result.data.session;
+      }
+
+      if (!session) {
+        console.error("[auth/callback] No session established");
+        router.push("/login?error=Invalid authentication request");
+        return;
       }
 
       // Get user to verify auth succeeded
@@ -72,9 +90,13 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      // Get redirect destination from query params or default
-      const searchParams = new URLSearchParams(window.location.search);
-      const next = searchParams.get("next") || "/project-gallery";
+      // For password recovery, redirect to reset-password page
+      // Check if the session was established via recovery flow
+      if (isRecoveryFlow || next === "/reset-password") {
+        router.push("/reset-password");
+        return;
+      }
+
       router.push(next);
     };
 
