@@ -14,10 +14,16 @@ import {
   badRequestResponse,
   errorResponse,
 } from "@/lib/server/api-utils";
+import { isBuyCreditsEnabled } from "@/lib/features";
 
 const LOG_PREFIX = "[stripe/checkout]";
 
 export const POST = withAuth(async (request: NextRequest, user) => {
+  // Check feature flag first
+  if (!isBuyCreditsEnabled()) {
+    return errorResponse("Credit purchases are not currently available", 403);
+  }
+
   try {
     const body = await request.json();
     const { packageId } = body;

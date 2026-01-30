@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { useBuilderStore } from "@/lib/store";
 import PurchaseCreditsModal from "@/components/credits/PurchaseCreditsModal";
+import { isBuyCreditsEnabled } from "@/lib/features";
 
 interface Purchase {
   id: string;
@@ -31,6 +32,7 @@ export default function BillingPage() {
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
 
   const { credits, refreshCredits } = useBuilderStore();
+  const buyCreditsEnabled = isBuyCreditsEnabled();
 
   useEffect(() => {
     refreshCredits();
@@ -86,7 +88,11 @@ export default function BillingPage() {
               </p>
             </div>
           </div>
-          <Button onClick={() => setShowPurchaseModal(true)}>
+          <Button
+            onClick={() => setShowPurchaseModal(true)}
+            disabled={!buyCreditsEnabled}
+            title={!buyCreditsEnabled ? "Coming soon" : undefined}
+          >
             <CreditCard className="w-4 h-4 mr-2" />
             Buy Credits
           </Button>
@@ -116,6 +122,8 @@ export default function BillingPage() {
               <Button
                 variant="outline"
                 onClick={() => setShowPurchaseModal(true)}
+                disabled={!buyCreditsEnabled}
+                title={!buyCreditsEnabled ? "Coming soon" : undefined}
               >
                 Add More
               </Button>
@@ -147,6 +155,8 @@ export default function BillingPage() {
                 <Button
                   variant="outline"
                   onClick={() => setShowPurchaseModal(true)}
+                  disabled={!buyCreditsEnabled}
+                  title={!buyCreditsEnabled ? "Coming soon" : undefined}
                 >
                   Buy Your First Credits
                 </Button>
