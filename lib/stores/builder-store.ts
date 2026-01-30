@@ -48,6 +48,12 @@ export interface BuilderState {
   lastHealthCheck: Date | null;
   sandboxStarted: boolean;
 
+  // Sandbox startup progress (NOT persisted - for UI display)
+  sandboxProgressMessages: string[];
+  sandboxCurrentProgress: string | null;
+  sandboxError: string | null;
+  isStartingSandbox: boolean;
+
   // User credits (NOT persisted - fetched from API)
   credits: CreditsState;
 
@@ -67,6 +73,13 @@ export interface BuilderState {
   setCurrentMode: (mode: MessageMode) => void;
   refreshCredits: () => Promise<void>;
 
+  // Sandbox startup progress setters
+  addSandboxProgressMessage: (message: string) => void;
+  setSandboxCurrentProgress: (progress: string | null) => void;
+  setSandboxError: (error: string | null) => void;
+  setIsStartingSandbox: (isStarting: boolean) => void;
+  clearSandboxProgress: () => void;
+
   // Reset
   reset: () => void;
 }
@@ -81,6 +94,10 @@ const initialState = {
   lastHealthCheck: null,
   currentMode: "build" as MessageMode, // Default to build mode
   sandboxStarted: false,
+  sandboxProgressMessages: [] as string[],
+  sandboxCurrentProgress: null as string | null,
+  sandboxError: null as string | null,
+  isStartingSandbox: false,
   credits: {
     balance: null,
     isLoading: false,
@@ -121,6 +138,29 @@ export const useBuilderStore = create<BuilderState>()(
 
       setSandboxStarted: (started) =>
         set({ sandboxStarted: started }),
+
+      // Sandbox startup progress setters
+      addSandboxProgressMessage: (message) =>
+        set((state) => ({
+          sandboxProgressMessages: [...state.sandboxProgressMessages, message],
+        })),
+
+      setSandboxCurrentProgress: (progress) =>
+        set({ sandboxCurrentProgress: progress }),
+
+      setSandboxError: (error) =>
+        set({ sandboxError: error }),
+
+      setIsStartingSandbox: (isStarting) =>
+        set({ isStartingSandbox: isStarting }),
+
+      clearSandboxProgress: () =>
+        set({
+          sandboxProgressMessages: [],
+          sandboxCurrentProgress: null,
+          sandboxError: null,
+          isStartingSandbox: false,
+        }),
 
       setCurrentMode: (mode) => set({ currentMode: mode }),
 

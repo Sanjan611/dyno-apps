@@ -1,29 +1,35 @@
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { useBuilderStore } from "@/lib/store";
 
 /**
  * Hook for managing explicit sandbox startup
  * Handles sandbox health check, creation, and Expo initialization
- * 
+ *
  * Requires projectId to be already set in the store (project must exist before sandbox startup)
  */
 export function useSandboxStartup() {
-  const [isStarting, setIsStarting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [progressMessages, setProgressMessages] = useState<string[]>([]);
-  const [currentProgress, setCurrentProgress] = useState<string | null>(null);
-  const { setSandboxId, setPreviewUrl, setSandboxStarted, projectId } = useBuilderStore();
-
-  const addProgressMessage = useCallback((message: string) => {
-    setProgressMessages((prev) => [...prev, message]);
-  }, []);
+  const {
+    setSandboxId,
+    setPreviewUrl,
+    setSandboxStarted,
+    projectId,
+    // Progress state from store
+    sandboxProgressMessages,
+    sandboxCurrentProgress,
+    sandboxError,
+    isStartingSandbox,
+    addSandboxProgressMessage,
+    setSandboxCurrentProgress,
+    setSandboxError,
+    setIsStartingSandbox,
+    clearSandboxProgress,
+  } = useBuilderStore();
 
   const startSandbox = useCallback(async (): Promise<void> => {
-    setIsStarting(true);
-    setError(null);
-    setProgressMessages([]);
-    setCurrentProgress(null);
+    setIsStartingSandbox(true);
+    setSandboxError(null);
+    clearSandboxProgress();
 
     try {
       // Project must already exist - projectId should be set by the route
@@ -34,7 +40,7 @@ export function useSandboxStartup() {
       }
 
       // Step 1: Check if existing sandbox is healthy and can be reused
-      setCurrentProgress("Checking existing sandbox...");
+      setSandboxCurrentProgress("Checking existing sandbox...");
       try {
         const healthResponse = await fetch(
           API_ENDPOINTS.PROJECT_SANDBOX_HEALTH(currentProjectId)
@@ -46,8 +52,8 @@ export function useSandboxStartup() {
             setSandboxId(healthData.sandboxId);
             setPreviewUrl(healthData.previewUrl);
             setSandboxStarted(true);
-            addProgressMessage("Existing sandbox ready");
-            setCurrentProgress(null);
+            addSandboxProgressMessage("Existing sandbox ready");
+            setSandboxCurrentProgress(null);
             return; // Skip creation
           }
         }
@@ -55,7 +61,7 @@ export function useSandboxStartup() {
         console.warn("[useSandboxStartup] Error checking sandbox health:", error);
         // Continue with creation flow
       }
-      setCurrentProgress(null);
+      setSandboxCurrentProgress(null);
 
       // Guard: Check if another concurrent call already succeeded (React Strict Mode race condition)
       // Read fresh state from the store to handle concurrent startSandbox calls
@@ -76,7 +82,7 @@ export function useSandboxStartup() {
       }
 
       // Step 3: Create a new sandbox
-      setCurrentProgress("Creating sandbox...");
+      setSandboxCurrentProgress("Creating sandbox...");
       const sandboxResponse = await fetch(API_ENDPOINTS.PROJECT_SANDBOX(currentProjectId), {
         method: "POST",
         headers: {
@@ -106,11 +112,11 @@ export function useSandboxStartup() {
 
       const newSandboxId = sandboxData.sandboxId;
       setSandboxId(newSandboxId);
-      addProgressMessage("Sandbox created");
-      setCurrentProgress(null);
+      addSandboxProgressMessage("Sandbox created");
+      setSandboxCurrentProgress(null);
 
       // Step 4: Verify project has currentSandboxId set and fetch repositoryUrl
-      setCurrentProgress("Loading project code...");
+      setSandboxCurrentProgress("Loading project code...");
       let repositoryUrl: string | null = null;
       let projectHasSandboxId = false;
       
@@ -146,12 +152,12 @@ export function useSandboxStartup() {
       if (!projectHasSandboxId) {
         console.warn("[useSandboxStartup] Project currentSandboxId not set after sandbox creation, but continuing anyway");
       }
-      
-      addProgressMessage("Project code loaded");
-      setCurrentProgress(null);
+
+      addSandboxProgressMessage("Project code loaded");
+      setSandboxCurrentProgress(null);
 
       // Step 5: Initialize Expo
-      setCurrentProgress("Initializing Expo server...");
+      setSandboxCurrentProgress("Initializing Expo server...");
       const initResponse = await fetch(API_ENDPOINTS.INIT_EXPO, {
         method: "POST",
         headers: {
@@ -196,24 +202,34 @@ export function useSandboxStartup() {
       // Step 6: Update store state
       setPreviewUrl(initData.previewUrl);
       setSandboxStarted(true);
-      addProgressMessage("Expo server initialized");
-      setCurrentProgress(null);
+      addSandboxProgressMessage("Expo server initialized");
+      setSandboxCurrentProgress(null);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
-      setError(errorMessage);
+      setSandboxError(errorMessage);
       setSandboxStarted(false);
-      setCurrentProgress(null);
+      setSandboxCurrentProgress(null);
       throw err;
     } finally {
-      setIsStarting(false);
+      setIsStartingSandbox(false);
     }
-  }, [projectId, setSandboxId, setPreviewUrl, setSandboxStarted, addProgressMessage]);
+  }, [
+    projectId,
+    setSandboxId,
+    setPreviewUrl,
+    setSandboxStarted,
+    addSandboxProgressMessage,
+    setSandboxCurrentProgress,
+    setSandboxError,
+    setIsStartingSandbox,
+    clearSandboxProgress,
+  ]);
 
   return {
     startSandbox,
-    isStarting,
-    error,
-    progressMessages,
-    currentProgress,
+    isStarting: isStartingSandbox,
+    error: sandboxError,
+    progressMessages: sandboxProgressMessages,
+    currentProgress: sandboxCurrentProgress,
   };
 }
