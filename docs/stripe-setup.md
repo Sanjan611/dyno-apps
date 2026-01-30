@@ -2,6 +2,17 @@
 
 This guide walks you through setting up Stripe for credit purchases in Dyno Apps.
 
+## Enabling Credit Purchases
+
+Credit purchases are controlled by a **server-side feature flag**. To enable:
+
+```bash
+# In .env.local
+FEATURE_BUY_CREDITS=true
+```
+
+When disabled (default), the "Buy Credits" UI is completely hidden from users. The flag is server-side only and not exposed to the client JavaScript bundle.
+
 ## Overview
 
 The integration uses **Stripe Checkout** (hosted payment page) for secure, PCI-compliant payments. Users select a credit package, get redirected to Stripe's payment page, and credits are added automatically via webhook after successful payment.

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/table";
 import { useBuilderStore } from "@/lib/store";
 import PurchaseCreditsModal from "@/components/credits/PurchaseCreditsModal";
-import { isBuyCreditsEnabled } from "@/lib/features";
+import { useBuyCreditsEnabled } from "@/lib/hooks/useFeatures";
 
 interface Purchase {
   id: string;
@@ -32,7 +32,7 @@ export default function BillingPage() {
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
 
   const { credits, refreshCredits } = useBuilderStore();
-  const buyCreditsEnabled = isBuyCreditsEnabled();
+  const { enabled: buyCreditsEnabled } = useBuyCreditsEnabled();
 
   useEffect(() => {
     refreshCredits();
@@ -88,14 +88,12 @@ export default function BillingPage() {
               </p>
             </div>
           </div>
-          <Button
-            onClick={() => setShowPurchaseModal(true)}
-            disabled={!buyCreditsEnabled}
-            title={!buyCreditsEnabled ? "Coming soon" : undefined}
-          >
-            <CreditCard className="w-4 h-4 mr-2" />
-            Buy Credits
-          </Button>
+          {buyCreditsEnabled && (
+            <Button onClick={() => setShowPurchaseModal(true)}>
+              <CreditCard className="w-4 h-4 mr-2" />
+              Buy Credits
+            </Button>
+          )}
         </div>
 
         {/* Balance Card */}
@@ -119,14 +117,14 @@ export default function BillingPage() {
                   </p>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                onClick={() => setShowPurchaseModal(true)}
-                disabled={!buyCreditsEnabled}
-                title={!buyCreditsEnabled ? "Coming soon" : undefined}
-              >
-                Add More
-              </Button>
+              {buyCreditsEnabled && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowPurchaseModal(true)}
+                >
+                  Add More
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -149,17 +147,18 @@ export default function BillingPage() {
             ) : purchases.length === 0 ? (
               <div className="text-center py-8">
                 <Coins className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
-                <p className="text-muted-foreground mb-4">
+                <p className="text-muted-foreground">
                   No purchases yet
                 </p>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowPurchaseModal(true)}
-                  disabled={!buyCreditsEnabled}
-                  title={!buyCreditsEnabled ? "Coming soon" : undefined}
-                >
-                  Buy Your First Credits
-                </Button>
+                {buyCreditsEnabled && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowPurchaseModal(true)}
+                    className="mt-4"
+                  >
+                    Buy Your First Credits
+                  </Button>
+                )}
               </div>
             ) : (
               <Table>
@@ -206,10 +205,12 @@ export default function BillingPage() {
         </Card>
       </div>
 
-      <PurchaseCreditsModal
-        isOpen={showPurchaseModal}
-        onClose={() => setShowPurchaseModal(false)}
-      />
+      {buyCreditsEnabled && (
+        <PurchaseCreditsModal
+          isOpen={showPurchaseModal}
+          onClose={() => setShowPurchaseModal(false)}
+        />
+      )}
     </div>
   );
 }

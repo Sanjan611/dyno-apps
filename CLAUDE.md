@@ -321,6 +321,14 @@ The correct sequence for new projects:
 **Optional (Observability):**
 - `BOUNDARY_API_KEY` - Boundary Studio for BAML LLM call tracing
 
+**Optional (Credits/Payments):**
+- `CREDIT_MARGIN_PERCENTAGE` - Markup on API cost (default: 100 = 2x markup)
+- `INITIAL_CREDITS` - Credits given to new users (default: 10)
+- `FEATURE_BUY_CREDITS` - Set to `"true"` to enable self-service credit purchases (server-side only)
+- `STRIPE_SECRET_KEY` - Stripe API key for credit purchases
+- `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret
+- `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_POPULAR`, `STRIPE_PRICE_PRO` - Stripe Price IDs for credit packages
+
 **Important:**
 - Never use Supabase secret key client-side - only use `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `GITHUB_PAT` must have `repo` permissions for the organization

@@ -15,7 +15,7 @@ import {
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useBuilderStore } from "@/lib/store";
 import PurchaseCreditsModal from "@/components/credits/PurchaseCreditsModal";
-import { isBuyCreditsEnabled } from "@/lib/features";
+import { useBuyCreditsEnabled } from "@/lib/hooks/useFeatures";
 
 /**
  * User profile dropdown menu for the header
@@ -26,7 +26,7 @@ export default function UserProfileDropdown() {
   const { user, logout } = useAuthStore();
   const { credits, refreshCredits } = useBuilderStore();
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
-  const buyCreditsEnabled = isBuyCreditsEnabled();
+  const { enabled: buyCreditsEnabled } = useBuyCreditsEnabled();
 
   // Fetch credits on mount so dropdown works on any page
   useEffect(() => {
@@ -61,17 +61,12 @@ export default function UserProfileDropdown() {
                 <Coins className="mr-2 h-4 w-4 text-amber-500" />
                 <span>Credits: {Math.max(credits.balance, 0).toFixed(1)}</span>
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => buyCreditsEnabled && setShowPurchaseModal(true)}
-                disabled={!buyCreditsEnabled}
-                className={!buyCreditsEnabled ? "opacity-50 cursor-not-allowed" : ""}
-              >
-                <CreditCard className="mr-2 h-4 w-4" />
-                <span>Buy Credits</span>
-                {!buyCreditsEnabled && (
-                  <span className="ml-auto text-xs text-muted-foreground">Coming soon</span>
-                )}
-              </DropdownMenuItem>
+              {buyCreditsEnabled && (
+                <DropdownMenuItem onClick={() => setShowPurchaseModal(true)}>
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  <span>Buy Credits</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem asChild>
                 <Link href="/billing">
                   <Receipt className="mr-2 h-4 w-4" />
@@ -95,10 +90,12 @@ export default function UserProfileDropdown() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <PurchaseCreditsModal
-        isOpen={showPurchaseModal}
-        onClose={() => setShowPurchaseModal(false)}
-      />
+      {buyCreditsEnabled && (
+        <PurchaseCreditsModal
+          isOpen={showPurchaseModal}
+          onClose={() => setShowPurchaseModal(false)}
+        />
+      )}
     </>
   );
 }
