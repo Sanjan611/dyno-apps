@@ -6,9 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
   Zap,
-  Twitter,
-  Github,
-  Globe
+  Linkedin
 } from "lucide-react";
 import { TypingAnimation } from "@/components/ui/typing-animation";
 import { useAuthStore } from "@/lib/store";
@@ -190,13 +188,12 @@ export default function LandingPage() {
               <h3 className="font-semibold mb-3">Connect</h3>
               <div className="flex space-x-4">
                 <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                  <Twitter className="w-5 h-5" />
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-label="X (formerly Twitter)">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
                 </Link>
-                <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                  <Github className="w-5 h-5" />
-                </Link>
-                <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                  <Globe className="w-5 h-5" />
+                <Link href="https://www.linkedin.com/company/dyno-apps/" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
+                  <Linkedin className="w-5 h-5" />
                 </Link>
               </div>
             </div>
